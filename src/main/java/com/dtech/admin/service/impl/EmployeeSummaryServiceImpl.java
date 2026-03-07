@@ -314,7 +314,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         dto.setSubmittedValue(claim.getRequestAmount());
         dto.setAppliedDate(claim.getCreatedDate());
         dto.setApprovedValue(claim.getApprovedAmount());
-        dto.setRemark(extractRejectedRemark(claim.getApprovalWorkFlows()));
+        dto.setRemark(resolveClaimRemark(claim));
         return dto;
     }
 
@@ -375,12 +375,25 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         return fullName.isBlank() ? firstName + lastName : fullName;
     }
 
-    private String extractRejectedRemark(List<ApprovalWorkFlow> approvalWorkFlows) {
+    private String resolveClaimRemark(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return null;
+        }
+
+        String latestWorkflowRemark = extractLatestWorkflowRemark(claim.getApprovalWorkFlows());
+        if (hasText(latestWorkflowRemark)) {
+            return latestWorkflowRemark;
+        }
+
+        return hasText(claim.getRemark()) ? claim.getRemark() : null;
+    }
+
+    private String extractLatestWorkflowRemark(List<ApprovalWorkFlow> approvalWorkFlows) {
         if (approvalWorkFlows == null || approvalWorkFlows.isEmpty()) {
             return null;
         }
         return approvalWorkFlows.stream()
-                .filter(flow -> flow.getStatus() == Workflow.REJECTED && hasText(flow.getRejectedRemark()))
+                .filter(flow -> hasText(flow.getRejectedRemark()))
                 .max(Comparator.comparing(ApprovalWorkFlow::getApprovedDate,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(ApprovalWorkFlow::getRejectedRemark)
