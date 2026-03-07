@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="payment-advice-death"
+              pageWidth="595" pageHeight="842"
+              leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10"
+              columnWidth="575"
+              uuid="8f21b2d3-6bdf-47b3-9f7c-02e55f43cc81">
+
+    <property name="net.sf.jasperreports.print.keep.full.text" value="true"/>
+
+    <style name="Base" fontName="SansSerif" fontSize="9" forecolor="#222222"/>
+    <style name="TitleRed" style="Base" fontSize="14" isBold="true" forecolor="#D32F2F"/>
+    <style name="HeaderName" style="Base" fontSize="12" isBold="true"/>
+    <style name="Label" style="Base" isBold="true" forecolor="#111111"/>
+    <style name="Footer" style="Base" fontSize="8" forecolor="#666666"/>
+    <style name="TableHeader" style="Base" mode="Opaque" backcolor="#111111" forecolor="#FFFFFF" isBold="true">
+        <box>
+            <pen lineWidth="0.6" lineColor="#111111"/>
+        </box>
+        <paragraph leftIndent="4" rightIndent="4"/>
+    </style>
+    <style name="TableDetail" style="Base">
+        <box>
+            <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+        </box>
+        <paragraph leftIndent="4" rightIndent="4"/>
+    </style>
+
+    <parameter name="logo" class="java.io.InputStream"/>
+    <parameter name="adviceNo" class="java.lang.String"/>
+    <parameter name="voucherNo" class="java.lang.String"/>
+    <parameter name="chequeNo" class="java.lang.String"/>
+    <parameter name="adviceDate" class="java.lang.String"/>
+    <parameter name="paymentCompany" class="java.lang.String"/>
+    <parameter name="description" class="java.lang.String"/>
+    <parameter name="department" class="java.lang.String"/>
+    <parameter name="totalApprovedAmount" class="java.lang.String"/>
+    <parameter name="totalRequestedAmount" class="java.lang.String"/>
+    <parameter name="preparedBy" class="java.lang.String"/>
+
+    <field name="requestId" class="java.lang.String"/>
+    <field name="epf" class="java.lang.String"/>
+    <field name="employeeName" class="java.lang.String"/>
+    <field name="dependentName" class="java.lang.String"/>
+    <field name="relation" class="java.lang.String"/>
+    <field name="approvedAmount" class="java.math.BigDecimal"/>
+
+    <variable name="rowNumber" class="java.lang.Integer" calculation="Count">
+        <variableExpression><![CDATA[$F{requestId}]]></variableExpression>
+    </variable>
+
+    <title>
+        <band height="30">
+            <staticText>
+                <reportElement x="0" y="0" width="575" height="30" style="TitleRed"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[PAYMENT ADVICE]]></text>
+            </staticText>
+        </band>
+    </title>
+
+    <pageHeader>
+        <band height="140">
+            <image>
+                <reportElement x="0" y="-25" width="150" height="120"/>
+                <imageExpression><![CDATA[$P{logo}]]></imageExpression>
+            </image>
+
+            <staticText>
+                <reportElement x="200" y="10" width="505" height="16" style="HeaderName"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[Samson Group Corporate Services (Pvt) Ltd]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="200" y="28" width="505" height="12" style="Base"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[110,Kumaran Rathnam Road,Colombo - 02]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="200" y="42" width="505" height="12" style="Base"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[Tel: 011-2131800,2320978,2320979 Fax: 011-2131777]]></text>
+            </staticText>
+
+            <frame>
+                <reportElement x="0" y="70" width="575" height="70"/>
+                <box>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </box>
+
+                <line>
+                    <reportElement x="325" y="32" width="250" height="1"/>
+                    <graphicElement>
+                        <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                    </graphicElement>
+                </line>
+                <line>
+                    <reportElement x="0" y="50" width="575" height="1"/>
+                    <graphicElement>
+                        <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                    </graphicElement>
+                </line>
+                <line>
+                    <reportElement x="325" y="0" width="1" height="70"/>
+                    <graphicElement>
+                        <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                    </graphicElement>
+                </line>
+                <line>
+                    <reportElement x="475" y="32" width="1" height="38"/>
+                    <graphicElement>
+                        <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                    </graphicElement>
+                </line>
+
+                <textField textAdjust="StretchHeight">
+                    <reportElement x="6" y="4" width="318" height="28" style="Base"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                    <textFieldExpression><![CDATA["Default Company: " + $P{paymentCompany} + "\nPayment Company: " + $P{paymentCompany}]]></textFieldExpression>
+                </textField>
+
+                <textField>
+                    <reportElement x="6" y="54" width="318" height="14" style="Base"/>
+                    <textFieldExpression><![CDATA["Details/Description: " + $P{description}]]></textFieldExpression>
+                </textField>
+
+                <textField>
+                    <reportElement x="330" y="4" width="235" height="14" style="Base"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                    <textFieldExpression><![CDATA["Payment Voucher: " + $P{voucherNo}]]></textFieldExpression>
+                </textField>
+
+                <textField textAdjust="ScaleFont">
+                    <reportElement x="330" y="38" width="140" height="14" style="Base"/>
+                    <textFieldExpression><![CDATA["Cheque No: " + $P{chequeNo}]]></textFieldExpression>
+                </textField>
+                <textField>
+                    <reportElement x="480" y="38" width="90" height="14" style="Base"/>
+                    <textFieldExpression><![CDATA["Date: " + $P{adviceDate}]]></textFieldExpression>
+                </textField>
+
+                <staticText>
+                    <reportElement x="480" y="54" width="90" height="14" style="Label"/>
+                    <text><![CDATA[Amount (Rs)]]></text>
+                </staticText>
+            </frame>
+        </band>
+    </pageHeader>
+
+    <columnHeader>
+        <band height="0"/>
+    </columnHeader>
+
+    <detail>
+        <band height="18">
+            <line>
+                <reportElement x="0" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="80" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="325" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="475" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="574" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="0" y="17" width="575" height="1"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+
+            <textField>
+                <reportElement x="6" y="0" width="74" height="18" style="Base"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{epf}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="86" y="0" width="234" height="18" style="Base"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{employeeName}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="331" y="0" width="144" height="18" style="Base"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{relation}]]></textFieldExpression>
+            </textField>
+
+            <textField pattern="#,##0.00">
+                <reportElement x="481" y="0" width="88" height="18" style="Base"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{approvedAmount}]]></textFieldExpression>
+            </textField>
+        </band>
+    </detail>
+
+    <pageFooter>
+        <band height="18">
+            <staticText>
+                <reportElement x="0" y="4" width="575" height="12" style="Footer"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[@ Powered by DTech (PVT) LTD 2026. | +94 (0) 11 204 5240.]]></text>
+            </staticText>
+        </band>
+    </pageFooter>
+
+    <summary>
+        <band height="80">
+            <line>
+                <reportElement x="0" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="160" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="325" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="475" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="574" y="0" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="0" y="17" width="575" height="1"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+
+            <staticText>
+                <reportElement x="6" y="2" width="150" height="14" style="Label"/>
+                <text><![CDATA[Department]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="166" y="2" width="154" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{department}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="330" y="2" width="140" height="14" style="Label"/>
+                <text><![CDATA[TOTAL AMOUNT]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="481" y="2" width="88" height="14" style="Base"/>
+                <textElement textAlignment="Right"/>
+                <textFieldExpression><![CDATA[$P{totalApprovedAmount}]]></textFieldExpression>
+            </textField>
+
+            <line>
+                <reportElement x="0" y="24" width="575" height="1"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="0" y="42" width="575" height="1"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="0" y="24" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="160" y="24" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="325" y="24" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="475" y="24" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+            <line>
+                <reportElement x="574" y="24" width="1" height="18"/>
+                <graphicElement>
+                    <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                </graphicElement>
+            </line>
+
+            <textField>
+                <reportElement x="6" y="26" width="150" height="12" style="Base"/>
+                <textFieldExpression><![CDATA["Prepared By: " + ($P{preparedBy} == null ? "" : $P{preparedBy})]]></textFieldExpression>
+            </textField>
+            <staticText>
+                <reportElement x="166" y="26" width="154" height="12" style="Base"/>
+                <text><![CDATA[Checked By:]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="330" y="26" width="140" height="12" style="Base"/>
+                <text><![CDATA[Authorized By:]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="481" y="26" width="88" height="12" style="Base"/>
+                <text><![CDATA[Received By:]]></text>
+            </staticText>
+
+        </band>
+    </summary>
+
+</jasperReport>

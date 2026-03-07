@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="payment-attachment"
+              pageWidth="595" pageHeight="842"
+              leftMargin="20" rightMargin="20" topMargin="10" bottomMargin="10"
+              columnWidth="555"
+              uuid="e7a4b3a5-6c16-4fd6-9f4b-0d78e4c2a1b7">
+
+    <property name="net.sf.jasperreports.print.keep.full.text" value="true"/>
+
+    <style name="Base" fontName="SansSerif" fontSize="9" forecolor="#222222"/>
+    <style name="Title" style="Base" fontSize="14" isBold="true"/>
+    <style name="Label" style="Base" isBold="true" forecolor="#111111"/>
+    <style name="TableHeader" style="Base" mode="Opaque" backcolor="#111111" forecolor="#FFFFFF" isBold="true">
+        <box>
+            <pen lineWidth="0.6" lineColor="#111111"/>
+        </box>
+        <paragraph leftIndent="4" rightIndent="4"/>
+    </style>
+    <style name="TableDetail" style="Base">
+        <box>
+            <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+        </box>
+        <paragraph leftIndent="4" rightIndent="4"/>
+    </style>
+    <style name="SummaryText" style="Base" isBold="true"/>
+    <style name="Footer" style="Base" fontSize="8" forecolor="#666666"/>
+
+    <parameter name="logo" class="java.io.InputStream"/>
+    <parameter name="attachmentNo" class="java.lang.String"/>
+    <parameter name="createdDate" class="java.lang.String"/>
+    <parameter name="companyCode" class="java.lang.String"/>
+    <parameter name="staffCategoryCode" class="java.lang.String"/>
+    <parameter name="treatmentCategory" class="java.lang.String"/>
+    <parameter name="createdBy" class="java.lang.String"/>
+    <parameter name="totalClaims" class="java.lang.Integer"/>
+    <parameter name="totalRequestedAmount" class="java.lang.String"/>
+    <parameter name="totalApprovedAmount" class="java.lang.String"/>
+
+    <field name="requestId" class="java.lang.String"/>
+    <field name="companyCode" class="java.lang.String"/>
+    <field name="epf" class="java.lang.String"/>
+    <field name="requestAmount" class="java.math.BigDecimal"/>
+    <field name="approvedAmount" class="java.math.BigDecimal"/>
+    <field name="remark" class="java.lang.String"/>
+    <field name="claimStatus" class="java.lang.String"/>
+
+    <title>
+        <band height="50">
+            <image>
+                <reportElement x="0" y="0" width="50" height="50"/>
+                <imageExpression><![CDATA[$P{logo}]]></imageExpression>
+            </image>
+            <staticText>
+                <reportElement x="60" y="0" width="495" height="50" style="Title"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[Payment Attachment Report]]></text>
+            </staticText>
+        </band>
+    </title>
+
+    <pageHeader>
+        <band height="52">
+            <staticText>
+                <reportElement x="0" y="0" width="90" height="14" style="Label"/>
+                <text><![CDATA[Attachment No:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="92" y="0" width="250" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{attachmentNo}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="360" y="0" width="40" height="14" style="Label"/>
+                <text><![CDATA[Date:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="405" y="0" width="150" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{createdDate}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="16" width="90" height="14" style="Label"/>
+                <text><![CDATA[Company:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="92" y="16" width="250" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{companyCode}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="360" y="16" width="90" height="14" style="Label"/>
+                <text><![CDATA[Staff Category:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="452" y="16" width="103" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{staffCategoryCode}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="32" width="120" height="14" style="Label"/>
+                <text><![CDATA[Treatment Category:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="122" y="32" width="220" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{treatmentCategory}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="360" y="32" width="90" height="14" style="Label"/>
+                <text><![CDATA[Created By:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="452" y="32" width="103" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{createdBy}]]></textFieldExpression>
+            </textField>
+        </band>
+    </pageHeader>
+
+    <columnHeader>
+        <band height="20">
+            <staticText>
+                <reportElement x="0" y="0" width="110" height="20" style="TableHeader"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Request ID]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="110" y="0" width="60" height="20" style="TableHeader"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Company]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="170" y="0" width="60" height="20" style="TableHeader"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[EPF No]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="230" y="0" width="80" height="20" style="TableHeader"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"/>
+                <text><![CDATA[Submitted Amt]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="310" y="0" width="80" height="20" style="TableHeader"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"/>
+                <text><![CDATA[Received Amt]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="390" y="0" width="165" height="20" style="TableHeader"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Remark]]></text>
+            </staticText>
+        </band>
+    </columnHeader>
+
+    <detail>
+        <band height="18">
+            <textField>
+                <reportElement x="0" y="0" width="110" height="18" style="TableDetail"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{requestId}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="110" y="0" width="60" height="18" style="TableDetail"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{companyCode}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="170" y="0" width="60" height="18" style="TableDetail"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{epf}]]></textFieldExpression>
+            </textField>
+
+            <textField pattern="#,##0.00">
+                <reportElement x="230" y="0" width="80" height="18" style="TableDetail"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{requestAmount}]]></textFieldExpression>
+            </textField>
+
+            <textField pattern="#,##0.00">
+                <reportElement x="310" y="0" width="80" height="18" style="TableDetail"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{approvedAmount}]]></textFieldExpression>
+            </textField>
+
+            <textField textAdjust="StretchHeight">
+                <reportElement x="390" y="0" width="165" height="18" style="TableDetail"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[
+                    ($F{remark} != null && !$F{remark}.trim().isEmpty())
+                    ? $F{remark}
+                    : ($F{claimStatus} == null ? "" : $F{claimStatus})
+                ]]></textFieldExpression>
+            </textField>
+        </band>
+    </detail>
+
+    <summary>
+        <band height="78">
+            <textField>
+                <reportElement x="0" y="0" width="555" height="18" style="SummaryText"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[
+                    "Total Claims: " + $P{totalClaims}
+                    + "   |   Total Submitted Amount: " + $P{totalRequestedAmount}
+                    + "   |   Total Received Amount: " + $P{totalApprovedAmount}
+                ]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="0" y="22" width="555" height="14" style="Base"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[
+                    "Generated By: " + ($P{createdBy} == null ? "" : $P{createdBy}) + "    User Level: __________________"
+                ]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="0" y="40" width="555" height="14" style="Base"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[
+                    "Created By: " + ($P{createdBy} == null ? "" : $P{createdBy}) + "    Checked By: __________________"
+                ]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="60" width="555" height="12" style="Footer"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[@ Powered by DTech (PVT) LTD 2026. | +94 (0) 11 204 5240.]]></text>
+            </staticText>
+        </band>
+    </summary>
+
+</jasperReport>

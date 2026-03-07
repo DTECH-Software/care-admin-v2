@@ -1,0 +1,99 @@
+name: Care Admin CI/CD (UAT)
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+    paths:
+      - "src/**"
+      - "pom.xml"
+      - "Dockerfile"
+      - ".github/workflows/admin-care-uat.yml"
+  workflow_dispatch:
+
+env:
+  APP_NAME: admin-care
+  SERVICE_DIR: care-admin
+
+jobs:
+  ci:
+    name: Build care-admin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build jar
+        env:
+          SPRING_PROFILES_ACTIVE: uat
+        run: mvn -B -DskipTests clean package -Dspring.profiles.active=uat
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: care-admin-jar
+          path: target/*.jar
+          if-no-files-found: error
+
+  cd:
+    name: Deploy care-admin to UAT
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop'
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: care-admin-jar
+          path: ./artifact/${{ env.SERVICE_DIR }}
+
+      - name: Ensure deploy directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.UAT_HOST }}
+          username: ${{ secrets.UAT_USER }}
+          key: ${{ secrets.UAT_SSH_KEY }}
+          script: |
+            set -e
+            mkdir -p "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
+
+      - name: Copy jar to UAT
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.UAT_HOST }}
+          username: ${{ secrets.UAT_USER }}
+          key: ${{ secrets.UAT_SSH_KEY }}
+          source: "./artifact/${{ env.SERVICE_DIR }}/*.jar"
+          target: "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
+          overwrite: true
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.UAT_HOST }}
+          username: ${{ secrets.UAT_USER }}
+          key: ${{ secrets.UAT_SSH_KEY }}
+          script: |
+            set -e
+            APP_NAME="${{ env.APP_NAME }}"
+            SERVICE_DIR="${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
+            cd "$SERVICE_DIR"
+
+            LATEST_JAR_PATH="$(find "$SERVICE_DIR" -type f -name "*.jar" | sort | tail -n 1)"
+            if [ -z "$LATEST_JAR_PATH" ]; then
+              echo "No jar found in $SERVICE_DIR"
+              find "$SERVICE_DIR" -maxdepth 5 -type f | head -n 200 || true
+              exit 1
+            fi
+
+            pkill -f "java -jar .*(${APP_NAME}|admin).*" || true
+            sleep 2
+
+            nohup java -jar "$LATEST_JAR_PATH" --spring.profiles.active=uat > "$SERVICE_DIR/${APP_NAME}.log" 2>&1 &
+            echo "Started ${APP_NAME} using $LATEST_JAR_PATH with profile=uat"

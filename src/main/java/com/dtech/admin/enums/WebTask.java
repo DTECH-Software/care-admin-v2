@@ -1,0 +1,5 @@
+package com.dtech.admin.enums;
+
+public enum WebTask {
+    LOGIN,SEARCH,REF_DATA,UPDATE,VIEW,DELETE,ADD,PASSWORD_RESET,SENT_OTP_PASSWORD,FILE_UPLOAD
+}
