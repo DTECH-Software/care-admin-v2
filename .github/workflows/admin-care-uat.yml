@@ -2,7 +2,7 @@ name: Care Admin CI/CD (UAT)
 
 on:
   push:
-    branches: [ "main", "master", "develop" ]
+    branches: ["master", "develop" ]
     paths:
       - "src/**"
       - "pom.xml"
