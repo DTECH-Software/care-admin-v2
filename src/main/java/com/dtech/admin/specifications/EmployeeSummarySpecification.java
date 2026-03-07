@@ -3,6 +3,7 @@ package com.dtech.admin.specifications;
 import com.dtech.admin.dto.search.EmployeeSummarySearchDTO;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
@@ -40,9 +41,14 @@ public class EmployeeSummarySpecification {
             }
 
             if (searchDTO.getPeriodId() != null) {
-                Join<Object, Object> details = root.join("insuranceClaimsDetails");
-                Join<Object, Object> period = details.join("insuranceStaffCategoryPeriod");
-                predicates.add(cb.equal(period.get("id"), searchDTO.getPeriodId()));
+                Join<Object, Object> detailsLimit = root.join("insuranceDetailsLimit", JoinType.LEFT);
+                Join<Object, Object> limitPeriod = detailsLimit.join("insuranceStaffCategoryPeriod", JoinType.LEFT);
+                Join<Object, Object> details = root.join("insuranceClaimsDetails", JoinType.LEFT);
+                Join<Object, Object> detailsPeriod = details.join("insuranceStaffCategoryPeriod", JoinType.LEFT);
+
+                predicates.add(cb.equal(
+                        cb.coalesce(limitPeriod.get("id"), detailsPeriod.get("id")),
+                        searchDTO.getPeriodId()));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
