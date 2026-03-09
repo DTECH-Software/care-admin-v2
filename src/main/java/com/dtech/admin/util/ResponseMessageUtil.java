@@ -215,6 +215,7 @@ public class ResponseMessageUtil {
     public final static String PAYMENT_ATTACHMENT_STATUS_NOT_CHANGING = "val.payment.attachment.status.not.changing";
     public final static String PAYMENT_ATTACHMENT_STAFF_CATEGORY_MISMATCH = "val.payment.attachment.staff.category.mismatch";
     public final static String PAYMENT_ATTACHMENT_STAFF_CATEGORY_MISSING = "val.payment.attachment.staff.category.missing";
+    public final static String PAYMENT_ATTACHMENT_POLICY_YEAR_MISMATCH = "val.payment.attachment.policy.year.mismatch";
 
     /*Payment advice*/
     public final static String PAYMENT_ADVICE_ATTACHMENT_FILTER_LIST_SUCCESS = "val.payment.advice.attachment.filter.list.success";

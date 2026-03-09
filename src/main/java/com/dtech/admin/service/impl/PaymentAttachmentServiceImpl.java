@@ -105,6 +105,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
 
     private static final String DEFAULT_ATTACHMENT_PREFIX = "EX-OP1";
     private static final String STAFF_CATEGORY_MISMATCH = "__STAFF_CATEGORY_MISMATCH__";
+    private static final int POLICY_YEAR_MISMATCH = -1;
 
     @Autowired
     private final InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
@@ -278,6 +279,12 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
 
             if (!hasText(paymentAttachmentCreateDTO.getAttachmentPrefix())) {
                 paymentAttachmentCreateDTO.setAttachmentPrefix(paymentAttachmentCreateDTO.getStaffCategoryCode());
+            }
+
+            Integer policyYear = resolveAttachmentPolicyYear(claims);
+            if (policyYear == null || policyYear == POLICY_YEAR_MISMATCH) {
+                return ResponseEntity.ok().body(responseUtil.error(null, 1052,
+                        messageSource.getMessage(ResponseMessageUtil.PAYMENT_ATTACHMENT_POLICY_YEAR_MISMATCH, null, locale)));
             }
 
             Optional<InsuranceClaimsRequest> alreadyAttached = claims.stream()
@@ -609,22 +616,9 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
     }
 
     private int resolveAttachmentYear(PaymentAttachmentCreateDTO dto, List<InsuranceClaimsRequest> claims) {
-        Set<Integer> policyYears = new HashSet<>();
-        if (claims != null) {
-            for (InsuranceClaimsRequest claim : claims) {
-                InsuranceStaffCategoryPeriod period = resolveAttachmentPolicyPeriod(claim);
-                Date fromDate = period != null ? period.getFromDate() : null;
-                Date toDate = period != null ? period.getToDate() : null;
-                Integer year = fromDate != null ? DateTimeUtil.getYear(fromDate)
-                        : (toDate != null ? DateTimeUtil.getYear(toDate) : null);
-                if (year != null) {
-                    policyYears.add(year);
-                }
-            }
-        }
-
-        if (policyYears.size() == 1) {
-            return policyYears.iterator().next();
+        Integer policyYear = resolveAttachmentPolicyYear(claims);
+        if (policyYear != null && policyYear != POLICY_YEAR_MISMATCH) {
+            return policyYear;
         }
 
         Date dateFrom = parseDate(dto.getDateFrom(), true);
@@ -652,6 +646,30 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
 
         InsuranceClaimsDetails details = claim != null ? claim.getInsuranceClaimsDetails() : null;
         return details != null ? details.getInsuranceStaffCategoryPeriod() : null;
+    }
+
+    private Integer resolveAttachmentPolicyYear(List<InsuranceClaimsRequest> claims) {
+        Integer policyYear = null;
+        if (claims == null) {
+            return null;
+        }
+
+        for (InsuranceClaimsRequest claim : claims) {
+            InsuranceStaffCategoryPeriod period = resolveAttachmentPolicyPeriod(claim);
+            Date fromDate = period != null ? period.getFromDate() : null;
+            Date toDate = period != null ? period.getToDate() : null;
+            Integer currentYear = fromDate != null ? DateTimeUtil.getYear(fromDate)
+                    : (toDate != null ? DateTimeUtil.getYear(toDate) : null);
+            if (currentYear == null) {
+                return null;
+            }
+            if (policyYear == null) {
+                policyYear = currentYear;
+            } else if (!policyYear.equals(currentYear)) {
+                return POLICY_YEAR_MISMATCH;
+            }
+        }
+        return policyYear;
     }
 
     private PaymentAttachmentClaim buildAttachmentClaim(PaymentAttachment attachment, InsuranceClaimsRequest claim) {
