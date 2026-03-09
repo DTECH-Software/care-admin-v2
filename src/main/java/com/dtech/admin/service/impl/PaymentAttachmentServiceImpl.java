@@ -630,10 +630,6 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             return DateTimeUtil.getYear(dateTo);
         }
 
-        if (!policyYears.isEmpty()) {
-            return policyYears.iterator().next();
-        }
-
         return LocalDate.now().getYear();
     }
 
