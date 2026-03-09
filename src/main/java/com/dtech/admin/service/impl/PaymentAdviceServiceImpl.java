@@ -77,6 +77,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
 
     private static final String COMPANY_MISMATCH = "__COMPANY_MISMATCH__";
     private static final String STAFF_CATEGORY_MISMATCH = "__STAFF_CATEGORY_MISMATCH__";
+    private static final int POLICY_YEAR_MISMATCH = -1;
     private static final String PAGE_CREATE = "PADV_CRE";
     private static final String PAGE_SETTLED = "PADV_SET";
     private static final String VOUCHER_PREFIX = "HC/";
@@ -241,7 +242,12 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
                         messageSource.getMessage(ResponseMessageUtil.PAYMENT_ADVICE_STAFF_CATEGORY_MISMATCH, null, locale)));
             }
 
-            int yearStart = LocalDate.now().getYear();
+            Integer yearStart = resolveAdviceYearStart(attachments);
+            if (yearStart == null || yearStart == POLICY_YEAR_MISMATCH) {
+                return ResponseEntity.ok().body(responseUtil.error(null, 1063,
+                        messageSource.getMessage(ResponseMessageUtil.PAYMENT_ADVICE_POLICY_YEAR_MISMATCH, null, locale)));
+            }
+
             int yearEnd = yearStart + 1;
             int adviceSequence = resolveAdviceSequence(yearStart, staffCategoryCode);
             String adviceNo = buildAdviceNo(yearStart, yearEnd, staffCategoryCode, adviceSequence);
@@ -553,6 +559,22 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
             }
         }
         return code;
+    }
+
+    private Integer resolveAdviceYearStart(List<PaymentAttachment> attachments) {
+        Integer yearStart = null;
+        for (PaymentAttachment attachment : attachments) {
+            Integer current = attachment.getAttachmentYear();
+            if (current == null) {
+                return null;
+            }
+            if (yearStart == null) {
+                yearStart = current;
+            } else if (!yearStart.equals(current)) {
+                return POLICY_YEAR_MISMATCH;
+            }
+        }
+        return yearStart;
     }
 
     private boolean isMedicalAdvice(PaymentAdvice advice) {

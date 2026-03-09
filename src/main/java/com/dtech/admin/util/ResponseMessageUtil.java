@@ -228,6 +228,7 @@ public class ResponseMessageUtil {
     public final static String PAYMENT_ADVICE_COMPANY_MISMATCH = "val.payment.advice.company.mismatch";
     public final static String PAYMENT_ADVICE_STAFF_CATEGORY_MISMATCH = "val.payment.advice.staff.category.mismatch";
     public final static String PAYMENT_ADVICE_STAFF_CATEGORY_MISSING = "val.payment.advice.staff.category.missing";
+    public final static String PAYMENT_ADVICE_POLICY_YEAR_MISMATCH = "val.payment.advice.policy.year.mismatch";
 
     /*Payment advice death*/
     public final static String PAYMENT_ADVICE_DEATH_REFERENCE_SUCCESS = "val.payment.advice.death.reference.success";
