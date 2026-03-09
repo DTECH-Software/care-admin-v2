@@ -28,6 +28,7 @@ import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsDetails;
+import com.dtech.admin.model.InsuranceDetailsLimit;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.model.PaymentAttachment;
@@ -611,8 +612,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         Set<Integer> policyYears = new HashSet<>();
         if (claims != null) {
             for (InsuranceClaimsRequest claim : claims) {
-                InsuranceClaimsDetails details = claim != null ? claim.getInsuranceClaimsDetails() : null;
-                InsuranceStaffCategoryPeriod period = details != null ? details.getInsuranceStaffCategoryPeriod() : null;
+                InsuranceStaffCategoryPeriod period = resolveAttachmentPolicyPeriod(claim);
                 Date fromDate = period != null ? period.getFromDate() : null;
                 Date toDate = period != null ? period.getToDate() : null;
                 Integer year = fromDate != null ? DateTimeUtil.getYear(fromDate)
@@ -641,6 +641,17 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         }
 
         return LocalDate.now().getYear();
+    }
+
+    private InsuranceStaffCategoryPeriod resolveAttachmentPolicyPeriod(InsuranceClaimsRequest claim) {
+        InsuranceDetailsLimit detailsLimit = claim != null ? claim.getInsuranceDetailsLimit() : null;
+        InsuranceStaffCategoryPeriod approvalPeriod = detailsLimit != null ? detailsLimit.getInsuranceStaffCategoryPeriod() : null;
+        if (approvalPeriod != null) {
+            return approvalPeriod;
+        }
+
+        InsuranceClaimsDetails details = claim != null ? claim.getInsuranceClaimsDetails() : null;
+        return details != null ? details.getInsuranceStaffCategoryPeriod() : null;
     }
 
     private PaymentAttachmentClaim buildAttachmentClaim(PaymentAttachment attachment, InsuranceClaimsRequest claim) {
