@@ -17,4 +17,5 @@ public class ApprovalWorkFlowResponseDTO {
     private String statusDescription;
     private BigDecimal approvedAmount;
     private Long policyId;
+    private String policyDescription;
 }

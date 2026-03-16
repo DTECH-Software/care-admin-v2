@@ -61,6 +61,9 @@ public class DeathApprovalEntityToDto {
                 approvalWorkFlowResponseDTO.setRejectedRemark(ap.getRejectedRemark());
                 approvalWorkFlowResponseDTO.setApprovedAmount(ap.getApprovedAmount());
                 approvalWorkFlowResponseDTO.setPolicyId(ap.getPolicy() != null ? ap.getPolicy().getId() : null);
+                approvalWorkFlowResponseDTO.setPolicyDescription(ap.getPolicy() != null
+                        ? ap.getPolicy().getFromDate().toString() + " to " + ap.getPolicy().getToDate().toString() + " " + ap.getPolicy().getStaffCategories().getDescription()
+                        : null);
 
                 return approvalWorkFlowResponseDTO;
             }).toList();
