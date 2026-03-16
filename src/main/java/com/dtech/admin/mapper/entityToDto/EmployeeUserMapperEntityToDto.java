@@ -29,6 +29,13 @@ public class EmployeeUserMapperEntityToDto {
             ApplicationUserResponseDTO applicationUserResponseDTO = modelMapper.map(applicationUser, ApplicationUserResponseDTO.class);
             log.info("mapEmployeeUserDetails mapper model {} ", applicationUserResponseDTO.toString());
 
+            if (applicationUserResponseDTO.getUserPersonalDetails() != null
+                    && applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails() != null
+                    && applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().getPreviousPermanentDate() == null) {
+                applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
+                        .setPreviousPermanentDate(applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate());
+            }
+
             applicationUserResponseDTO.setLoginStatusDescription(Status.valueOf(applicationUser.getLoginStatus().name()).getDescription());
 
             applicationUserResponseDTO.getUserPersonalDetails().setUserStatusDescription(Status.valueOf(applicationUser.getUserPersonalDetails().getUserStatus().name()).getDescription());
