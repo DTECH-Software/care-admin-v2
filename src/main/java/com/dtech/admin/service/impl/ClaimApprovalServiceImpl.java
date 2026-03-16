@@ -280,7 +280,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             InsuranceStaffCategoryPeriod insuranceStaffCategoryPeriod = null;
             Optional<InsuranceDetailsLimit> byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment = null;
 
-            if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
+            if (claimRequestDTO.getPolicyId() != null) {
                 insuranceStaffCategoryPeriod = insuranceStaffCategoryPeriodRepository.findById(claimRequestDTO.getPolicyId()).orElse(null);
 
                 if (insuranceStaffCategoryPeriod == null) {
@@ -288,7 +288,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     return ResponseEntity.ok(responseUtil.error(null, 1046,
                             messageSource.getMessage(ResponseMessageUtil.INSURANCE_PERIOD_NOT_FOUND, null, locale)));
                 }
+            }
 
+            if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
                 byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment = insuranceDetailsLimitRepository.findByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment(
                         claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getInsurancePolicy(),
                         Status.ACTIVE, insuranceStaffCategoryPeriod, claim.getInsuranceClaimsDetails().getTreatment());
@@ -329,6 +331,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             workFlow.setApprovedDate(DateTimeUtil.getCurrentDateTime());
             workFlow.setApprovedUser(claimRequestDTO.getUsername());
             workFlow.setRejectedRemark(claimRequestDTO.getRemark());
+            if (insuranceStaffCategoryPeriod != null) {
+                workFlow.setPolicy(insuranceStaffCategoryPeriod);
+            }
 
             approvalWorkFlowRepository.saveAndFlush(workFlow);
 

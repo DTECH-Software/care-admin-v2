@@ -45,4 +45,8 @@ public class ApprovalWorkFlow extends Audit implements Serializable {
     @Column(name = "approved_amount",nullable = false)
     private BigDecimal approvedAmount;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "policy_id", referencedColumnName = "id")
+    private InsuranceStaffCategoryPeriod policy;
+
 }

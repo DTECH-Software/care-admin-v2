@@ -60,6 +60,7 @@ public class ClaimsApprovalEntityToDto {
                 approvalWorkFlowResponseDTO.setStatusDescription(Workflow.valueOf(ap.getStatus().name()).getDescription());
                 approvalWorkFlowResponseDTO.setRejectedRemark(ap.getRejectedRemark());
                 approvalWorkFlowResponseDTO.setApprovedAmount(ap.getApprovedAmount());
+                approvalWorkFlowResponseDTO.setPolicyId(ap.getPolicy() != null ? ap.getPolicy().getId() : null);
 
                 return approvalWorkFlowResponseDTO;
             }).toList();
