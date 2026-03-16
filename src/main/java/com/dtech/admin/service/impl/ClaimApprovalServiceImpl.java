@@ -360,6 +360,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                             .findFirst().orElse(null);
 
                     BigDecimal appAmount1 = null;
+                    Long policyId1 = null;
 
                     if (Workflow.APPROVED.equals(status1)) {
 
@@ -367,13 +368,23 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                                 .filter(wf -> wf.getApprovalLevel().equals(ApprovalLevel.LEVEL01))
                                 .map(ApprovalWorkFlow::getApprovedAmount)
                                 .findFirst().orElse(null);
+                        policyId1 = resolveClaimPolicyPeriodId(claim);
                     }
 
                     Workflow status2 = workFlow.getStatus();
                     BigDecimal appAmount2 = workFlow.getApprovedAmount();
+                    Long policyId2 = Workflow.APPROVED.equals(status2) && insuranceStaffCategoryPeriod != null
+                            ? insuranceStaffCategoryPeriod.getId() : null;
                     boolean levelTwoRejected = Workflow.REJECTED.equals(status2);
+                    boolean policyMismatch = Workflow.APPROVED.equals(status1)
+                            && Workflow.APPROVED.equals(status2)
+                            && policyId1 != null
+                            && policyId2 != null
+                            && !policyId1.equals(policyId2);
 
-                    if (status1 != null && !status1.equals(status2) || (appAmount1 != null && appAmount1.compareTo(appAmount2) != 0)) {
+                    if ((status1 != null && !status1.equals(status2))
+                            || (appAmount1 != null && appAmount1.compareTo(appAmount2) != 0)
+                            || policyMismatch) {
                         ApprovalWorkFlow level3Workflow = new ApprovalWorkFlow();
                         level3Workflow.setApprovalLevel(ApprovalLevel.LEVEL03);
                         level3Workflow.setStatus(Workflow.UNDER_REVIEW);
@@ -381,7 +392,6 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         claim.getApprovalWorkFlows().add(level3Workflow);
                         claim.setApprovalLevel(ApprovalLevel.LEVEL03);
                         if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
-                            claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
                             // Notify Level 03 approvers to take action.
                             List<WebUser> levelThreeApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL03, Status.ACTIVE);
                             emailNotificationService.notifyLevelThreePendingApproval(levelThreeApprovers, claim, locale);
@@ -438,6 +448,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 }
             }
 
+
             insuranceClaimsRequestRepository.saveAndFlush(claim);
 
             return ResponseEntity.ok(responseUtil.success(null, messageSource.getMessage(ResponseMessageUtil.INSURANCE_CLAIMS_APPROVED_SUCCESS, null, locale)));
@@ -448,6 +459,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         }
     }
 
+    private Long resolveClaimPolicyPeriodId(InsuranceClaimsRequest claim) {
+        return Optional.ofNullable(claim)
+                .map(InsuranceClaimsRequest::getInsuranceDetailsLimit)
+                .map(InsuranceDetailsLimit::getInsuranceStaffCategoryPeriod)
+                .map(InsuranceStaffCategoryPeriod::getId)
+                .orElse(null);
+    }
     private Map<String, Object> sanitizeFilterListResponse(ClaimsRequestResponseDTO claimsRequestResponseDTO) {
         Map<String, Object> dtoMap = objectMapper.convertValue(claimsRequestResponseDTO, new TypeReference<Map<String, Object>>() {});
 
