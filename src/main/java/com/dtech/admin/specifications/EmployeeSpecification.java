@@ -10,11 +10,17 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 @Log4j2
 public class EmployeeSpecification {
     public static Specification<UserPersonalDetails> getSpecification(EmployeeSearchDTO filterDto) {
+        return getSpecification(filterDto, null);
+    }
+
+    public static Specification<UserPersonalDetails> getSpecification(EmployeeSearchDTO filterDto, Collection<String> eligibleCompanies) {
         log.info("Employee details filter: " + filterDto);
         return (root, query,criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -27,6 +33,14 @@ public class EmployeeSpecification {
 
             Join<UserPersonalDetails, InsurancePolicy> insurancePolicyJoin = root.join("userCompanyDetails", JoinType.LEFT)
                     .join("insurancePolicy", JoinType.LEFT);
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(compnayTypeJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
+            }
 
             if (filterDto.getEpfNo() != null && !filterDto.getEpfNo().isEmpty()) {
                 predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("epfNo")), "%" + filterDto.getEpfNo().toLowerCase() + "%"));
@@ -75,9 +89,27 @@ public class EmployeeSpecification {
     }
 
     public static Specification<UserPersonalDetails> getSpecification() {
+        return getDefaultSpecification(null);
+    }
+
+    public static Specification<UserPersonalDetails> getSpecification(Collection<String> eligibleCompanies) {
+        return getDefaultSpecification(eligibleCompanies);
+    }
+
+    private static Specification<UserPersonalDetails> getDefaultSpecification(Collection<String> eligibleCompanies) {
         log.info("Employee filter default :");
         return (root, query,criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            Join<UserPersonalDetails, CompanyTypes> compnayTypeJoin = root.join("userCompanyDetails", JoinType.LEFT)
+                    .join("companyTypes", JoinType.LEFT);
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(compnayTypeJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
+            }
             predicates.add(root.get("userStatus").in(List.of(Status.ACTIVE, Status.INACTIVE)));
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
 

@@ -66,6 +66,9 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
     private ApplicationUserRepository applicationUserRepository;
 
     @Autowired
+    private WebUserRepository webUserRepository;
+
+    @Autowired
     private DocumentRepository documentRepository;
     @Autowired
     private ApprovalWorkFlowRepository approvalWorkFlowRepository;
@@ -97,11 +100,13 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
             List<SimpleBaseDTO> staffCategory = staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream().map(
-                    val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
+            List<SimpleBaseDTO> companyTypes = getEligibleCompanies(channelRequestDTO.getUsername());
+            Set<String> eligibleCompanyCodes = getEligibleCompanyCodes(channelRequestDTO.getUsername());
 
-            List<SimpleBaseDTO> employee = applicationUserRepository.findAll().stream().map(
-                    val -> new SimpleBaseDTO(String.valueOf(val.getId()), val.getUserPersonalDetails().getFirstName() + " " + val.getUserPersonalDetails().getLastName())).toList();
+            List<SimpleBaseDTO> employee = applicationUserRepository.findAll().stream()
+                    .filter(val -> eligibleCompanyCodes.contains(val.getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode()))
+                    .map(val -> new SimpleBaseDTO(String.valueOf(val.getId()), val.getUserPersonalDetails().getFirstName() + " " + val.getUserPersonalDetails().getLastName()))
+                    .toList();
 
             responseMap.put("privileges", privileges);
             responseMap.put("defaultStatus", defaultStatus);
@@ -228,14 +233,15 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
         try {
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
+            Set<String> eligibleCompanyCodes = getEligibleCompanyCodes(paginationRequest.getUsername());
 
             Page<DeathClaimRequest> claimsRequests = Objects.nonNull(paginationRequest.getSearch()) ?
-                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false, true, true,false), pageable) :
-                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(false, true,true,false), pageable);
+                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false, true, true,false, eligibleCompanyCodes), pageable) :
+                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(false, true,true,false, eligibleCompanyCodes), pageable);
             log.info("Filter records {}", claimsRequests);
             long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false, true,true,false)) :
-                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(false, true,true,false));
+                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false, true,true,false, eligibleCompanyCodes)) :
+                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(false, true,true,false, eligibleCompanyCodes));
             log.info("Total elements count records death{}", totalElements);
             log.info("Filter list data fetching death success");
             List<DeathRequestResponseDTO> responseDTOList = claimsRequests.stream()
@@ -267,5 +273,30 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
             log.info("Claim death details not found {}", claimRequestDTO.getId());
             return ResponseEntity.ok().body(responseUtil.error(null, 1043, messageSource.getMessage(ResponseMessageUtil.DEATH_DETAILS_NOT_FOUND, new Object[]{claimRequestDTO.getId()}, locale)));
         });
+    }
+
+    private List<SimpleBaseDTO> getEligibleCompanies(String username) {
+        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                .toList();
+
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
+                        .toList())
+                .orElse(defaultCompanies);
+    }
+
+    private Set<String> getEligibleCompanyCodes(String username) {
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> company.getCode())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                        .map(company -> company.getCode())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)));
     }
 }

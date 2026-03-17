@@ -75,6 +75,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserPersonalDetailsRepository userPersonalDetailsRepository;
 
     @Autowired
+    private final WebUserRepository webUserRepository;
+
+    @Autowired
     private final EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
 
     @Autowired
@@ -104,8 +107,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             List<SimpleBaseDTO> facility = Arrays.stream(Facility.values())
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                    .map(s -> new SimpleBaseDTO(s.getCode(), s.getDescription())).toList();
+            List<SimpleBaseDTO> companyTypes = getEligibleCompanies(channelRequestDTO.getUsername());
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream()
                     .map(s -> new SimpleBaseDTO(s.getCode(), s.getDescription())).toList();
@@ -140,14 +142,15 @@ public class EmployeeServiceImpl implements EmployeeService {
         try {
             log.info("Employee details filter data {}", paginationRequest);
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
+            Set<String> eligibleCompanyCodes = getEligibleCompanyCodes(paginationRequest.getUsername());
 
             Page<UserPersonalDetails> userPersonalDetails = Objects.nonNull(paginationRequest.getSearch()) ?
-                    userPersonalDetailsRepository.findAll(EmployeeSpecification.getSpecification(paginationRequest.getSearch()), pageable) :
-                    userPersonalDetailsRepository.findAll(EmployeeSpecification.getSpecification(), pageable);
+                    userPersonalDetailsRepository.findAll(EmployeeSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes), pageable) :
+                    userPersonalDetailsRepository.findAll(EmployeeSpecification.getSpecification(eligibleCompanyCodes), pageable);
             log.info("Employee details filter records {}", userPersonalDetails);
             long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    userPersonalDetailsRepository.count(EmployeeSpecification.getSpecification(paginationRequest.getSearch())) :
-                    userPersonalDetailsRepository.count(EmployeeSpecification.getSpecification());
+                    userPersonalDetailsRepository.count(EmployeeSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes)) :
+                    userPersonalDetailsRepository.count(EmployeeSpecification.getSpecification(eligibleCompanyCodes));
             log.info("Employee details filter records map start");
             List<EmployeeDetailsResponseDTO> responseDTOList = userPersonalDetails.stream()
                     .map(employeeDetailsMapperEntityToDto::mapEmployeeDetails).toList();
@@ -161,6 +164,31 @@ public class EmployeeServiceImpl implements EmployeeService {
             log.error(e);
             throw e;
         }
+    }
+
+    private List<SimpleBaseDTO> getEligibleCompanies(String username) {
+        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                .toList();
+
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
+                        .toList())
+                .orElse(defaultCompanies);
+    }
+
+    private Set<String> getEligibleCompanyCodes(String username) {
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> company.getCode())
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                        .map(company -> company.getCode())
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
     }
 
     @Override

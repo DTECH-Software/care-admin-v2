@@ -10,16 +10,24 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 @Log4j2
 public class DeathApprovalSpecification {
     public static Specification<DeathClaimRequest> getSpecification(ClaimRequestSearchDTO filterDto, boolean state,boolean both,boolean isEmployee,boolean bothEmp) {
+        return getSpecification(filterDto, state, both, isEmployee, bothEmp, null);
+    }
+
+    public static Specification<DeathClaimRequest> getSpecification(ClaimRequestSearchDTO filterDto, boolean state,boolean both,boolean isEmployee,boolean bothEmp, Collection<String> eligibleCompanies) {
         log.info("Claims death approval filter: " + filterDto);
         return (root, query,criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-//            Join<DeathClaimRequest, UserPersonalDetails> userPersonalDetailsJoin = root.join("employee", JoinType.LEFT)
-//                    .join("userPersonalDetails",JoinType.LEFT);
+            Join<DeathClaimRequest, ApplicationUser> employeeJoin = root.join("employee", JoinType.LEFT);
+            Join<ApplicationUser, UserPersonalDetails> userPersonalDetailsJoin = employeeJoin.join("userPersonalDetails", JoinType.LEFT);
+            Join<UserPersonalDetails, CompanyTypes> companyTypesJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT)
+                    .join("companyTypes",JoinType.LEFT);
 
        //     Join<DeathClaimRequest, ClaimsDependents> dependentsJoin = root.join("claimsDependents", JoinType.LEFT);
 
@@ -28,6 +36,14 @@ public class DeathApprovalSpecification {
 //
 //            Join<UserPersonalDetails, StaffCategories> staffCategoriesJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT)
 //                    .join("staffCategories",JoinType.LEFT);
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(companyTypesJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
+            }
 
             if (filterDto.getRequestId() != null && !filterDto.getRequestId().isEmpty()) {
                 predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("requestId")), "%" + filterDto.getRequestId().toLowerCase() + "%"));
@@ -85,9 +101,17 @@ public class DeathApprovalSpecification {
     }
 
     public static Specification<DeathClaimRequest> getSpecification(boolean state,boolean both,boolean isEmployee,boolean bothEmp) {
+        return getSpecification(state, both, isEmployee, bothEmp, null);
+    }
+
+    public static Specification<DeathClaimRequest> getSpecification(boolean state,boolean both,boolean isEmployee,boolean bothEmp, Collection<String> eligibleCompanies) {
         log.info("Death filter default :");
         return (root, query,criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            Join<DeathClaimRequest, ApplicationUser> employeeJoin = root.join("employee", JoinType.LEFT);
+            Join<ApplicationUser, UserPersonalDetails> userPersonalDetailsJoin = employeeJoin.join("userPersonalDetails", JoinType.LEFT);
+            Join<UserPersonalDetails, CompanyTypes> companyTypesJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT)
+                    .join("companyTypes",JoinType.LEFT);
             List<Workflow> wk = new ArrayList<>();
             if(state){
                 wk.add(Workflow.APPROVED);
@@ -108,6 +132,14 @@ public class DeathApprovalSpecification {
                 predicates.add(criteriaBuilder.isNull(root.get("claimsDependents")));
             }else{
                 predicates.add(criteriaBuilder.isNotNull(root.get("claimsDependents")));
+            }
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(companyTypesJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
             }
             predicates.add(root.get("requestStatus").in(wk));
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

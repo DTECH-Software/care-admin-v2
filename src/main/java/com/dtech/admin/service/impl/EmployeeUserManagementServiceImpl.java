@@ -75,6 +75,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
+    private final WebUserRepository webUserRepository;
+
+    @Autowired
     private final EmployeeUserMapperEntityToDto employeeUserMapperEntityToDto;
 
     @Autowired
@@ -123,8 +126,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             List<SimpleBaseDTO> facility = Arrays.stream(Facility.values())
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                    .map(s -> new SimpleBaseDTO(s.getCode(), s.getDescription())).toList();
+            List<SimpleBaseDTO> companyTypes = getEligibleCompanies(channelRequestDTO.getUsername());
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream()
                     .map(s -> new SimpleBaseDTO(s.getCode(), s.getDescription())).toList();
@@ -160,16 +162,17 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             log.info("Employee management filter data: {}", paginationRequest);
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
+            Set<String> eligibleCompanyCodes = getEligibleCompanyCodes(paginationRequest.getUsername());
 
             Page<ApplicationUser> applicationUsers = Objects.nonNull(paginationRequest.getSearch())
-                    ? applicationUserRepository.findAll(EmployeeUserSpecification.getSpecification(paginationRequest.getSearch()), pageable)
-                    : applicationUserRepository.findAll(EmployeeUserSpecification.getSpecification(), pageable);
+                    ? applicationUserRepository.findAll(EmployeeUserSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes), pageable)
+                    : applicationUserRepository.findAll(EmployeeUserSpecification.getSpecification(eligibleCompanyCodes), pageable);
 
             log.info("Employee management filter records retrieved: {}", applicationUsers.getTotalElements());
 
             long totalElements = Objects.nonNull(paginationRequest.getSearch())
-                    ? applicationUserRepository.count(EmployeeUserSpecification.getSpecification(paginationRequest.getSearch()))
-                    : applicationUserRepository.count(EmployeeUserSpecification.getSpecification());
+                    ? applicationUserRepository.count(EmployeeUserSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes))
+                    : applicationUserRepository.count(EmployeeUserSpecification.getSpecification(eligibleCompanyCodes));
 
             log.info("Employee management filter records mapping started");
 
@@ -188,6 +191,31 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             log.error("Error filtering employee list", e);
             throw e;
         }
+    }
+
+    private List<SimpleBaseDTO> getEligibleCompanies(String username) {
+        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                .toList();
+
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
+                        .toList())
+                .orElse(defaultCompanies);
+    }
+
+    private Set<String> getEligibleCompanyCodes(String username) {
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> company.getCode())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                        .map(company -> company.getCode())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)));
     }
 
 
