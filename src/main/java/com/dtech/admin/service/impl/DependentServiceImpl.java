@@ -75,6 +75,9 @@ public class DependentServiceImpl implements DependentService {
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
 
+    @Autowired
+    private final WebUserRepository webUserRepository;
+
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
@@ -103,8 +106,7 @@ public class DependentServiceImpl implements DependentService {
                     new SimpleBaseDTO("false", "None-live")
             ).toList();
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream().map(
-                    val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
+            List<SimpleBaseDTO> companyTypes = getEligibleCompanies(channelRequestDTO.getUsername());
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream().map(
                     val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
@@ -127,20 +129,35 @@ public class DependentServiceImpl implements DependentService {
         }
     }
 
+    private List<SimpleBaseDTO> getEligibleCompanies(String username) {
+        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                .map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription()))
+                .toList();
+
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
+                        .toList())
+                .orElse(defaultCompanies);
+    }
+
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<ClaimDependentSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Dependent details filter data {}", paginationRequest);
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
+            Set<String> eligibleCompanyCodes = getEligibleCompanyCodes(paginationRequest.getUsername());
 
             Page<ClaimsDependents> claimsDependents = Objects.nonNull(paginationRequest.getSearch()) ?
-                    claimDependentsRepository.findAll(DependentSpecification.getSpecification(paginationRequest.getSearch()), pageable) :
-                    claimDependentsRepository.findAll(pageable);
+                    claimDependentsRepository.findAll(DependentSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes), pageable) :
+                    claimDependentsRepository.findAll(DependentSpecification.getSpecification(new ClaimDependentSearchDTO(), eligibleCompanyCodes), pageable);
             log.info("Dependent details filter records {}", claimsDependents);
             long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    claimDependentsRepository.count(DependentSpecification.getSpecification(paginationRequest.getSearch())) :
-                    claimDependentsRepository.count();
+                    claimDependentsRepository.count(DependentSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes)) :
+                    claimDependentsRepository.count(DependentSpecification.getSpecification(new ClaimDependentSearchDTO(), eligibleCompanyCodes));
             log.info("Dependent details filter records map start");
             List<DependentDetailsResponseDTO> responseDTOList = claimsDependents.stream()
                     .map(dependentDetailsMapperEntityToDto::mapDependentDetails).toList();
@@ -154,6 +171,17 @@ public class DependentServiceImpl implements DependentService {
             log.error(e);
             throw e;
         }
+    }
+
+    private Set<String> getEligibleCompanyCodes(String username) {
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(CompanyTypes::getCode)
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                        .map(CompanyTypes::getCode)
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
     }
 
     @Override

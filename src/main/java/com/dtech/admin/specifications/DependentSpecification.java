@@ -12,11 +12,17 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 @Log4j2
 public class DependentSpecification {
     public static Specification<ClaimsDependents> getSpecification(ClaimDependentSearchDTO filterDto) {
+        return getSpecification(filterDto, null);
+    }
+
+    public static Specification<ClaimsDependents> getSpecification(ClaimDependentSearchDTO filterDto, Collection<String> eligibleCompanies) {
         log.info("Dependent details filter: " + filterDto);
         return (root, query,criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -29,6 +35,14 @@ public class DependentSpecification {
 
             Join<UserPersonalDetails, CompanyTypes> companyTypesJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT)
                     .join("companyTypes",JoinType.LEFT);
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(companyTypesJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
+            }
 
             if (filterDto.getDependentCategory() != null && !filterDto.getDependentCategory().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(root.get("dependentCategory"), DependentCategory.valueOf(filterDto.getDependentCategory())));
