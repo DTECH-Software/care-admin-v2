@@ -588,7 +588,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                         }
 
                           UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
-                          companyDetails.setPreviousPermanentDate(companyDetails.getPermanentDate());
+                          if (companyDetails.getPreviousPermanentDate() == null) {
+                              companyDetails.setPreviousPermanentDate(companyDetails.getPermanentDate());
+                          }
                           companyDetails.setStaffCategories(staffCategories);
                           companyDetails.setInsurancePolicy(in);
                           companyDetails.setPermanentDate(employeeManagementRequestDTO.getEffectiveDate());

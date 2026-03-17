@@ -34,6 +34,7 @@ public class EmployeeUserMapperEntityToDto {
                     && applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().getPreviousPermanentDate() == null) {
                 applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
                         .setPreviousPermanentDate(applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate());
+                applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().setPermanentDate(null);
             }
 
             applicationUserResponseDTO.setLoginStatusDescription(Status.valueOf(applicationUser.getLoginStatus().name()).getDescription());
