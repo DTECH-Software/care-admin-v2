@@ -21,6 +21,7 @@ public class WebUserAuditDTO {
     public String mobile;
     public String firstName;
     public String lastName;
+    public String companies;
 
     public String toString() {
         return "Username: " + username +
@@ -30,6 +31,7 @@ public class WebUserAuditDTO {
                 ", Email: " + email +
                 ", Mobile: " + mobile +
                 ", First name: " + firstName +
-                ", Last name: " + lastName;
+                ", Last name: " + lastName +
+                ", Companies: " + companies;
     }
 }

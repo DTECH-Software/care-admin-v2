@@ -10,10 +10,13 @@ package com.dtech.admin.dto.request.validator;
 import com.dtech.admin.enums.Status;
 import com.dtech.admin.validator.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
+import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -61,5 +64,7 @@ public class SystemUserRequestValidatorDTO extends ChannelRequestValidatorDTO{
     @NotNull(message = "Death level status is required",groups = {OnAdd.class,OnUpdate.class})
     private Boolean isDeathApprovalLevel;
     private String deathApprovalLevel;
+    @NotEmpty(message = "At least one company is required",groups = {OnAdd.class,OnUpdate.class})
+    private List<String> companies;
 
 }

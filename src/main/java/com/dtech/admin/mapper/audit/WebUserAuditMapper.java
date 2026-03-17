@@ -27,6 +27,10 @@ public class WebUserAuditMapper {
                     WebUserAuditDTO dto = modelMapper.map(se, WebUserAuditDTO.class);
                     dto.setStatusDescription(se.getStatus().getDescription());
                     dto.setUserRoleDescription(se.getUserRole().getDescription());
+                    dto.setCompanies(se.getCompanies().stream()
+                            .map(company -> company.getCode() + " - " + company.getDescription())
+                            .sorted(String.CASE_INSENSITIVE_ORDER)
+                            .collect(Collectors.joining(", ")));
                     return dto.toString();
                 })
                 .collect(Collectors.toList());

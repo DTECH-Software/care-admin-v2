@@ -20,4 +20,5 @@ public class SystemUserSearchDTO {
     private String lastName;
     private String status;
     private String loginStatus;
+    private String company;
 }

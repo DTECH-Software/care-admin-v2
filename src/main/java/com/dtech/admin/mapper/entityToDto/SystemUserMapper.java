@@ -8,15 +8,20 @@
 package com.dtech.admin.mapper.entityToDto;
 
 
+import com.dtech.admin.dto.SimpleBaseDTO;
 import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.dto.response.UserCommonResponseDTO;
 import com.dtech.admin.dto.response.UserDetailsResponseDTO;
 import com.dtech.admin.enums.ApprovalLevel;
 import com.dtech.admin.enums.Status;
+import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.WebUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
+
+import java.util.Comparator;
+import java.util.List;
 
 @Log4j2
 @RequiredArgsConstructor
@@ -35,6 +40,7 @@ public class SystemUserMapper {
 
             UserDetailsResponseDTO userDetailsResponseDTO = modelMapper.map(webUser, UserDetailsResponseDTO.class);
             userDetailsResponseDTO.setStatusDescription(Status.valueOf(userDetailsResponseDTO.getStatus()).getDescription());
+            applyCompanies(webUser, userDetailsResponseDTO);
 
             if (webUser.getProfileImg() != null) {
                 log.info("user get profile img");
@@ -75,6 +81,7 @@ public class SystemUserMapper {
             commonResponseDTO.setStatusDescription(Status.valueOf(commonResponseDTO.getStatus()).getDescription());
             commonResponseDTO.setLoginStatus(Status.valueOf(commonResponseDTO.getLoginStatus()).getDescription());
             commonResponseDTO.setNewUsername(commonResponseDTO.getUsername());
+            applyCompanies(webUser, commonResponseDTO);
             if(commonResponseDTO.getApprovalLevel() != null) {
                 commonResponseDTO.setIsApprovalLevel(true);
                 commonResponseDTO.setApprovalLevelDescription(ApprovalLevel.valueOf(commonResponseDTO.getApprovalLevel()).getDescription());
@@ -101,6 +108,15 @@ public class SystemUserMapper {
             log.error(e);
             throw e;
         }
+    }
+
+    private static void applyCompanies(WebUser webUser, UserCommonResponseDTO responseDTO) {
+        List<SimpleBaseDTO> companies = webUser.getCompanies().stream()
+                .sorted(Comparator.comparing(CompanyTypes::getCode, String.CASE_INSENSITIVE_ORDER))
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                .toList();
+        responseDTO.setCompanies(companies);
+        responseDTO.setCompany(companies.isEmpty() ? null : companies.get(0));
     }
 
 }

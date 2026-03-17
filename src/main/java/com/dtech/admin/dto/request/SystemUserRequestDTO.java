@@ -10,6 +10,8 @@ package com.dtech.admin.dto.request;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class SystemUserRequestDTO extends ChannelRequestDTO {
@@ -26,4 +28,5 @@ public class SystemUserRequestDTO extends ChannelRequestDTO {
     private String approvalLevel;
     private Boolean isDeathApprovalLevel;
     private String deathApprovalLevel;
+    private List<String> companies;
 }

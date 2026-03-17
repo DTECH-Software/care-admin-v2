@@ -9,6 +9,7 @@ package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.SystemUserSearchDTO;
 import com.dtech.admin.enums.Status;
+import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.WebUser;
 import com.dtech.admin.model.WebUserRole;
 import jakarta.persistence.criteria.Join;
@@ -26,6 +27,7 @@ public class UserSpecification {
         log.info("User filter: " + filterDto);
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            query.distinct(true);
 
             Join<WebUser, WebUserRole> webUserRoleJoin = root.join("userRole", JoinType.LEFT);
 
@@ -63,6 +65,12 @@ public class UserSpecification {
 
             if (filterDto.getLoginStatus() != null && !filterDto.getLoginStatus().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(root.get("loginStatus"), Status.valueOf(filterDto.getLoginStatus())));
+            }
+
+            if (filterDto.getCompany() != null && !filterDto.getCompany().isEmpty()) {
+                Join<WebUser, CompanyTypes> companyJoin = root.join("companies", JoinType.LEFT);
+                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(companyJoin.get("code")),
+                        filterDto.getCompany().toLowerCase()));
             }
 
             predicates.add(root.get("status").in(List.of(Status.ACTIVE, Status.INACTIVE)));

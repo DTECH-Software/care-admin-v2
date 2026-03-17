@@ -23,6 +23,11 @@ public class SystemUserMapper {
 
     private static final ModelMapper modelMapper = new ModelMapper();
 
+    static {
+        modelMapper.typeMap(SystemUserRequestDTO.class, WebUser.class)
+                .addMappings(mp -> mp.skip(WebUser::setCompanies));
+    }
+
     public static WebUser mapUserForAdd(SystemUserRequestDTO systemUserRequestDTO) {
         try {
             log.info("user profile mapper start dto to entity for login");

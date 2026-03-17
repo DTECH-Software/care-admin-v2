@@ -73,6 +73,9 @@ public class SystemUserServiceImpl implements SystemUserService {
     private final WebUserRoleRepository webUserRoleRepository;
 
     @Autowired
+    private final CompanyTypeRepository companyTypeRepository;
+
+    @Autowired
     private final MessageService messageService;
 
     @Autowired
@@ -101,6 +104,9 @@ public class SystemUserServiceImpl implements SystemUserService {
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
             List<SimpleBaseDTO> userRole = webUserRoleRepository.findAllByWebUserRole(Status.ACTIVE);
+            List<SimpleBaseDTO> companies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                    .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                    .toList();
 
             UsernamePolicyResponseDTO usernamePolicy = webUsernamePolicyRepository.findUsernamePolicy()
                     .map(UsernamePolicyMapper::mapUsernamePolicyDetails).orElse(null);
@@ -108,6 +114,7 @@ public class SystemUserServiceImpl implements SystemUserService {
             responseMap.put("privileges", privileges);
             responseMap.put("defaultStatus", defaultStatus);
             responseMap.put("userRole", userRole);
+            responseMap.put("company", companies);
             responseMap.put("usernamePolicy", usernamePolicy);
             responseMap.put("approvalLevel", approvalLevel);
             responseMap.put("deathApprovalLevel", deathLevel);
@@ -179,6 +186,16 @@ public class SystemUserServiceImpl implements SystemUserService {
             if (isValid == null || isValid.trim().isEmpty()) {
                 return webUserRoleRepository.findByCodeAndStatus(systemUserRequestDTO.getUserRole(), Status.ACTIVE)
                         .map(userRole -> {
+                            LinkedHashSet<CompanyTypes> companies = resolveRequestedCompanies(systemUserRequestDTO.getCompanies());
+                            if (companies == null) {
+                                return ResponseEntity.ok().body(
+                                        responseUtil.error(
+                                                null,
+                                                1046,
+                                                messageSource.getMessage(ResponseMessageUtil.COMPANY_NOT_FOUND, null, locale)
+                                        )
+                                );
+                            }
                             log.info("Calling OTP generate");
                             String otp = RandomGeneratorUtil.getRandom6DigitNumber();
                             log.info("OTP generated {}", otp);
@@ -229,6 +246,7 @@ public class SystemUserServiceImpl implements SystemUserService {
                                 webUser.setUserKey(saltKey);
                                 webUser.setPassword(hashPassword);
                                 webUser.setUserRole(userRole);
+                                webUser.setCompanies(companies);
 
                                 webUser = webUserRepository.saveAndFlush(webUser);
                                 updatePasswordHistoryByUser(webUser, hashPassword);
@@ -337,6 +355,8 @@ public class SystemUserServiceImpl implements SystemUserService {
                         .append("|")
                         .append(systemUserRequestDTO.getDeathApprovalLevel())
                         .append("|")
+                        .append(normalizeCompanyCodes(systemUserRequestDTO.getCompanies()))
+                        .append("|")
                         .append(systemUserRequestDTO.getStatus()).toString();
 
                 String oldModel = new StringBuilder()
@@ -354,6 +374,10 @@ public class SystemUserServiceImpl implements SystemUserService {
                         .append("|")
                         .append(Objects.nonNull(user.getDeathApprovalLevel()) ? user.getDeathApprovalLevel():null)
                         .append("|")
+                        .append(normalizeCompanyCodes(user.getCompanies().stream()
+                                .map(CompanyTypes::getCode)
+                                .toList()))
+                        .append("|")
                         .append(user.getStatus().name()).toString();
 
                 if (oldModel.equals(newModel)) {
@@ -364,7 +388,13 @@ public class SystemUserServiceImpl implements SystemUserService {
                 log.info("User update old audit start");
                 List<String> oldAuditList = WebUserAuditMapper.mapToDTOAudit(List.of(user));
                 log.info("User update old audit end");
+                LinkedHashSet<CompanyTypes> companies = resolveRequestedCompanies(systemUserRequestDTO.getCompanies());
+                if (companies == null) {
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1046,
+                            messageSource.getMessage(ResponseMessageUtil.COMPANY_NOT_FOUND, null, locale)));
+                }
                 SystemUserMapper.mapUser(systemUserRequestDTO, user);
+                user.setCompanies(companies);
                 user = webUserRepository.saveAndFlush(user);
                 List<String> newAuditList = WebUserAuditMapper.mapToDTOAudit(List.of(user));
                 auditLogService.log(WebPage.URAM.name(), WebTask.UPDATE.name(), AuditTask.UPDATE_DATA.getDescription(), systemUserRequestDTO.getIp(), systemUserRequestDTO.getUserAgent(), gson.toJson(newAuditList), gson.toJson(oldAuditList), systemUserRequestDTO.getUsername());
@@ -497,6 +527,53 @@ public class SystemUserServiceImpl implements SystemUserService {
             log.error(e);
             throw e;
         }
+    }
+
+    private LinkedHashSet<CompanyTypes> resolveRequestedCompanies(List<String> companyCodes) {
+        if (companyCodes == null || companyCodes.isEmpty()) {
+            return null;
+        }
+
+        LinkedHashSet<String> requestedCodes = companyCodes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (requestedCodes.isEmpty()) {
+            return null;
+        }
+
+        List<CompanyTypes> resolvedCompanies = companyTypeRepository.findAllByCodeInAndStatus(requestedCodes, Status.ACTIVE);
+        if (resolvedCompanies.size() != requestedCodes.size()) {
+            return null;
+        }
+
+        Map<String, CompanyTypes> companyMap = resolvedCompanies.stream()
+                .collect(Collectors.toMap(CompanyTypes::getCode, company -> company));
+
+        LinkedHashSet<CompanyTypes> companies = new LinkedHashSet<>();
+        for (String code : requestedCodes) {
+            CompanyTypes company = companyMap.get(code);
+            if (company == null) {
+                return null;
+            }
+            companies.add(company);
+        }
+        return companies;
+    }
+
+    private String normalizeCompanyCodes(Collection<String> companyCodes) {
+        if (companyCodes == null || companyCodes.isEmpty()) {
+            return "";
+        }
+        return companyCodes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .map(String::toUpperCase)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.joining(","));
     }
 
     @Transactional(readOnly = true)

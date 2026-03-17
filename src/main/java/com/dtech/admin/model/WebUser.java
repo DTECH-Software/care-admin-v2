@@ -12,6 +12,7 @@ import com.dtech.admin.enums.Status;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -19,7 +20,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @EqualsAndHashCode(callSuper = true)
 @Entity
@@ -98,6 +101,16 @@ public class WebUser extends AdminAudit implements Serializable , UserDetails {
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, targetEntity = WebUserRole.class)
     @JoinColumn(name = "user_role", referencedColumnName = "code")
     private WebUserRole userRole;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "web_user_company",
+            joinColumns = @JoinColumn(name = "web_user_id"),
+            inverseJoinColumns = @JoinColumn(name = "company_id")
+    )
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private Set<CompanyTypes> companies = new LinkedHashSet<>();
 
     @Column(name = "approval_level")
     @Enumerated(EnumType.STRING)

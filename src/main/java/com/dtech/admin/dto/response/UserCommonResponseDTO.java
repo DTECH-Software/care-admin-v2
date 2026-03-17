@@ -12,6 +12,8 @@ import com.dtech.admin.enums.ApprovalLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class UserCommonResponseDTO extends CommonAuditResponseDTO{
@@ -29,6 +31,7 @@ public class UserCommonResponseDTO extends CommonAuditResponseDTO{
     private String lastName;
     private String nic;
     private SimpleBaseDTO company;
+    private List<SimpleBaseDTO> companies;
     private Boolean isApprovalLevel;
     private String approvalLevel;
     private String approvalLevelDescription;
