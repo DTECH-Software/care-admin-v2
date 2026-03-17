@@ -278,7 +278,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             }
 
             InsuranceStaffCategoryPeriod insuranceStaffCategoryPeriod = null;
-            Optional<InsuranceDetailsLimit> byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment = null;
+            Optional<InsuranceDetailsLimit> byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment = Optional.empty();
 
             if (claimRequestDTO.getPolicyId() != null) {
                 insuranceStaffCategoryPeriod = insuranceStaffCategoryPeriodRepository.findById(claimRequestDTO.getPolicyId()).orElse(null);
@@ -288,12 +288,15 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     return ResponseEntity.ok(responseUtil.error(null, 1046,
                             messageSource.getMessage(ResponseMessageUtil.INSURANCE_PERIOD_NOT_FOUND, null, locale)));
                 }
-            }
-
-            if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
                 byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment = insuranceDetailsLimitRepository.findByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment(
                         claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getInsurancePolicy(),
                         Status.ACTIVE, insuranceStaffCategoryPeriod, claim.getInsuranceClaimsDetails().getTreatment());
+
+                if (byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.isEmpty()) {
+                    log.info("Insurance details limit not found for selected period {}", claimRequestDTO.getPolicyId());
+                    return ResponseEntity.ok(responseUtil.error(null, 1046,
+                            messageSource.getMessage(ResponseMessageUtil.INSURANCE_PERIOD_NOT_FOUND, null, locale)));
+                }
             }
 
             if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
@@ -352,6 +355,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         // Notify Level 02 about the rejection with full details.
                         List<WebUser> levelTwoApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL02, Status.ACTIVE);
                         emailNotificationService.notifyLevelTwoOnLevelOneRejection(levelTwoApprovers, claim, claimRequestDTO.getRemark(), locale);
+                        applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
                         claim.setRequestStatus(Workflow.UNDER_REVIEW);
                     }
 
@@ -415,6 +419,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
                             List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
                             emailNotificationService.notifyLevelOneOnApproval(levelOneApprovers, claim, workFlow.getApprovedAmount(), ApprovalLevel.LEVEL02, locale);
+                        } else {
+                            applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
                         }
 
                         notifyMessage(claim.getEmployee().getPrimaryMobile(), claim.getRequestId(), messageType, otherMark);
@@ -445,6 +451,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
                         messageType = MessageType.INSURANCE_APPROVAL;
                         otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), workFlow.getRejectedRemark());
+                    } else {
+                        applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
                     }
 
                     List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
@@ -471,6 +479,12 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 .map(InsuranceStaffCategoryPeriod::getId)
                 .orElse(null);
     }
+
+    private void applySelectedInsuranceDetailsLimit(InsuranceClaimsRequest claim,
+                                                    Optional<InsuranceDetailsLimit> selectedInsuranceDetailsLimit) {
+        selectedInsuranceDetailsLimit.ifPresent(claim::setInsuranceDetailsLimit);
+    }
+
     private Map<String, Object> sanitizeFilterListResponse(ClaimsRequestResponseDTO claimsRequestResponseDTO) {
         Map<String, Object> dtoMap = objectMapper.convertValue(claimsRequestResponseDTO, new TypeReference<Map<String, Object>>() {});
 

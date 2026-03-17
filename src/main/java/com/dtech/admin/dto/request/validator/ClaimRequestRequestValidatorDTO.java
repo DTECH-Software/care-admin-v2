@@ -25,7 +25,8 @@ import java.math.BigDecimal;
         }, required = {"availableLimit"}, message = "Available limit is required ",groups = {OnUpdate.class})
 @Conditional(selected = "status",
         values = {
-                "APPROVED"
+                "APPROVED",
+                "REJECTED"
         }, required = {"policyId"}, message = "Policy id is required ",groups = {OnUpdate.class})
 public class ClaimRequestRequestValidatorDTO extends ChannelRequestValidatorDTO {
     @NotNull(message = "ID is required",groups = {OnGet.class, OnUpdate.class, OnDeath.class})
