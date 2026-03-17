@@ -15,6 +15,7 @@ import com.dtech.admin.mapper.audit.DependentDetailsAuditMapper;
 import com.dtech.admin.mapper.entityToDto.DependentDetailsMapperEntityToDto;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.ClaimsDependents;
+import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.DependentService;
@@ -177,10 +178,10 @@ public class DependentServiceImpl implements DependentService {
         return webUserRepository.findByUsername(username)
                 .map(user -> user.getCompanies().stream()
                         .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(CompanyTypes::getCode)
+                        .map(company -> company.getCode())
                         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
                 .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                        .map(CompanyTypes::getCode)
+                        .map(company -> company.getCode())
                         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
     }
 
