@@ -363,30 +363,26 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
                 case LEVEL02 -> {
 
-                    Workflow status1 = claim.getApprovalWorkFlows().stream()
+                    ApprovalWorkFlow levelOneWorkflow = claim.getApprovalWorkFlows().stream()
                             .filter(wf -> wf.getApprovalLevel().equals(ApprovalLevel.LEVEL01))
-                            .map(ApprovalWorkFlow::getStatus)
                             .findFirst().orElse(null);
 
-                    BigDecimal appAmount1 = null;
-                    Long policyId1 = null;
-
-                    if (Workflow.APPROVED.equals(status1)) {
-
-                        appAmount1 = claim.getApprovalWorkFlows().stream()
-                                .filter(wf -> wf.getApprovalLevel().equals(ApprovalLevel.LEVEL01))
-                                .map(ApprovalWorkFlow::getApprovedAmount)
-                                .findFirst().orElse(null);
-                        policyId1 = resolveClaimPolicyPeriodId(claim);
-                    }
+                    Workflow status1 = levelOneWorkflow != null ? levelOneWorkflow.getStatus() : null;
+                    BigDecimal appAmount1 = Workflow.APPROVED.equals(status1)
+                            ? levelOneWorkflow.getApprovedAmount()
+                            : null;
+                    Long policyId1 = levelOneWorkflow != null && levelOneWorkflow.getPolicy() != null
+                            ? levelOneWorkflow.getPolicy().getId()
+                            : null;
 
                     Workflow status2 = workFlow.getStatus();
                     BigDecimal appAmount2 = workFlow.getApprovedAmount();
-                    Long policyId2 = Workflow.APPROVED.equals(status2) && insuranceStaffCategoryPeriod != null
-                            ? insuranceStaffCategoryPeriod.getId() : null;
+                    Long policyId2 = workFlow.getPolicy() != null ? workFlow.getPolicy().getId() : null;
                     boolean levelTwoRejected = Workflow.REJECTED.equals(status2);
-                    boolean policyMismatch = Workflow.APPROVED.equals(status1)
-                            && Workflow.APPROVED.equals(status2)
+                    boolean policyMismatch = status1 != null
+                            && status2 != null
+                            && !Workflow.UNDER_REVIEW.equals(status1)
+                            && !Workflow.UNDER_REVIEW.equals(status2)
                             && policyId1 != null
                             && policyId2 != null
                             && !policyId1.equals(policyId2);
