@@ -1341,12 +1341,9 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
 
                 createStringCell(row, 6, claim.getClaimStatus(), statusStyle);
 
-                String remark = "";
-                if (claim.getClaimStatus() != null
-                        && claim.getClaimStatus().equalsIgnoreCase(PaymentAttachmentStatus.REJECTED.name())
-                        && hasText(claim.getRemark())) {
-                    remark = claim.getRemark();
-                }
+                String remark = hasText(claim.getRemark())
+                        ? claim.getRemark()
+                        : Optional.ofNullable(claim.getClaimStatus()).orElse("");
                 createStringCell(row, 7, remark, dataStyle);
             }
 
