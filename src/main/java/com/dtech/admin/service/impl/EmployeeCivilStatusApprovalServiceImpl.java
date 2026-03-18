@@ -15,6 +15,7 @@ import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.MaritalStatusRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
+import com.dtech.admin.repository.WebUserRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.EmployeeCivilStatusApprovalService;
 import com.dtech.admin.specifications.MaritalSpecification;
@@ -68,6 +69,8 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     private ApplicationUserRepository applicationUserRepository;
     @Autowired
     private CompanyTypeRepository companyTypeRepository;
+    @Autowired
+    private WebUserRepository webUserRepository;
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = false)
@@ -91,8 +94,7 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
             List<SimpleBaseDTO> staffCategory = staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
-                    .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
+            List<SimpleBaseDTO> company = getEligibleCompanies(channelRequestDTO.getUsername());
 
             responseMap.put("privileges", privileges);
             responseMap.put("defaultStatus", defaultStatus);
@@ -115,14 +117,15 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
             log.info("Claims approval claims request {} ", paginationRequest);
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
+            Set<String> eligibleCompanyCodes = getEligibleCompanyCodes(paginationRequest.getUsername());
 
             Page<com.dtech.admin.model.MaritalStatus> maritalStatuses = Objects.nonNull(paginationRequest.getSearch()) ?
-                    maritalStatusRepository.findAll(MaritalSpecification.getSpecification(paginationRequest.getSearch()), pageable) :
-                    maritalStatusRepository.findAll(pageable);
+                    maritalStatusRepository.findAll(MaritalSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes), pageable) :
+                    maritalStatusRepository.findAll(MaritalSpecification.getSpecification(eligibleCompanyCodes), pageable);
             log.info("Approval death details filter records {}", maritalStatuses);
             long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    maritalStatusRepository.count(MaritalSpecification.getSpecification(paginationRequest.getSearch())) :
-                    maritalStatusRepository.count();
+                    maritalStatusRepository.count(MaritalSpecification.getSpecification(paginationRequest.getSearch(), eligibleCompanyCodes)) :
+                    maritalStatusRepository.count(MaritalSpecification.getSpecification(eligibleCompanyCodes));
             log.info("Approval death details filter records map start");
 
             List<MaritalStatusApprovalResponseDTO> responseDTOList = maritalStatuses.stream()
@@ -138,6 +141,31 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
             log.error(e);
             throw e;
         }
+    }
+
+    private List<SimpleBaseDTO> getEligibleCompanies(String username) {
+        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                .toList();
+
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
+                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
+                        .toList())
+                .orElse(defaultCompanies);
+    }
+
+    private Set<String> getEligibleCompanyCodes(String username) {
+        return webUserRepository.findByUsername(username)
+                .map(user -> user.getCompanies().stream()
+                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
+                        .map(company -> company.getCode())
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
+                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+                        .map(company -> company.getCode())
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
     }
 
     @Override

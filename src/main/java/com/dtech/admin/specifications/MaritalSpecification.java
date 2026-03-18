@@ -11,11 +11,17 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 @Log4j2
 public class MaritalSpecification {
     public static Specification<MaritalStatus> getSpecification(CivilStatusChangeSearchDTO filterDto) {
+        return getSpecification(filterDto, null);
+    }
+
+    public static Specification<MaritalStatus> getSpecification(CivilStatusChangeSearchDTO filterDto, Collection<String> eligibleCompanies) {
         log.info("Claims death approval filter: " + filterDto);
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -27,6 +33,14 @@ public class MaritalSpecification {
             Join<MaritalStatus,CompanyTypes> comapnayJoin = root.join("applicationUser", JoinType.LEFT)
                     .join("userPersonalDetails",JoinType.LEFT).join("userCompanyDetails", JoinType.LEFT)
                     .join("companyTypes",JoinType.LEFT);
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(comapnayJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
+            }
 
             if (filterDto.getStaffCategory() != null && !filterDto.getStaffCategory().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(staffCategoriesJoin.get("code"),filterDto.getStaffCategory()));
@@ -46,6 +60,26 @@ public class MaritalSpecification {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
 
+        };
+    }
+
+    public static Specification<MaritalStatus> getSpecification(Collection<String> eligibleCompanies) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            Join<MaritalStatus,CompanyTypes> comapnayJoin = root.join("applicationUser", JoinType.LEFT)
+                    .join("userPersonalDetails",JoinType.LEFT).join("userCompanyDetails", JoinType.LEFT)
+                    .join("companyTypes",JoinType.LEFT);
+
+            if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
+                predicates.add(criteriaBuilder.lower(comapnayJoin.get("code")).in(
+                        eligibleCompanies.stream()
+                                .map(code -> code.toLowerCase(Locale.ROOT))
+                                .toList()
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
 
