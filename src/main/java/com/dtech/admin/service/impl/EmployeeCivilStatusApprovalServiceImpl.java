@@ -11,12 +11,16 @@ import com.dtech.admin.dto.response.MaritalStatusApprovalResponseDTO;
 import com.dtech.admin.dto.search.CivilStatusChangeSearchDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.mapper.entityToDto.CivilStatusChangeStatusApprovalEntityToDto;
+import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.UserPersonalDetails;
+import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.MaritalStatusRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.repository.WebUserRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeCivilStatusApprovalService;
 import com.dtech.admin.specifications.MaritalSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
@@ -40,6 +44,10 @@ import java.util.*;
 @Log4j2
 @RequiredArgsConstructor
 public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStatusApprovalService {
+
+    private static final Set<String> CIVIL_STATUS_APPROVAL_ADMIN_ROLE_CODES = Set.of(
+            "DevTest", "SUPERADMIN", "APPROVER", "ADMIN", "CLAIMS_APPROVER", "W_CSA"
+    );
 
     @Autowired
     private final CommonPrivilegeGetter commonPrivilegeGetter;
@@ -71,6 +79,9 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     private CompanyTypeRepository companyTypeRepository;
     @Autowired
     private WebUserRepository webUserRepository;
+
+    @Autowired
+    private final EmailNotificationService emailNotificationService;
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = false)
@@ -201,11 +212,16 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
            log.info("Update status request {} ", civilStatusApprovalRequestDTO);
 
            return maritalStatusRepository.findById(civilStatusApprovalRequestDTO.getId()).map(maritalStatus -> {
+               Workflow previousStatus = maritalStatus.getStatus();
 
                maritalStatus.setStatus(Workflow.valueOf(civilStatusApprovalRequestDTO.getStatus()));
                maritalStatusRepository.saveAndFlush(maritalStatus);
                maritalStatus.getApplicationUser().getUserPersonalDetails().setMaritalStatus(maritalStatus.getMaritalStatus());
                applicationUserRepository.saveAndFlush(maritalStatus.getApplicationUser());
+
+               if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(maritalStatus.getStatus())) {
+                   notifyAdminTeamOnCivilStatusApproval(maritalStatus, civilStatusApprovalRequestDTO.getUsername());
+               }
                return ResponseEntity.ok().body(responseUtil.success(null, messageSource.getMessage(ResponseMessageUtil.CIVIL_STATUS_UPDATE_SUCCESSFULLY, null, locale)));
 
            }).orElseGet(() -> {
@@ -220,6 +236,32 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
            log.error(e);
            throw e;
        }
+    }
+
+    private void notifyAdminTeamOnCivilStatusApproval(com.dtech.admin.model.MaritalStatus maritalStatus, String hrUsername) {
+        UserPersonalDetails employee = maritalStatus.getApplicationUser() != null
+                ? maritalStatus.getApplicationUser().getUserPersonalDetails()
+                : null;
+        CompanyTypes company = employee != null
+                && employee.getUserCompanyDetails() != null
+                ? employee.getUserCompanyDetails().getCompanyTypes()
+                : null;
+        String employeeCompanyCode = company != null ? company.getCode() : null;
+
+        List<WebUser> recipients = webUserRepository.findAllByStatus(Status.ACTIVE).stream()
+                .filter(user -> user.getUserRole() != null
+                        && org.springframework.util.StringUtils.hasText(user.getUserRole().getCode()))
+                .filter(user -> CIVIL_STATUS_APPROVAL_ADMIN_ROLE_CODES.stream()
+                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
+                .filter(user -> !org.springframework.util.StringUtils.hasText(employeeCompanyCode)
+                        || user.getCompanies() == null
+                        || user.getCompanies().isEmpty()
+                        || user.getCompanies().stream()
+                        .anyMatch(assignedCompany -> Status.ACTIVE.equals(assignedCompany.getStatus())
+                                && employeeCompanyCode.equalsIgnoreCase(assignedCompany.getCode())))
+                .toList();
+
+        emailNotificationService.notifyCivilStatusApprovedByHr(recipients, maritalStatus, hrUsername);
     }
 
 

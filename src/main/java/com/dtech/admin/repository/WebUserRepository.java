@@ -17,5 +17,6 @@ public interface WebUserRepository extends JpaRepository<WebUser, Long> , JpaSpe
     Optional<WebUser> findByUsernameAndStatusIn(String username,List<Status> statuses);
     Optional<WebUser> findByUsername(String username);
     boolean existsByUsernameEqualsIgnoreCaseAndStatusNot(String username,Status status);
+    List<WebUser> findAllByStatus(Status status);
     List<WebUser> findAllByApprovalLevelAndStatus(ApprovalLevel approvalLevel, Status status);
 }

@@ -16,9 +16,11 @@ import com.dtech.admin.mapper.entityToDto.DependentDetailsMapperEntityToDto;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.ClaimsDependents;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.DependentService;
+import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.specifications.DependentSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
@@ -42,6 +44,10 @@ import java.util.stream.Stream;
 @Log4j2
 @RequiredArgsConstructor
 public class DependentServiceImpl implements DependentService {
+
+    private static final Set<String> DEPENDENT_APPROVAL_ADMIN_ROLE_CODES = Set.of(
+            "DevTest", "SUPERADMIN", "APPROVER", "ADMIN", "CLAIMS_APPROVER", "W_CSA"
+    );
 
     @Autowired
     private final MessageSource messageSource;
@@ -78,6 +84,9 @@ public class DependentServiceImpl implements DependentService {
 
     @Autowired
     private final WebUserRepository webUserRepository;
+
+    @Autowired
+    private final EmailNotificationService emailNotificationService;
 
     @Override
     @Transactional
@@ -192,6 +201,7 @@ public class DependentServiceImpl implements DependentService {
             log.info("Dependent details add data {}", dependentRequestDTO);
             return claimDependentsRepository
                     .findById(dependentRequestDTO.getId()).map(de -> {
+                        Workflow previousStatus = de.getStatus();
 
                         String newModel = new StringBuilder()
                                 .append(dependentRequestDTO.getStatus()).toString();
@@ -234,6 +244,9 @@ public class DependentServiceImpl implements DependentService {
                             de.setApprovedDate(DateTimeUtil.getCurrentDateTime());
                             log.info("Dependent details success");
                             claimDependentsRepository.saveAndFlush(de);
+                            if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(de.getStatus())) {
+                                notifyAdminTeamOnDependentApproval(de, dependentRequestDTO.getUsername());
+                            }
                         }
 
                         List<String> newAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(de));
@@ -249,6 +262,29 @@ public class DependentServiceImpl implements DependentService {
             log.error(e);
             throw e;
         }
+    }
+
+    private void notifyAdminTeamOnDependentApproval(ClaimsDependents dependent, String hrUsername) {
+        String employeeCompanyCode = dependent.getApplicationUser() != null
+                && dependent.getApplicationUser().getUserPersonalDetails() != null
+                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails() != null
+                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                ? dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode()
+                : null;
+
+        List<WebUser> recipients = webUserRepository.findAllByStatus(Status.ACTIVE).stream()
+                .filter(user -> user.getUserRole() != null && org.springframework.util.StringUtils.hasText(user.getUserRole().getCode()))
+                .filter(user -> DEPENDENT_APPROVAL_ADMIN_ROLE_CODES.stream()
+                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
+                .filter(user -> !org.springframework.util.StringUtils.hasText(employeeCompanyCode)
+                        || user.getCompanies() == null
+                        || user.getCompanies().isEmpty()
+                        || user.getCompanies().stream()
+                        .anyMatch(company -> Status.ACTIVE.equals(company.getStatus())
+                                && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
+                .toList();
+
+        emailNotificationService.notifyDependentApprovedByHr(recipients, dependent, hrUsername);
     }
 
     private ResponseEntity<ApiResponse<Object>> validateApprovedDependent(ApplicationUser applicationUser, ClaimsDependents claimDependentRequestDTO, Locale locale) {

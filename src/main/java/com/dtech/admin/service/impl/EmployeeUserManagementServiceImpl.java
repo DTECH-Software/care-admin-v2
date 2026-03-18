@@ -15,6 +15,7 @@ import com.dtech.admin.mapper.entityToDto.EmployeeUserMapperEntityToDto;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeUserManagementService;
 import com.dtech.admin.specifications.EmployeeUserSpecification;
 import com.dtech.admin.util.*;
@@ -43,6 +44,10 @@ import java.util.stream.Collectors;
 @Log4j2
 @RequiredArgsConstructor
 public class EmployeeUserManagementServiceImpl implements EmployeeUserManagementService {
+
+    private static final Set<String> STAFF_CATEGORY_TRANSFER_ADMIN_ROLE_CODES = Set.of(
+            "DevTest", "SUPERADMIN", "APPROVER", "ADMIN", "CLAIMS_APPROVER", "W_CSA"
+    );
 
     @Autowired
     private final MessageSource messageSource;
@@ -108,6 +113,8 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     private final DeathBeneficiaryRepository deathBeneficiaryRepository;
     @Autowired
     private DocumentRepository documentRepository;
+    @Autowired
+    private final EmailNotificationService emailNotificationService;
 
     @Override
     @Transactional
@@ -604,6 +611,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                 return staffCategoriesRepository.findByCodeAndStatus(employeeManagementRequestDTO.getStaffCategory(), Status.ACTIVE).map(staffCategories -> {
                     log.info("Employee details staff category old audit end");
                     return insurancePolicyRepository.findByCodeAndStatus(employeeManagementRequestDTO.getPolicy(), Status.ACTIVE).map(in -> {
+                        StaffCategories previousStaffCategory = applicationUser.getUserPersonalDetails()
+                                .getUserCompanyDetails()
+                                .getStaffCategories();
 
                         log.info("Upload supporting document from dependent employeeId={}", employeeManagementRequestDTO.getId());
                         Document t = null;
@@ -624,6 +634,11 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                           companyDetails.setPermanentDate(employeeManagementRequestDTO.getEffectiveDate());
                           companyDetails.setPromoDocs(t);
                           applicationUserRepository.saveAndFlush(applicationUser);
+                        notifyAdminTeamOnStaffCategoryTransfer(applicationUser,
+                                previousStaffCategory,
+                                staffCategories,
+                                employeeManagementRequestDTO.getEffectiveDate(),
+                                employeeManagementRequestDTO.getUsername());
                         ApplicationUserResponseDTO responseDTO = buildEmployeeResponse(applicationUser);
                         return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
                                 messageSource.getMessage(ResponseMessageUtil.STAFF_CATEGORY_UPDATE_SUCCESS, null, locale)));
@@ -648,6 +663,41 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             log.error(e);
             throw e;
         }
+    }
+
+    private void notifyAdminTeamOnStaffCategoryTransfer(ApplicationUser applicationUser,
+                                                        StaffCategories previousStaffCategory,
+                                                        StaffCategories newStaffCategory,
+                                                        Date effectiveDate,
+                                                        String hrUsername) {
+        UserPersonalDetails employee = applicationUser != null ? applicationUser.getUserPersonalDetails() : null;
+        String employeeCompanyCode = employee != null
+                && employee.getUserCompanyDetails() != null
+                && employee.getUserCompanyDetails().getCompanyTypes() != null
+                ? employee.getUserCompanyDetails().getCompanyTypes().getCode()
+                : null;
+
+        List<WebUser> recipients = webUserRepository.findAllByStatus(Status.ACTIVE).stream()
+                .filter(user -> user.getUserRole() != null
+                        && org.springframework.util.StringUtils.hasText(user.getUserRole().getCode()))
+                .filter(user -> STAFF_CATEGORY_TRANSFER_ADMIN_ROLE_CODES.stream()
+                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
+                .filter(user -> !org.springframework.util.StringUtils.hasText(employeeCompanyCode)
+                        || user.getCompanies() == null
+                        || user.getCompanies().isEmpty()
+                        || user.getCompanies().stream()
+                        .anyMatch(company -> Status.ACTIVE.equals(company.getStatus())
+                                && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
+                .toList();
+
+        emailNotificationService.notifyStaffCategoryTransferred(
+                recipients,
+                employee,
+                previousStaffCategory,
+                newStaffCategory,
+                effectiveDate,
+                hrUsername
+        );
     }
 
     protected Document uploadImage(String tye, String file, String fileType, String fileName) throws IOException {

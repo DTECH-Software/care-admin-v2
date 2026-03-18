@@ -21,6 +21,7 @@ import com.dtech.admin.mapper.entityToDto.EmployeeDetailsMapperEntityToDto;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeService;
 import com.dtech.admin.specifications.EmployeeSpecification;
 import com.dtech.admin.util.*;
@@ -43,6 +44,10 @@ import java.util.*;
 @Log4j2
 @RequiredArgsConstructor
 public class EmployeeServiceImpl implements EmployeeService {
+
+    private static final Set<String> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES = Set.of(
+            "DevTest", "SUPERADMIN", "APPROVER", "ADMIN", "CLAIMS_APPROVER", "W_CSA"
+    );
 
     @Autowired
     private final MessageSource messageSource;
@@ -85,6 +90,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private final EmployeeDetailsAuditMapper employeeDetailsAuditMapper;
+
+    @Autowired
+    private final EmailNotificationService emailNotificationService;
 
     @Override
     @Transactional
@@ -266,6 +274,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                     AuditTask.ADD_DATA.getDescription(), dto.getIp(), dto.getUserAgent(),
                     gson.toJson(auditList), null, dto.getUsername());
 
+            notifyAdminTeamOnEmployeeAddition(personalDetails, dto.getUsername());
+
             return ResponseEntity.ok().body(responseUtil.success(null,
                     messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_ADDED_SUCCESSFULLY, new Object[]{personalDetails.getEpfNo()}, locale)));
 
@@ -278,6 +288,33 @@ public class EmployeeServiceImpl implements EmployeeService {
     private ResponseEntity<ApiResponse<Object>> errorResponse(int code, String messageKey, String arg, Locale locale) {
         String message = messageSource.getMessage(messageKey, new Object[]{arg}, locale);
         return ResponseEntity.ok().body(responseUtil.error(null, code, message));
+    }
+
+    private List<WebUser> resolveEmployeeAdminRecipients(UserPersonalDetails employee) {
+        String employeeCompanyCode = employee.getUserCompanyDetails() != null
+                && employee.getUserCompanyDetails().getCompanyTypes() != null
+                ? employee.getUserCompanyDetails().getCompanyTypes().getCode()
+                : null;
+
+        return webUserRepository.findAllByStatus(Status.ACTIVE).stream()
+                .filter(user -> user.getUserRole() != null && StringUtils.hasText(user.getUserRole().getCode()))
+                .filter(user -> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES.stream()
+                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
+                .filter(user -> !StringUtils.hasText(employeeCompanyCode)
+                        || user.getCompanies() == null
+                        || user.getCompanies().isEmpty()
+                        || user.getCompanies().stream()
+                        .anyMatch(company -> Status.ACTIVE.equals(company.getStatus())
+                                && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
+                .toList();
+    }
+
+    private void notifyAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername) {
+        emailNotificationService.notifyEmployeeAddedPendingApproval(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
+    }
+
+    private void notifyAdminTeamOnEmployeeDeactivation(UserPersonalDetails employee, String hrUsername) {
+        emailNotificationService.notifyEmployeeDeactivated(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
     }
 
     private String resolvePaymentCompanyCode(UserCompanyDetailsRequestDTO userCompanyDetails) {
@@ -331,6 +368,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         try {
             log.info("Employee details update {}", employeeDetailsRequestDTO.getId());
             return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
+                Status previousStatus = userPersonalDetails.getUserStatus();
                 String requestedPaymentCompanyCode = resolvePaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
                 String existingPaymentCompanyCode = userPersonalDetails.getUserCompanyDetails().getPaymentCompany() != null
                         ? userPersonalDetails.getUserCompanyDetails().getPaymentCompany().getCode()
@@ -478,6 +516,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 }
                 log.info("Employee details success");
                 userPersonalDetails = userPersonalDetailsRepository.saveAndFlush(userPersonalDetails);
+
+                if (!Status.INACTIVE.equals(previousStatus) && Status.INACTIVE.equals(userPersonalDetails.getUserStatus())) {
+                    notifyAdminTeamOnEmployeeDeactivation(userPersonalDetails, employeeDetailsRequestDTO.getUsername());
+                }
 
                 List<String> newAuditList = employeeDetailsAuditMapper.mapToDTOAudit(List.of(userPersonalDetails));
                 auditLogService.log(WebPage.EMPM.name(), WebTask.UPDATE.name(), AuditTask.UPDATE_DATA.getDescription(), employeeDetailsRequestDTO.getIp(), employeeDetailsRequestDTO.getUserAgent(), gson.toJson(newAuditList), gson.toJson(oldAuditList), employeeDetailsRequestDTO.getUsername());

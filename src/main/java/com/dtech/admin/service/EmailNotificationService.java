@@ -1,9 +1,16 @@
 package com.dtech.admin.service;
 
 import com.dtech.admin.enums.ApprovalLevel;
+import com.dtech.admin.enums.RelationCategory;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApprovalWorkFlow;
+import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsRequest;
+import com.dtech.admin.model.ClaimsDependents;
+import com.dtech.admin.model.StaffCategories;
+import com.dtech.admin.model.ApplicationUser;
+import com.dtech.admin.model.UserCompanyDetails;
+import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.model.WebUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -11,12 +18,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+import jakarta.mail.internet.MimeMessage;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Date;
@@ -192,6 +202,99 @@ public class EmailNotificationService {
         }
     }
 
+    public void notifyEmployeeAddedPendingApproval(List<WebUser> recipients,
+                                                   UserPersonalDetails employee,
+                                                   String hrUsername) {
+        if (CollectionUtils.isEmpty(recipients) || employee == null || employee.getUserCompanyDetails() == null) {
+            log.info("No recipients or employee details available for employee inclusion notification");
+            return;
+        }
+
+        String subject = "[%s] Employee inclusion and Claims System Administrator approval Required."
+                .formatted(safeValue(employee.getEpfNo()));
+        String body = buildEmployeeAddedPendingApprovalBody(employee, hrUsername);
+
+        Set<String> processedEmails = new HashSet<>();
+        for (WebUser recipient : recipients) {
+            sendHtmlMail(recipient, subject, body, "employee inclusion pending approval", processedEmails);
+        }
+    }
+
+    public void notifyEmployeeDeactivated(List<WebUser> recipients,
+                                          UserPersonalDetails employee,
+                                          String hrUsername) {
+        if (CollectionUtils.isEmpty(recipients) || employee == null || employee.getUserCompanyDetails() == null) {
+            log.info("No recipients or employee details available for employee deactivation notification");
+            return;
+        }
+
+        String subject = "[%s] Employee Deactivated".formatted(safeValue(employee.getEpfNo()));
+        String body = buildEmployeeDeactivatedBody(employee, hrUsername);
+
+        Set<String> processedEmails = new HashSet<>();
+        for (WebUser recipient : recipients) {
+            sendHtmlMail(recipient, subject, body, "employee deactivated", processedEmails);
+        }
+    }
+
+    public void notifyDependentApprovedByHr(List<WebUser> recipients,
+                                            ClaimsDependents dependent,
+                                            String hrUsername) {
+        if (CollectionUtils.isEmpty(recipients) || dependent == null || dependent.getApplicationUser() == null) {
+            log.info("No recipients or dependent details available for dependent approval notification");
+            return;
+        }
+
+        String subject = "Dependent Approved By HR";
+        String body = buildDependentApprovedByHrBody(dependent, hrUsername);
+
+        Set<String> processedEmails = new HashSet<>();
+        for (WebUser recipient : recipients) {
+            sendHtmlMail(recipient, subject, body, "dependent approved by hr", processedEmails);
+        }
+    }
+
+    public void notifyCivilStatusApprovedByHr(List<WebUser> recipients,
+                                              com.dtech.admin.model.MaritalStatus civilStatusUpdate,
+                                              String hrUsername) {
+        if (CollectionUtils.isEmpty(recipients) || civilStatusUpdate == null || civilStatusUpdate.getApplicationUser() == null) {
+            log.info("No recipients or civil status details available for civil status approval notification");
+            return;
+        }
+
+        String subject = "Civil Status Approved by HR";
+        String body = buildCivilStatusApprovedByHrBody(civilStatusUpdate, hrUsername);
+
+        Set<String> processedEmails = new HashSet<>();
+        for (WebUser recipient : recipients) {
+            sendHtmlMail(recipient, subject, body, "civil status approved by hr", processedEmails);
+        }
+    }
+
+    public void notifyStaffCategoryTransferred(List<WebUser> recipients,
+                                               UserPersonalDetails employee,
+                                               StaffCategories previousStaffCategory,
+                                               StaffCategories newStaffCategory,
+                                               Date effectiveDate,
+                                               String hrUsername) {
+        if (CollectionUtils.isEmpty(recipients) || employee == null || employee.getUserCompanyDetails() == null) {
+            log.info("No recipients or employee details available for staff category transfer notification");
+            return;
+        }
+
+        String subject = "Transferring employee data from [%s] to [%s]"
+                .formatted(
+                        safeValue(previousStaffCategory != null ? previousStaffCategory.getDescription() : null),
+                        safeValue(newStaffCategory != null ? newStaffCategory.getDescription() : null)
+                );
+        String body = buildStaffCategoryTransferredBody(employee, previousStaffCategory, newStaffCategory, effectiveDate, hrUsername);
+
+        Set<String> processedEmails = new HashSet<>();
+        for (WebUser recipient : recipients) {
+            sendHtmlMail(recipient, subject, body, "staff category transferred", processedEmails);
+        }
+    }
+
     private void sendMail(WebUser recipient, String subject, String body, String logContext, Set<String> processedEmails) {
         if (recipient == null || !StringUtils.hasText(recipient.getEmail())) {
             log.warn("Skipping {} recipient - missing email", logContext);
@@ -218,6 +321,36 @@ public class EmailNotificationService {
             log.info("Sent {} email to {}", logContext, email);
         } catch (Exception ex) {
             log.error("Failed to send {} email to {}", logContext, email, ex);
+        }
+    }
+
+    private void sendHtmlMail(WebUser recipient, String subject, String body, String logContext, Set<String> processedEmails) {
+        if (recipient == null || !StringUtils.hasText(recipient.getEmail())) {
+            log.warn("Skipping {} recipient - missing email", logContext);
+            return;
+        }
+
+        String email = recipient.getEmail().trim();
+        if (processedEmails != null) {
+            String normalizedEmail = email.toLowerCase(Locale.ROOT);
+            if (!processedEmails.add(normalizedEmail)) {
+                return;
+            }
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            if (StringUtils.hasText(mailFrom)) {
+                helper.setFrom(mailFrom);
+            }
+            helper.setTo(email);
+            helper.setSubject(subject);
+            helper.setText(body, true);
+            mailSender.send(message);
+            log.info("Sent {} html email to {}", logContext, email);
+        } catch (Exception ex) {
+            log.error("Failed to send {} html email to {}", logContext, email, ex);
         }
     }
 
@@ -503,6 +636,355 @@ public class EmailNotificationService {
         return body.toString();
     }
 
+    private String buildEmployeeAddedPendingApprovalBody(UserPersonalDetails employee, String hrUsername) {
+        UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
+        CompanyTypes company = companyDetails.getCompanyTypes();
+        StaffCategories staffCategory = companyDetails.getStaffCategories();
+
+        return """
+                <html>
+                <body style="font-family: Arial, sans-serif; color: #222;">
+                    <p>Dear Admin team,</p>
+                    <p>An Employee has been added by <strong>%s</strong> of <strong>%s</strong> and is pending your approval. The details are as follows:</p>
+                    <p><strong>Employee details</strong></p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px;">
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold; width: 35%%;">Company</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Staff Category</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">EPF No</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Employee Name</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Married/Unmarried</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Date of Birth</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">NIC (Above 16 years)</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                    </table>
+                    <p>Please login to the WeCare system to continue the approval process.<br/>
+                    <a href="https://wecare-admin.dsi.lk/care-admin">https://wecare-admin.dsi.lk/care-admin</a></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p>Regards,<br/>WeCare system<br/>Automated Notification</p>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(safeValue(hrUsername)),
+                escapeHtml(safeValue(company != null ? company.getDescription() : null)),
+                escapeHtml(safeValue(company != null ? company.getDescription() : null)),
+                escapeHtml(safeValue(staffCategory != null ? staffCategory.getDescription() : null)),
+                escapeHtml(safeValue(employee.getEpfNo())),
+                escapeHtml(getEmployeeName(employee)),
+                escapeHtml(employee.getMaritalStatus() != null ? employee.getMaritalStatus().getDescription() : "-"),
+                escapeHtml(formatDate(employee.getDob())),
+                escapeHtml(safeValue(employee.getNic()))
+        );
+    }
+
+    private String buildEmployeeDeactivatedBody(UserPersonalDetails employee, String hrUsername) {
+        UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
+        CompanyTypes company = companyDetails.getCompanyTypes();
+        StaffCategories staffCategory = companyDetails.getStaffCategories();
+
+        return """
+                <html>
+                <body style="font-family: Arial, sans-serif; color: #222;">
+                    <p>Dear Admin team,</p>
+                    <p>An Employee has been deactivated by <strong>%s</strong> of <strong>%s</strong>. The details are as follows:</p>
+                    <p><strong>Employee details</strong></p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px;">
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold; width: 35%%;">Company</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Staff Category</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">EPF No</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Employee Name</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Terminated date</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                    </table>
+                    <p>Please login to the WeCare system for more details.<br/>
+                    <a href="https://wecare-admin.dsi.lk/care-admin">https://wecare-admin.dsi.lk/care-admin</a></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p>Regards,<br/>WeCare system<br/>Automated Notification</p>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(safeValue(hrUsername)),
+                escapeHtml(safeValue(company != null ? company.getDescription() : null)),
+                escapeHtml(safeValue(company != null ? company.getDescription() : null)),
+                escapeHtml(safeValue(staffCategory != null ? staffCategory.getDescription() : null)),
+                escapeHtml(safeValue(employee.getEpfNo())),
+                escapeHtml(getEmployeeName(employee)),
+                escapeHtml(formatDate(companyDetails.getTerminateDate()))
+        );
+    }
+
+    private String buildDependentApprovedByHrBody(ClaimsDependents dependent, String hrUsername) {
+        ApplicationUser applicationUser = dependent.getApplicationUser();
+        UserPersonalDetails employee = applicationUser.getUserPersonalDetails();
+        UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
+        CompanyTypes company = companyDetails.getCompanyTypes();
+        StaffCategories staffCategory = companyDetails.getStaffCategories();
+        String companyDescription = safeValue(company != null ? company.getDescription() : null);
+
+        return """
+                <html>
+                <body style="font-family: Arial, sans-serif; color: #222;">
+                    <p>Dear Admin team,</p>
+                    <p>A dependent has been approved by <strong>%s</strong> of <strong>%s</strong> for following employee. The details are as follows:</p>
+                    <p><strong>Employee details</strong></p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px; margin-bottom: 16px;">
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold; width: 35%%;">Employee name</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Company</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">EPF number</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Staff category</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                    </table>
+                    <p><strong>Dependent details</strong></p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px; margin-bottom: 16px;">
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold; width: 35%%;">Relationship</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Dependent name</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Date of Birth</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">NIC (Above 16 years)</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                    </table>
+                    <p>Approved By: <strong>%s</strong> - <strong>%s</strong></p>
+                    <p>Please login to the WeCare system for more details.<br/>
+                    <a href="https://wecare-admin.dsi.lk/care-admin">https://wecare-admin.dsi.lk/care-admin</a></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p>Regards,<br/>WeCare system<br/>Automated Notification</p>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(safeValue(hrUsername)),
+                escapeHtml(companyDescription),
+                escapeHtml(getEmployeeName(employee)),
+                escapeHtml(companyDescription),
+                escapeHtml(safeValue(employee.getEpfNo())),
+                escapeHtml(safeValue(staffCategory != null ? staffCategory.getDescription() : null)),
+                escapeHtml(dependent.getRelationCategory() != null ? dependent.getRelationCategory().getDescription() : "-"),
+                escapeHtml(getDependentName(dependent)),
+                escapeHtml(formatDate(dependent.getDob())),
+                escapeHtml(safeValue(dependent.getNic())),
+                escapeHtml(safeValue(hrUsername)),
+                escapeHtml(companyDescription)
+        );
+    }
+
+    private String buildCivilStatusApprovedByHrBody(com.dtech.admin.model.MaritalStatus civilStatusUpdate, String hrUsername) {
+        ApplicationUser applicationUser = civilStatusUpdate.getApplicationUser();
+        UserPersonalDetails employee = applicationUser.getUserPersonalDetails();
+        UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
+        CompanyTypes company = companyDetails != null ? companyDetails.getCompanyTypes() : null;
+        StaffCategories staffCategory = companyDetails != null ? companyDetails.getStaffCategories() : null;
+        String companyDescription = safeValue(company != null ? company.getDescription() : null);
+
+        return """
+                <html>
+                <body style="font-family: Arial, sans-serif; color: #222;">
+                    <p>Dear Admin team,</p>
+                    <p>A marriage certificate has been added by the following employee and approved by <strong>%s</strong> of <strong>%s</strong>. The details are as follows:</p>
+                    <p><strong>Employee details</strong></p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px; margin-bottom: 16px;">
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold; width: 35%%;">Employee name</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Company</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">EPF number</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Staff category</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                    </table>
+                    <p><strong>Dependent details</strong></p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px; margin-bottom: 16px;">
+                        <tr>
+                            <th style="border: 1px solid #d9d9d9; padding: 8px; text-align: left;">Relationship</th>
+                            <th style="border: 1px solid #d9d9d9; padding: 8px; text-align: left;">Dependent name</th>
+                            <th style="border: 1px solid #d9d9d9; padding: 8px; text-align: left;">Date of Birth</th>
+                            <th style="border: 1px solid #d9d9d9; padding: 8px; text-align: left;">NIC (Above 16 years)</th>
+                        </tr>
+                        %s
+                    </table>
+                    <p>Please login to the WeCare system for more details.<br/>
+                    <a href="https://wecare-admin.dsi.lk/care-admin">https://wecare-admin.dsi.lk/care-admin</a></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p>Regards,<br/>WeCare system<br/>Automated Notification</p>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(safeValue(hrUsername)),
+                escapeHtml(companyDescription),
+                escapeHtml(getEmployeeName(employee)),
+                escapeHtml(companyDescription),
+                escapeHtml(safeValue(employee.getEpfNo())),
+                escapeHtml(safeValue(staffCategory != null ? staffCategory.getDescription() : null)),
+                buildCivilStatusDependentRows(applicationUser)
+        );
+    }
+
+    private String buildStaffCategoryTransferredBody(UserPersonalDetails employee,
+                                                     StaffCategories previousStaffCategory,
+                                                     StaffCategories newStaffCategory,
+                                                     Date effectiveDate,
+                                                     String hrUsername) {
+        return """
+                <html>
+                <body style="font-family: Arial, sans-serif; color: #222;">
+                    <p>Dear Admin team,</p>
+                    <p>The following employee promoted as <strong>%s</strong>. Promoted details as follows;</p>
+                    <table style="border-collapse: collapse; width: 100%%; max-width: 700px;">
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold; width: 35%%;">EPF</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Name</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">NIC</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Promoted Staff Category</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Previous Staff Category</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px; font-weight: bold;">Effective date</td>
+                            <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        </tr>
+                    </table>
+                    <p>Please login to the WeCare system for more details.<br/>
+                    <a href="https://wecare-admin.dsi.lk/care-admin">https://wecare-admin.dsi.lk/care-admin</a></p>
+                    <p>This is an automated notification. Please do not reply to this email.</p>
+                    <p>Regards,<br/>WeCare system<br/>Automated Notification</p>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(safeValue(newStaffCategory != null ? newStaffCategory.getDescription() : null)),
+                escapeHtml(safeValue(employee.getEpfNo())),
+                escapeHtml(getEmployeeName(employee)),
+                escapeHtml(safeValue(employee.getNic())),
+                escapeHtml(safeValue(newStaffCategory != null ? newStaffCategory.getDescription() : null)),
+                escapeHtml(safeValue(previousStaffCategory != null ? previousStaffCategory.getDescription() : null)),
+                escapeHtml(formatDate(effectiveDate))
+        );
+    }
+
+    private String buildCivilStatusDependentRows(ApplicationUser applicationUser) {
+        if (applicationUser == null || CollectionUtils.isEmpty(applicationUser.getClaimsDependents())) {
+            return """
+                    <tr>
+                        <td colspan="4" style="border: 1px solid #d9d9d9; padding: 8px;">No approved spouse or in-law dependents available.</td>
+                    </tr>
+                    """;
+        }
+
+        List<ClaimsDependents> dependents = applicationUser.getClaimsDependents().stream()
+                .filter(Objects::nonNull)
+                .filter(dependent -> Workflow.APPROVED.equals(dependent.getStatus()))
+                .filter(dependent -> dependent.getRelationCategory() != null)
+                .filter(dependent -> isCivilStatusDependent(dependent.getRelationCategory()))
+                .sorted(Comparator
+                        .comparing((ClaimsDependents dependent) -> dependent.getRelationCategory().getDescription())
+                        .thenComparing(this::getDependentName))
+                .toList();
+
+        if (dependents.isEmpty()) {
+            return """
+                    <tr>
+                        <td colspan="4" style="border: 1px solid #d9d9d9; padding: 8px;">No approved spouse or in-law dependents available.</td>
+                    </tr>
+                    """;
+        }
+
+        StringBuilder rows = new StringBuilder();
+        for (ClaimsDependents dependent : dependents) {
+            rows.append("""
+                    <tr>
+                        <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                        <td style="border: 1px solid #d9d9d9; padding: 8px;">%s</td>
+                    </tr>
+                    """.formatted(
+                    escapeHtml(dependent.getRelationCategory().getDescription()),
+                    escapeHtml(getDependentName(dependent)),
+                    escapeHtml(formatDate(dependent.getDob())),
+                    escapeHtml(safeValue(dependent.getNic()))
+            ));
+        }
+        return rows.toString();
+    }
+
+    private boolean isCivilStatusDependent(RelationCategory relationCategory) {
+        return RelationCategory.WIFE.equals(relationCategory)
+                || RelationCategory.HUSBAND.equals(relationCategory)
+                || RelationCategory.FATHER_IN_LAW.equals(relationCategory)
+                || RelationCategory.MOTHER_IN_LAW.equals(relationCategory);
+    }
+
     private BigDecimal findApprovedAmountByLevel(InsuranceClaimsRequest claim, ApprovalLevel level) {
         if (claim.getApprovalWorkFlows() == null) {
             return null;
@@ -568,6 +1050,49 @@ public class EmailNotificationService {
                 ? claim.getEmployee().getUserPersonalDetails().getFirstName() + " "
                 + claim.getEmployee().getUserPersonalDetails().getLastName()
                 : "N/A";
+    }
+
+    private String getEmployeeName(UserPersonalDetails employee) {
+        if (employee == null) {
+            return "N/A";
+        }
+        String firstName = StringUtils.hasText(employee.getFirstName()) ? employee.getFirstName().trim() : "";
+        String lastName = StringUtils.hasText(employee.getLastName()) ? employee.getLastName().trim() : "";
+        String fullName = (firstName + " " + lastName).trim();
+        return StringUtils.hasText(fullName) ? fullName : "N/A";
+    }
+
+    private String getDependentName(ClaimsDependents dependent) {
+        if (dependent == null) {
+            return "N/A";
+        }
+        String firstName = StringUtils.hasText(dependent.getFirstName()) ? dependent.getFirstName().trim() : "";
+        String lastName = StringUtils.hasText(dependent.getLastName()) ? dependent.getLastName().trim() : "";
+        String fullName = (firstName + " " + lastName).trim();
+        return StringUtils.hasText(fullName) ? fullName : "N/A";
+    }
+
+    private String formatDate(Date date) {
+        if (date == null) {
+            return "-";
+        }
+        return new SimpleDateFormat("yyyy-MM-dd").format(date);
+    }
+
+    private String safeValue(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "-";
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     private String formatAmount(BigDecimal amount, Locale locale) {
