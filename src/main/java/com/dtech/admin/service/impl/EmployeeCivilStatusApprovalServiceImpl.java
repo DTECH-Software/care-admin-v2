@@ -22,6 +22,7 @@ import com.dtech.admin.repository.WebUserRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeCivilStatusApprovalService;
+import com.dtech.admin.service.MessageService;
 import com.dtech.admin.specifications.MaritalSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
@@ -37,6 +38,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 
@@ -82,6 +84,9 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    private final MessageService messageService;
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = false)
@@ -221,6 +226,8 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
 
                if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(maritalStatus.getStatus())) {
                    notifyAdminTeamOnCivilStatusApproval(maritalStatus, civilStatusApprovalRequestDTO.getUsername());
+               } else if (!Workflow.REJECTED.equals(previousStatus) && Workflow.REJECTED.equals(maritalStatus.getStatus())) {
+                   notifyEmployeeOnCivilStatusRejection(maritalStatus);
                }
                return ResponseEntity.ok().body(responseUtil.success(null, messageSource.getMessage(ResponseMessageUtil.CIVIL_STATUS_UPDATE_SUCCESSFULLY, null, locale)));
 
@@ -262,6 +269,30 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
                 .toList();
 
         emailNotificationService.notifyCivilStatusApprovedByHr(recipients, maritalStatus, hrUsername);
+    }
+
+    private void notifyEmployeeOnCivilStatusRejection(com.dtech.admin.model.MaritalStatus maritalStatus) {
+        try {
+            String mobile = Optional.ofNullable(maritalStatus)
+                    .map(com.dtech.admin.model.MaritalStatus::getApplicationUser)
+                    .map(applicationUser -> {
+                        if (StringUtils.hasText(applicationUser.getPrimaryMobile())) {
+                            return applicationUser.getPrimaryMobile();
+                        }
+                        UserPersonalDetails personalDetails = applicationUser.getUserPersonalDetails();
+                        return personalDetails != null ? personalDetails.getMobileNo() : null;
+                    })
+                    .orElse(null);
+
+            if (!StringUtils.hasText(mobile)) {
+                log.warn("Skipping civil status rejection SMS. Employee mobile not found for marital status {}", maritalStatus != null ? maritalStatus.getId() : null);
+                return;
+            }
+
+            messageService.sendMessage(MessageType.CIVIL_STATUS_REJECTED, "", "", mobile);
+        } catch (Exception ex) {
+            log.error("Failed to send civil status rejection SMS for marital status {}", maritalStatus != null ? maritalStatus.getId() : null, ex);
+        }
     }
 
 
