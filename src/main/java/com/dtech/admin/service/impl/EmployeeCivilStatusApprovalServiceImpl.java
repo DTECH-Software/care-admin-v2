@@ -226,7 +226,7 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
 
                if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(maritalStatus.getStatus())) {
                    notifyAdminTeamOnCivilStatusApproval(maritalStatus, civilStatusApprovalRequestDTO.getUsername());
-               } else if (!Workflow.REJECTED.equals(previousStatus) && Workflow.REJECTED.equals(maritalStatus.getStatus())) {
+               } else if (Workflow.REJECTED.equals(maritalStatus.getStatus())) {
                    notifyEmployeeOnCivilStatusRejection(maritalStatus);
                }
                return ResponseEntity.ok().body(responseUtil.success(null, messageSource.getMessage(ResponseMessageUtil.CIVIL_STATUS_UPDATE_SUCCESSFULLY, null, locale)));
