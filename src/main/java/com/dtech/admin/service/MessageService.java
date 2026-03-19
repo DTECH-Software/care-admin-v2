@@ -7,7 +7,6 @@
 
 package com.dtech.admin.service;
 
-import com.dtech.admin.dto.api.ITextMessageRequestDTO;
 import com.dtech.admin.dto.api.MessageResponseDTO;
 import com.dtech.admin.enums.MessageType;
 import com.dtech.admin.repository.NotificationTemplateRepository;
@@ -68,35 +67,7 @@ public class MessageService {
                         headers.set(HttpHeaders.AUTHORIZATION, "Basic " + apiKey);
                         headers.set("X-API-VERSION", "v1");
 
-                        if (MessageType.CIVIL_STATUS_REJECTED.equals(messageType)) {
-                            return sendCivilStatusRejectedMessage(mobile, formatMessage, headers);
-                        }
-
-                        ITextMessageRequestDTO iTextMessageRequestDTO = new ITextMessageRequestDTO();
-                        iTextMessageRequestDTO.setTo(mobile);
-                        iTextMessageRequestDTO.setText(formatMessage);
-                        HttpEntity<ITextMessageRequestDTO> entity = new HttpEntity<>(iTextMessageRequestDTO, headers);
-                        log.info("Before send message {}", iTextMessageRequestDTO);
-                        try {
-                            ResponseEntity<String> response = restTemplate.exchange(messageURI, HttpMethod.POST, entity, String.class);
-                            if (response.getBody() == null || response.getBody().isEmpty()) {
-                                log.error("Received empty response body from the API");
-                                return MessageResponseDTO.builder()
-                                        .success(false)
-                                        .message("No response body from the API").build();
-                            }
-                            log.info("After send message {}", response.toString());
-                            MessageResponseDTO responseState = getResponseState(response);
-                            responseState.setMessage(messageSource.getMessage("val.otp.send.success", null, null));
-                            return responseState;
-                        } catch (HttpStatusCodeException ex) {
-                            // Log provider response body to understand why the gateway rejected the request.
-                            log.error("Failed to send message. Status: {}, Response body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
-                            return MessageResponseDTO.builder()
-                                    .success(false)
-                                    .message("Message sending failed: " + ex.getStatusCode())
-                                    .build();
-                        }
+                        return sendJsonMessage(mobile, formatMessage, headers);
                     }).orElseGet(() -> {
                         log.info("Template {} not found", messageType.name());
                         return MessageResponseDTO.builder()
@@ -109,7 +80,7 @@ public class MessageService {
         }
     }
 
-    private MessageResponseDTO sendCivilStatusRejectedMessage(String mobile, String formatMessage, HttpHeaders headers) {
+    private MessageResponseDTO sendJsonMessage(String mobile, String formatMessage, HttpHeaders headers) {
         String jsonPayload = "{\"to\":\"" + escapeJson(mobile) + "\",\"text\":\"" + escapeJson(formatMessage) + "\"}";
         HttpEntity<String> entity = new HttpEntity<>(jsonPayload, headers);
         log.info("Before send message raw JSON {}", jsonPayload);
