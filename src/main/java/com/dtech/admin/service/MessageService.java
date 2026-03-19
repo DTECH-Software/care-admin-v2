@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.http.*;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -43,6 +44,15 @@ public class MessageService {
 
     @Value("${message.api.key}")
     private String apiKey;
+
+    @Async
+    public void sendMessageAsync(MessageType messageType, String message, String otherMessage, String mobile) {
+        try {
+            sendMessage(messageType, message, otherMessage, mobile);
+        } catch (Exception e) {
+            log.error("Async message sending failed for type {} and mobile {}", messageType, mobile, e);
+        }
+    }
 
     @Transactional
     public MessageResponseDTO sendMessage(MessageType messageType, String message,String otherMessage, String mobile) {

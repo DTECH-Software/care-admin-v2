@@ -289,7 +289,7 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
                 return;
             }
 
-            messageService.sendMessage(MessageType.CIVIL_STATUS_REJECTED, "", "", mobile);
+            messageService.sendMessageAsync(MessageType.CIVIL_STATUS_REJECTED, "", "", mobile);
         } catch (Exception ex) {
             log.error("Failed to send civil status rejection SMS for marital status {}", maritalStatus != null ? maritalStatus.getId() : null, ex);
         }
