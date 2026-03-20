@@ -226,6 +226,7 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
 
                if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(maritalStatus.getStatus())) {
                    notifyAdminTeamOnCivilStatusApproval(maritalStatus, civilStatusApprovalRequestDTO.getUsername());
+                   notifyEmployeeOnCivilStatusApproval(maritalStatus);
                } else if (Workflow.REJECTED.equals(maritalStatus.getStatus())) {
                    notifyEmployeeOnCivilStatusRejection(maritalStatus);
                }
@@ -273,16 +274,7 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
 
     private void notifyEmployeeOnCivilStatusRejection(com.dtech.admin.model.MaritalStatus maritalStatus) {
         try {
-            String mobile = Optional.ofNullable(maritalStatus)
-                    .map(com.dtech.admin.model.MaritalStatus::getApplicationUser)
-                    .map(applicationUser -> {
-                        if (StringUtils.hasText(applicationUser.getPrimaryMobile())) {
-                            return applicationUser.getPrimaryMobile();
-                        }
-                        UserPersonalDetails personalDetails = applicationUser.getUserPersonalDetails();
-                        return personalDetails != null ? personalDetails.getMobileNo() : null;
-                    })
-                    .orElse(null);
+            String mobile = resolveEmployeeMobile(maritalStatus);
 
             if (!StringUtils.hasText(mobile)) {
                 log.warn("Skipping civil status rejection SMS. Employee mobile not found for marital status {}", maritalStatus != null ? maritalStatus.getId() : null);
@@ -293,6 +285,34 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
         } catch (Exception ex) {
             log.error("Failed to send civil status rejection SMS for marital status {}", maritalStatus != null ? maritalStatus.getId() : null, ex);
         }
+    }
+
+    private void notifyEmployeeOnCivilStatusApproval(com.dtech.admin.model.MaritalStatus maritalStatus) {
+        try {
+            String mobile = resolveEmployeeMobile(maritalStatus);
+
+            if (!StringUtils.hasText(mobile)) {
+                log.warn("Skipping civil status approval SMS. Employee mobile not found for marital status {}", maritalStatus != null ? maritalStatus.getId() : null);
+                return;
+            }
+
+            messageService.sendMessageAsync(MessageType.CIVIL_STATUS_APPROVED, "", "", mobile);
+        } catch (Exception ex) {
+            log.error("Failed to send civil status approval SMS for marital status {}", maritalStatus != null ? maritalStatus.getId() : null, ex);
+        }
+    }
+
+    private String resolveEmployeeMobile(com.dtech.admin.model.MaritalStatus maritalStatus) {
+        return Optional.ofNullable(maritalStatus)
+                .map(com.dtech.admin.model.MaritalStatus::getApplicationUser)
+                .map(applicationUser -> {
+                    if (StringUtils.hasText(applicationUser.getPrimaryMobile())) {
+                        return applicationUser.getPrimaryMobile();
+                    }
+                    UserPersonalDetails personalDetails = applicationUser.getUserPersonalDetails();
+                    return personalDetails != null ? personalDetails.getMobileNo() : null;
+                })
+                .orElse(null);
     }
 
 

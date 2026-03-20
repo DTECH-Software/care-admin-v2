@@ -251,6 +251,7 @@ public class DependentServiceImpl implements DependentService {
                             claimDependentsRepository.saveAndFlush(de);
                             if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(de.getStatus())) {
                                 notifyAdminTeamOnDependentApproval(de, dependentRequestDTO.getUsername());
+                                notifyEmployeeOnDependentApproval(de);
                             } else if (Workflow.REJECTED.equals(de.getStatus())) {
                                 notifyEmployeeOnDependentRejection(de);
                             }
@@ -296,17 +297,7 @@ public class DependentServiceImpl implements DependentService {
 
     private void notifyEmployeeOnDependentRejection(ClaimsDependents dependent) {
         try {
-            String mobile = Optional.ofNullable(dependent)
-                    .map(ClaimsDependents::getApplicationUser)
-                    .map(applicationUser -> {
-                        if (StringUtils.hasText(applicationUser.getPrimaryMobile())) {
-                            return applicationUser.getPrimaryMobile();
-                        }
-                        return applicationUser.getUserPersonalDetails() != null
-                                ? applicationUser.getUserPersonalDetails().getMobileNo()
-                                : null;
-                    })
-                    .orElse(null);
+            String mobile = resolveEmployeeMobile(dependent);
 
             if (!StringUtils.hasText(mobile)) {
                 log.warn("Skipping dependent rejection SMS. Employee mobile not found for dependent {}", dependent != null ? dependent.getId() : null);
@@ -321,6 +312,39 @@ public class DependentServiceImpl implements DependentService {
         } catch (Exception ex) {
             log.error("Failed to send dependent rejection SMS for dependent {}", dependent != null ? dependent.getId() : null, ex);
         }
+    }
+
+    private void notifyEmployeeOnDependentApproval(ClaimsDependents dependent) {
+        try {
+            String mobile = resolveEmployeeMobile(dependent);
+
+            if (!StringUtils.hasText(mobile)) {
+                log.warn("Skipping dependent approval SMS. Employee mobile not found for dependent {}", dependent != null ? dependent.getId() : null);
+                return;
+            }
+
+            String relation = Optional.ofNullable(dependent.getRelationCategory())
+                    .map(RelationCategory::getDescription)
+                    .orElse("Dependent");
+
+            messageService.sendMessageAsync(MessageType.DEPENDENT_APPROVED, relation, "", mobile);
+        } catch (Exception ex) {
+            log.error("Failed to send dependent approval SMS for dependent {}", dependent != null ? dependent.getId() : null, ex);
+        }
+    }
+
+    private String resolveEmployeeMobile(ClaimsDependents dependent) {
+        return Optional.ofNullable(dependent)
+                .map(ClaimsDependents::getApplicationUser)
+                .map(applicationUser -> {
+                    if (StringUtils.hasText(applicationUser.getPrimaryMobile())) {
+                        return applicationUser.getPrimaryMobile();
+                    }
+                    return applicationUser.getUserPersonalDetails() != null
+                            ? applicationUser.getUserPersonalDetails().getMobileNo()
+                            : null;
+                })
+                .orElse(null);
     }
 
     private ResponseEntity<ApiResponse<Object>> validateApprovedDependent(ApplicationUser applicationUser, ClaimsDependents claimDependentRequestDTO, Locale locale) {
