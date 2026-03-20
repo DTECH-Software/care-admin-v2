@@ -21,6 +21,7 @@ import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.DependentService;
 import com.dtech.admin.service.EmailNotificationService;
+import com.dtech.admin.service.MessageService;
 import com.dtech.admin.specifications.DependentSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
@@ -36,6 +37,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Stream;
@@ -87,6 +89,9 @@ public class DependentServiceImpl implements DependentService {
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    private final MessageService messageService;
 
     @Override
     @Transactional
@@ -246,6 +251,8 @@ public class DependentServiceImpl implements DependentService {
                             claimDependentsRepository.saveAndFlush(de);
                             if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(de.getStatus())) {
                                 notifyAdminTeamOnDependentApproval(de, dependentRequestDTO.getUsername());
+                            } else if (Workflow.REJECTED.equals(de.getStatus())) {
+                                notifyEmployeeOnDependentRejection(de);
                             }
                         }
 
@@ -285,6 +292,35 @@ public class DependentServiceImpl implements DependentService {
                 .toList();
 
         emailNotificationService.notifyDependentApprovedByHr(recipients, dependent, hrUsername);
+    }
+
+    private void notifyEmployeeOnDependentRejection(ClaimsDependents dependent) {
+        try {
+            String mobile = Optional.ofNullable(dependent)
+                    .map(ClaimsDependents::getApplicationUser)
+                    .map(applicationUser -> {
+                        if (StringUtils.hasText(applicationUser.getPrimaryMobile())) {
+                            return applicationUser.getPrimaryMobile();
+                        }
+                        return applicationUser.getUserPersonalDetails() != null
+                                ? applicationUser.getUserPersonalDetails().getMobileNo()
+                                : null;
+                    })
+                    .orElse(null);
+
+            if (!StringUtils.hasText(mobile)) {
+                log.warn("Skipping dependent rejection SMS. Employee mobile not found for dependent {}", dependent != null ? dependent.getId() : null);
+                return;
+            }
+
+            String relation = Optional.ofNullable(dependent.getRelationCategory())
+                    .map(RelationCategory::getDescription)
+                    .orElse("Dependent");
+
+            messageService.sendMessageAsync(MessageType.DEPENDENT_REJECTED, relation, "", mobile);
+        } catch (Exception ex) {
+            log.error("Failed to send dependent rejection SMS for dependent {}", dependent != null ? dependent.getId() : null, ex);
+        }
     }
 
     private ResponseEntity<ApiResponse<Object>> validateApprovedDependent(ApplicationUser applicationUser, ClaimsDependents claimDependentRequestDTO, Locale locale) {
