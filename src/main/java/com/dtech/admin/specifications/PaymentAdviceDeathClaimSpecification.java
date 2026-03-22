@@ -51,11 +51,15 @@ public class PaymentAdviceDeathClaimSpecification {
             Join<DeathClaimRequest, ApplicationUser> employeeJoin = root.join("employee", JoinType.LEFT);
             Join<ApplicationUser, UserPersonalDetails> personalJoin = employeeJoin.join("userPersonalDetails", JoinType.LEFT);
             Join<UserPersonalDetails, UserCompanyDetails> companyJoin = personalJoin.join("userCompanyDetails", JoinType.LEFT);
+            Join<UserCompanyDetails, CompanyTypes> deathPaymentCompanyJoin = companyJoin.join("deathPaymentCompany", JoinType.LEFT);
             Join<UserCompanyDetails, CompanyTypes> paymentCompanyJoin = companyJoin.join("paymentCompany", JoinType.LEFT);
             Join<UserCompanyDetails, CompanyTypes> companyTypeJoin = companyJoin.join("companyTypes", JoinType.LEFT);
             Join<UserCompanyDetails, StaffCategories> staffCategoryJoin = companyJoin.join("staffCategories", JoinType.LEFT);
 
-            Expression<String> effectiveCompany = cb.coalesce(paymentCompanyJoin.get("code"), companyTypeJoin.get("code"));
+            var effectiveCompany = cb.<String>coalesce()
+                    .value(deathPaymentCompanyJoin.get("code"))
+                    .value(paymentCompanyJoin.get("code"))
+                    .value(companyTypeJoin.get("code"));
 
             if (hasText(filterDto.getPaymentCompany())) {
                 predicates.add(cb.equal(cb.lower(effectiveCompany), filterDto.getPaymentCompany().toLowerCase()));

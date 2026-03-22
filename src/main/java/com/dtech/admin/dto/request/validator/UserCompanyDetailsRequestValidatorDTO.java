@@ -20,6 +20,9 @@ public class UserCompanyDetailsRequestValidatorDTO {
     private String paymentCompanyCode;
     @Valid
     private SimpleBaseDTO paymentCompany;
+    private String deathPaymentCompanyCode;
+    @Valid
+    private SimpleBaseDTO deathPaymentCompany;
     @NotBlank(message = "Staff category is required",groups = {OnAdd.class})
     private String staffCategoryCode;
     @NotBlank(message = "Staff type is required",groups = {OnAdd.class})

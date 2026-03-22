@@ -219,12 +219,20 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
 
             String paymentCompanyCode = resolvePaymentCompanyCode(dto.getUserCompanyDetails());
+            String deathPaymentCompanyCode = resolveDeathPaymentCompanyCode(dto.getUserCompanyDetails());
             String insurancePolicyCode = resolveInsurancePolicyCode(dto.getUserCompanyDetails());
             Optional<CompanyTypes> paymentCompanyOpt = Optional.empty();
             if (StringUtils.hasText(paymentCompanyCode)) {
                 paymentCompanyOpt = companyTypeRepository.findByCodeAndStatus(paymentCompanyCode, Status.ACTIVE);
                 if (paymentCompanyOpt.isEmpty()) {
                     return errorResponse(1036, ResponseMessageUtil.COMPANY_NOT_FOUND, paymentCompanyCode, locale);
+                }
+            }
+            Optional<CompanyTypes> deathPaymentCompanyOpt = Optional.empty();
+            if (StringUtils.hasText(deathPaymentCompanyCode)) {
+                deathPaymentCompanyOpt = companyTypeRepository.findByCodeAndStatus(deathPaymentCompanyCode, Status.ACTIVE);
+                if (deathPaymentCompanyOpt.isEmpty()) {
+                    return errorResponse(1036, ResponseMessageUtil.COMPANY_NOT_FOUND, deathPaymentCompanyCode, locale);
                 }
             }
 
@@ -255,6 +263,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             UserCompanyDetails companyDetails = employeeDetailsMapperDtoToEntity.mapCompanyDetails(dto.getUserCompanyDetails());
             companyDetails.setCompanyTypes(companyOpt.get());
             companyDetails.setPaymentCompany(paymentCompanyOpt.orElse(null));
+            companyDetails.setDeathPaymentCompany(deathPaymentCompanyOpt.orElse(null));
             companyDetails.setStaffTypes(staffTypeOpt.get());
             companyDetails.setStaffCategories(staffCategoryOpt.get());
             companyDetails.setInsurancePolicy(insurancePolicy.orElse(null));
@@ -328,6 +337,17 @@ public class EmployeeServiceImpl implements EmployeeService {
         return StringUtils.hasText(code) ? code.trim() : null;
     }
 
+    private String resolveDeathPaymentCompanyCode(UserCompanyDetailsRequestDTO userCompanyDetails) {
+        if (userCompanyDetails == null) {
+            return null;
+        }
+        String code = userCompanyDetails.getDeathPaymentCompanyCode();
+        if (!StringUtils.hasText(code) && userCompanyDetails.getDeathPaymentCompany() != null) {
+            code = userCompanyDetails.getDeathPaymentCompany().getCode();
+        }
+        return StringUtils.hasText(code) ? code.trim() : null;
+    }
+
     private String resolveInsurancePolicyCode(UserCompanyDetailsRequestDTO userCompanyDetails) {
         if (userCompanyDetails == null) {
             return null;
@@ -370,12 +390,19 @@ public class EmployeeServiceImpl implements EmployeeService {
             return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
                 Status previousStatus = userPersonalDetails.getUserStatus();
                 String requestedPaymentCompanyCode = resolvePaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
+                String requestedDeathPaymentCompanyCode = resolveDeathPaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
                 String existingPaymentCompanyCode = userPersonalDetails.getUserCompanyDetails().getPaymentCompany() != null
                         ? userPersonalDetails.getUserCompanyDetails().getPaymentCompany().getCode()
                         : null;
                 String effectivePaymentCompanyCode = StringUtils.hasText(requestedPaymentCompanyCode)
                         ? requestedPaymentCompanyCode
                         : existingPaymentCompanyCode;
+                String existingDeathPaymentCompanyCode = userPersonalDetails.getUserCompanyDetails().getDeathPaymentCompany() != null
+                        ? userPersonalDetails.getUserCompanyDetails().getDeathPaymentCompany().getCode()
+                        : null;
+                String effectiveDeathPaymentCompanyCode = StringUtils.hasText(requestedDeathPaymentCompanyCode)
+                        ? requestedDeathPaymentCompanyCode
+                        : existingDeathPaymentCompanyCode;
                 String requestedInsurancePolicyCode = resolveInsurancePolicyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
                 String existingInsurancePolicyCode = userPersonalDetails.getUserCompanyDetails().getInsurancePolicy() != null
                         ? userPersonalDetails.getUserCompanyDetails().getInsurancePolicy().getCode()
@@ -424,6 +451,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .append("|")
                         .append(effectivePaymentCompanyCode)
                         .append("|")
+                        .append(effectiveDeathPaymentCompanyCode)
+                        .append("|")
                         .append(effectiveInsurancePolicyCode).toString();
 
                 String oldModel = new StringBuilder()
@@ -462,6 +491,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .append(userPersonalDetails.getUserCompanyDetails().getTerminateDate())
                         .append("|")
                         .append(existingPaymentCompanyCode)
+                        .append("|")
+                        .append(existingDeathPaymentCompanyCode)
                         .append("|")
                         .append(existingInsurancePolicyCode).toString();
 
@@ -513,6 +544,14 @@ public class EmployeeServiceImpl implements EmployeeService {
                         return errorResponse(1036, ResponseMessageUtil.COMPANY_NOT_FOUND, requestedPaymentCompanyCode, locale);
                     }
                     userPersonalDetails.getUserCompanyDetails().setPaymentCompany(paymentCompanyOpt.get());
+                }
+                if (StringUtils.hasText(requestedDeathPaymentCompanyCode)) {
+                    Optional<CompanyTypes> deathPaymentCompanyOpt = companyTypeRepository.findByCodeAndStatus(
+                            requestedDeathPaymentCompanyCode, Status.ACTIVE);
+                    if (deathPaymentCompanyOpt.isEmpty()) {
+                        return errorResponse(1036, ResponseMessageUtil.COMPANY_NOT_FOUND, requestedDeathPaymentCompanyCode, locale);
+                    }
+                    userPersonalDetails.getUserCompanyDetails().setDeathPaymentCompany(deathPaymentCompanyOpt.get());
                 }
                 log.info("Employee details success");
                 userPersonalDetails = userPersonalDetailsRepository.saveAndFlush(userPersonalDetails);

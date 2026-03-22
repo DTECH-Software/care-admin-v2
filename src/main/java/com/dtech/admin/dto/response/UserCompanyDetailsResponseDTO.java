@@ -9,6 +9,7 @@ import java.util.Date;
 public class UserCompanyDetailsResponseDTO {
     private SimpleBaseDTO companyTypes;
     private SimpleBaseDTO paymentCompany;
+    private SimpleBaseDTO deathPaymentCompany;
     private SimpleBaseDTO staffCategories;
     private SimpleBaseDTO staffTypes;
     private String designation;

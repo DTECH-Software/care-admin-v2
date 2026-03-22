@@ -543,7 +543,8 @@ public class PaymentAdviceDeathServiceImpl implements PaymentAdviceDeathService 
         return Optional.ofNullable(claim.getEmployee())
                 .map(ApplicationUser::getUserPersonalDetails)
                 .map(UserPersonalDetails::getUserCompanyDetails)
-                .map(userCompanyDetails -> Optional.ofNullable(userCompanyDetails.getPaymentCompany())
+                .map(userCompanyDetails -> Optional.ofNullable(userCompanyDetails.getDeathPaymentCompany())
+                        .or(() -> Optional.ofNullable(userCompanyDetails.getPaymentCompany()))
                         .orElse(userCompanyDetails.getCompanyTypes()))
                 .map(CompanyTypes::getCode)
                 .orElse(null);

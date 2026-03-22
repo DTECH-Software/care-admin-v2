@@ -10,6 +10,8 @@ public class UserCompanyDetailsRequestDTO {
     private String companyTypeCode;
     private String paymentCompanyCode;
     private SimpleBaseDTO paymentCompany;
+    private String deathPaymentCompanyCode;
+    private SimpleBaseDTO deathPaymentCompany;
     private String staffCategoryCode;
     private String staffTypeCode;
     private String designation;
