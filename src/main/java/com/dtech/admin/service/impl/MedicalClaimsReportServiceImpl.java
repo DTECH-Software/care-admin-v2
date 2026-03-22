@@ -335,14 +335,15 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             sheet.setColumnWidth(12, 18 * 256);
             sheet.setColumnWidth(13, 18 * 256);
             sheet.setColumnWidth(14, 20 * 256);
-            sheet.setColumnWidth(15, 14 * 256);
+            sheet.setColumnWidth(15, 20 * 256);
+            sheet.setColumnWidth(16, 14 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Medical Claims Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 15));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 16));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -357,11 +358,12 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             createStringCell(row, 8, "Treatment Category", headerStyle);
             createStringCell(row, 9, "Request Amount", headerStyle);
             createStringCell(row, 10, "Approved Amount", headerStyle);
-            createStringCell(row, 11, "Status", headerStyle);
-            createStringCell(row, 12, "Cheque No", headerStyle);
-            createStringCell(row, 13, "Cheque Created Date", headerStyle);
-            createStringCell(row, 14, "Final Remark", headerStyle);
-            createStringCell(row, 15, "Created Date", headerStyle);
+            createStringCell(row, 11, "Remaining Balance", headerStyle);
+            createStringCell(row, 12, "Status", headerStyle);
+            createStringCell(row, 13, "Cheque No", headerStyle);
+            createStringCell(row, 14, "Cheque Created Date", headerStyle);
+            createStringCell(row, 15, "Final Remark", headerStyle);
+            createStringCell(row, 16, "Created Date", headerStyle);
 
             int lineNo = 1;
             Map<Long, PaymentAdvice> adviceByClaimId = resolvePaymentAdviceByClaimId(rows);
@@ -406,6 +408,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                         : "";
 
                 PaymentAdvice advice = rowDTO.getId() != null ? adviceByClaimId.get(rowDTO.getId()) : null;
+                BigDecimal remainingBalance = calculateRemainingBalance(rowDTO.getRequestAmount(), rowDTO.getApprovedAmount());
 
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, safeString(rowDTO.getRequestId()), dataStyle);
@@ -418,11 +421,12 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                 createStringCell(row, 8, treatmentCategoryDisplay, dataStyle);
                 createStringCell(row, 9, toAmountString(rowDTO.getRequestAmount()), dataStyle);
                 createStringCell(row, 10, toAmountString(rowDTO.getApprovedAmount()), dataStyle);
-                createStringCell(row, 11, rowDTO.getRequestStatus() != null ? rowDTO.getRequestStatus().getDescription() : "", dataStyle);
-                createStringCell(row, 12, resolveChequeNo(advice), dataStyle);
-                createStringCell(row, 13, formatDate(advice != null ? advice.getCreatedDate() : null), dataStyle);
-                createStringCell(row, 14, resolveFinalRemark(rowDTO), dataStyle);
-                createStringCell(row, 15, formatDate(rowDTO.getCreatedDate()), dataStyle);
+                createStringCell(row, 11, toAmountString(remainingBalance), dataStyle);
+                createStringCell(row, 12, rowDTO.getRequestStatus() != null ? rowDTO.getRequestStatus().getDescription() : "", dataStyle);
+                createStringCell(row, 13, resolveChequeNo(advice), dataStyle);
+                createStringCell(row, 14, formatDate(advice != null ? advice.getCreatedDate() : null), dataStyle);
+                createStringCell(row, 15, resolveFinalRemark(rowDTO), dataStyle);
+                createStringCell(row, 16, formatDate(rowDTO.getCreatedDate()), dataStyle);
             }
 
             workbook.write(out);
@@ -660,6 +664,12 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
 
     private String toAmountString(BigDecimal amount) {
         return amount != null ? amount.toPlainString() : "0";
+    }
+
+    private BigDecimal calculateRemainingBalance(BigDecimal requestAmount, BigDecimal approvedAmount) {
+        BigDecimal request = requestAmount != null ? requestAmount : BigDecimal.ZERO;
+        BigDecimal approved = approvedAmount != null ? approvedAmount : BigDecimal.ZERO;
+        return request.subtract(approved);
     }
 
     private boolean hasText(String value) {
