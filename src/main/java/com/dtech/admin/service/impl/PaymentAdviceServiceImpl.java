@@ -287,7 +287,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
 
             return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
                     messageSource.getMessage(ResponseMessageUtil.PAYMENT_ADVICE_CREATED_SUCCESS,
-                            new Object[]{adviceNo}, locale)));
+                            new Object[]{responseDTO.getAdviceNo()}, locale)));
         } catch (Exception e) {
             log.error("Failed to create payment advice", e);
             throw e;
@@ -442,10 +442,10 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     private PaymentAdviceResponseDTO mapAdviceToResponse(PaymentAdvice advice, boolean includeAttachments) {
         PaymentAdviceResponseDTO dto = new PaymentAdviceResponseDTO();
         dto.setId(advice.getId());
-        dto.setAdviceNo(advice.getAdviceNo());
         dto.setAdviceYearStart(advice.getAdviceYearStart());
         dto.setAdviceYearEnd(advice.getAdviceYearEnd());
         dto.setAdviceSequence(advice.getAdviceSequence());
+        dto.setAdviceNo(resolveChequeNo(advice));
         dto.setVoucherNo(advice.getVoucherNo());
         dto.setVoucherSequence(advice.getVoucherSequence());
         dto.setCompanyCode(advice.getCompanyCode());
@@ -496,7 +496,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
                                                                  Map<String, String> staffCategoryDescriptions) {
         PaymentAdviceListResponseDTO dto = new PaymentAdviceListResponseDTO();
         dto.setId(advice.getId());
-        dto.setAdviceNo(advice.getAdviceNo());
+        dto.setAdviceNo(resolveChequeNo(advice));
         dto.setVoucherNo(advice.getVoucherNo());
         dto.setCompanyCode(advice.getCompanyCode());
         dto.setStaffCategoryCode(advice.getStaffCategoryCode());
@@ -638,28 +638,43 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     private String resolveChequeNo(PaymentAdviceResponseDTO dto) {
         BigDecimal totalApproved = Optional.ofNullable(dto.getTotalApprovedAmount()).orElse(BigDecimal.ZERO);
         if (totalApproved.compareTo(BigDecimal.ZERO) == 0) {
-            String company = hasText(dto.getCompanyCode()) ? dto.getCompanyCode().trim() : "";
-            String staff = hasText(dto.getStaffCategoryCode()) ? dto.getStaffCategoryCode().trim() : "";
-            int year = dto.getAdviceYearStart() != null ? dto.getAdviceYearStart() : LocalDate.now().getYear();
-            int sequence = dto.getAdviceSequence() != null ? dto.getAdviceSequence() : 1;
-            String returnSeq = String.format("%02d", sequence);
+            return buildReturnChequeNo(dto.getCompanyCode(), dto.getStaffCategoryCode(),
+                    dto.getAdviceYearStart(), dto.getAdviceSequence());
+        }
+        return dto.getAdviceNo();
+    }
 
-            StringBuilder prefix = new StringBuilder();
-            if (hasText(company)) {
-                prefix.append(company);
-            }
-            if (hasText(staff)) {
-                if (prefix.length() > 0) {
-                    prefix.append(" ");
-                }
-                prefix.append(staff);
-            }
+    private String resolveChequeNo(PaymentAdvice advice) {
+        BigDecimal totalApproved = Optional.ofNullable(advice.getTotalApprovedAmount()).orElse(BigDecimal.ZERO);
+        if (totalApproved.compareTo(BigDecimal.ZERO) == 0) {
+            return buildReturnChequeNo(advice.getCompanyCode(), advice.getStaffCategoryCode(),
+                    advice.getAdviceYearStart(), advice.getAdviceSequence());
+        }
+        return advice.getAdviceNo();
+    }
+
+    private String buildReturnChequeNo(String companyCode, String staffCategoryCode, Integer adviceYearStart,
+                                       Integer adviceSequence) {
+        String company = hasText(companyCode) ? companyCode.trim() : "";
+        String staff = hasText(staffCategoryCode) ? staffCategoryCode.trim() : "";
+        int year = adviceYearStart != null ? adviceYearStart : LocalDate.now().getYear();
+        int sequence = adviceSequence != null ? adviceSequence : 1;
+        String returnSeq = String.format("%02d", sequence);
+
+        StringBuilder prefix = new StringBuilder();
+        if (hasText(company)) {
+            prefix.append(company);
+        }
+        if (hasText(staff)) {
             if (prefix.length() > 0) {
                 prefix.append(" ");
             }
-            return prefix + "RETURN-" + year + "-" + returnSeq;
+            prefix.append(staff);
         }
-        return dto.getAdviceNo();
+        if (prefix.length() > 0) {
+            prefix.append(" ");
+        }
+        return prefix + "RETURN-" + year + "-" + returnSeq;
     }
 
     private String resolvePaymentCompanyCode(List<PaymentAdviceAttachment> attachments) {

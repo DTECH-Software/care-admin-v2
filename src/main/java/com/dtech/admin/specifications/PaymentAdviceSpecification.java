@@ -4,6 +4,7 @@ import com.dtech.admin.dto.search.PaymentAdviceSearchDTO;
 import com.dtech.admin.enums.PaymentAdviceType;
 import com.dtech.admin.model.PaymentAdvice;
 import com.dtech.admin.util.DateTimeUtil;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
@@ -25,7 +26,15 @@ public class PaymentAdviceSpecification {
                     cb.equal(root.get("type"), PaymentAdviceType.MEDICAL)));
 
             if (hasText(filterDto.getAdviceNo())) {
-                predicates.add(cb.like(cb.lower(root.get("adviceNo")), "%" + filterDto.getAdviceNo().toLowerCase() + "%"));
+                String adviceNoFilter = "%" + filterDto.getAdviceNo().toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("adviceNo")), adviceNoFilter),
+                        cb.like(cb.lower(buildReturnChequeNoExpression(cb,
+                                root.get("companyCode"),
+                                root.get("staffCategoryCode"),
+                                root.get("adviceYearStart").as(String.class),
+                                root.get("adviceSequence"))), adviceNoFilter)
+                ));
             }
 
             if (hasText(filterDto.getCompany())) {
@@ -62,6 +71,30 @@ public class PaymentAdviceSpecification {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static Expression<String> buildReturnChequeNoExpression(jakarta.persistence.criteria.CriteriaBuilder cb,
+                                                                    Expression<String> companyCode,
+                                                                    Expression<String> staffCategoryCode,
+                                                                    Expression<String> adviceYearStart,
+                                                                    Expression<Integer> adviceSequence) {
+        Expression<String> paddedSequence = cb.<String>selectCase()
+                .when(cb.lessThan(adviceSequence, 10), cb.concat("0", adviceSequence.as(String.class)))
+                .otherwise(adviceSequence.as(String.class));
+
+        return cb.concat(
+                cb.concat(
+                        cb.concat(
+                                cb.concat(
+                                        cb.concat(companyCode, " "),
+                                        cb.concat(staffCategoryCode, " RETURN-")
+                                ),
+                                adviceYearStart
+                        ),
+                        "-"
+                ),
+                paddedSequence
+        );
     }
 
     private static String normalizeDate(String value) {
