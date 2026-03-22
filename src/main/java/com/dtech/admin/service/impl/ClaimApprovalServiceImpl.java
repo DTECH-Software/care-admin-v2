@@ -127,6 +127,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     @Autowired
     private final InsuranceQuarterRepository insuranceQuarterRepository;
 
+    @Autowired
+    private final RejoinCarryForwardService rejoinCarryForwardService;
+
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = false)
@@ -607,11 +610,12 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 }
             }
 
-            BigDecimal sumOfClaims = insuranceClaimsRequestRepository.getSumRequestAmountByEmployeeAndTreatmentAndStatus(
+            InsuranceStaffCategoryPeriod carryForwardPeriod = resolvePreviousPeriodForCarry(user, insuranceStaffCategoryPeriod);
+            BigDecimal sumOfClaims = rejoinCarryForwardService.getRequestedAmountByTreatment(
                     user,
                     insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
                     insuranceStaffCategoryPeriod.getId(),
-                    List.of(Workflow.APPROVED)
+                    carryForwardPeriod
             );
 
             String staffCategoryCode = user.getUserPersonalDetails()
@@ -629,16 +633,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             BigDecimal requestAmount = claimRequestDTO.getApprovedAmount();
 
             if (insuranceDetailsLimit.getIsQuarter()) {
-                BigDecimal sumOfClaimsCategory = insuranceClaimsRequestRepository
-                        .getSumApprovedAmountByEmployeeAndTreatmentAndTreatmentCategoryAndPeriod(
-                                user,
-                                insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                                insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
-                                insuranceStaffCategoryPeriod.getId(),
-                                List.of(Workflow.APPROVED)
-                        );
-
-                sumOfClaimsCategory = sumOfClaimsCategory != null ? sumOfClaimsCategory : BigDecimal.ZERO;
+                BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
+                        user,
+                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
+                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
+                        insuranceStaffCategoryPeriod.getId(),
+                        carryForwardPeriod
+                );
 
                 BigDecimal fundLimit = BigDecimal.ZERO;
                 if (insuranceClaimsRequest.getInsuranceQuarter() != null) {
@@ -716,15 +717,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     }
 
                 } else {
-                    BigDecimal sumOfClaimsCategory = insuranceClaimsRequestRepository
-                            .getSumRequestAmountByEmployeeAndTreatmentAndTreatmentCategoryAndStatus(
-                                    user,
-                                    insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                                    insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
-                                    insuranceStaffCategoryPeriod.getId(),
-                                    List.of(Workflow.APPROVED));
-
-                    sumOfClaimsCategory = sumOfClaimsCategory != null ? sumOfClaimsCategory : BigDecimal.ZERO;
+                    BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getRequestedAmountByTreatmentCategory(
+                            user,
+                            insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
+                            insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
+                            insuranceStaffCategoryPeriod.getId(),
+                            carryForwardPeriod
+                    );
 
                     BigDecimal fundLimit = insuranceQuarter.getQuarterLimit();
 
@@ -867,51 +866,15 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             String treatmentCode = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode();
             Long periodId = currentPeriod != null ? currentPeriod.getId() : null;
 
-            BigDecimal sum = BigDecimal.ZERO;
-            if (periodId != null) {
-                BigDecimal currentSum = insuranceClaimsRequestRepository
-                        .getSumApprovedAmountByEmployeeAndTreatmentAndPeriod(
-                                applicationUser,
-                                treatmentCode,
-                                periodId,
-                                List.of(Workflow.APPROVED));
-                if (currentSum != null) {
-                    sum = currentSum;
-                }
-            }
-
-            Date previousPermanentDate = applicationUser.getUserPersonalDetails()
-                    .getUserCompanyDetails()
-                    .getPreviousPermanentDate();
-            Date changeDate = previousPermanentDate != null
-                    ? applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate()
-                    : null;
-            InsuranceStaffCategoryPeriod prevPeriod = null;
-            if (changeDate != null
-                    && currentPeriod != null
-                    && currentPeriod.getStaffCategories() != null) {
-                prevPeriod = insuranceStaffCategoryPeriodRepository
-                        .findByDateWithinRangeAnyStaff(changeDate)
-                        .stream()
-                        .filter(p -> p.getStaffCategories() != null)
-                        .filter(p -> !p.getStaffCategories().getCode()
-                                .equals(currentPeriod.getStaffCategories().getCode()))
-                        .findFirst()
-                        .orElse(null);
-                if (prevPeriod != null) {
-                    BigDecimal prevSum = insuranceClaimsRequestRepository
-                            .getSumApprovedAmountByEmployeeAndTreatmentAndPeriod(
-                                    applicationUser,
-                                    treatmentCode,
-                                    prevPeriod.getId(),
-                                    List.of(Workflow.APPROVED));
-                    if (prevSum != null) {
-                        sum = sum.add(prevSum);
-                    }
-                    log.info("CLAIM_APPROVAL_LIMIT carryOver prevPeriodId={}, prevSum={}",
-                            prevPeriod.getId(), prevSum);
-                }
-            }
+            InsuranceStaffCategoryPeriod prevPeriod = resolvePreviousPeriodForCarry(applicationUser, currentPeriod);
+            BigDecimal sum = periodId != null
+                    ? rejoinCarryForwardService.getApprovedAmountByTreatment(
+                    applicationUser,
+                    treatmentCode,
+                    periodId,
+                    prevPeriod
+            )
+                    : BigDecimal.ZERO;
             log.info("CLAIM_APPROVAL_LIMIT periodId={}, sumCurrent={}", periodId, sum);
 
             AvailableInsuranceLimitDTO dto = limitMap.get("limit");
@@ -977,33 +940,40 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                                               String categoryCode,
                                               Long periodId,
                                               InsuranceStaffCategoryPeriod prevPeriod) {
-        BigDecimal sum = BigDecimal.ZERO;
-        if (periodId != null) {
-            BigDecimal currentSum = insuranceClaimsRequestRepository
-                    .getSumApprovedAmountByEmployeeAndTreatmentAndTreatmentCategoryAndPeriod(
-                            applicationUser,
-                            treatmentCode,
-                            categoryCode,
-                            periodId,
-                            List.of(Workflow.APPROVED));
-            if (currentSum != null) {
-                sum = currentSum;
-            }
+        if (periodId == null) {
+            return BigDecimal.ZERO;
+        }
+        return rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
+                applicationUser,
+                treatmentCode,
+                categoryCode,
+                periodId,
+                prevPeriod
+        );
+    }
+
+    private InsuranceStaffCategoryPeriod resolvePreviousPeriodForCarry(ApplicationUser applicationUser,
+                                                                       InsuranceStaffCategoryPeriod currentPeriod) {
+        Date previousPermanentDate = applicationUser.getUserPersonalDetails()
+                .getUserCompanyDetails()
+                .getPreviousPermanentDate();
+        Date changeDate = previousPermanentDate != null
+                ? applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate()
+                : null;
+        if (changeDate == null
+                || currentPeriod == null
+                || currentPeriod.getStaffCategories() == null) {
+            return null;
         }
 
-        if (prevPeriod != null && !Objects.equals(prevPeriod.getId(), periodId)) {
-            BigDecimal prevSum = insuranceClaimsRequestRepository
-                    .getSumApprovedAmountByEmployeeAndTreatmentAndTreatmentCategoryAndPeriod(
-                            applicationUser,
-                            treatmentCode,
-                            categoryCode,
-                            prevPeriod.getId(),
-                            List.of(Workflow.APPROVED));
-            if (prevSum != null) {
-                sum = sum.add(prevSum);
-            }
-        }
-        return sum;
+        return insuranceStaffCategoryPeriodRepository
+                .findByDateWithinRangeAnyStaff(changeDate)
+                .stream()
+                .filter(p -> p.getStaffCategories() != null)
+                .filter(p -> !p.getStaffCategories().getCode()
+                        .equals(currentPeriod.getStaffCategories().getCode()))
+                .findFirst()
+                .orElse(null);
     }
 
     private Map<String, InsuranceQuarter> resolveCategoryQuarterMap(List<InsuranceQuarter> quarters,
