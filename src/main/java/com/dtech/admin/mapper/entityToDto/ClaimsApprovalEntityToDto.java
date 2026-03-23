@@ -42,6 +42,14 @@ public class ClaimsApprovalEntityToDto {
             dto.setApprovalLevelDescription(ApprovalLevel.valueOf(dto.getApprovalLevel()).getDescription());
             dto.getEmployee().getUserPersonalDetails().setAge(DateTimeUtil.getAge(String.valueOf(insuranceClaimsRequest.getEmployee().getUserPersonalDetails().getDob())));
             dto.getEmployee().getUserPersonalDetails().setGenderDescription(insuranceClaimsRequest.getEmployee().getUserPersonalDetails().getGender().getDescription());
+            if (dto.getEmployee() != null
+                    && dto.getEmployee().getUserPersonalDetails() != null
+                    && dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                    && dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getFacility() != null) {
+                dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails().setFacilityDescription(
+                        Facility.valueOf(dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getFacility()).getDescription()
+                );
+            }
             dto.setCreatedDate(insuranceClaimsRequest.getCreatedDate());
             if (insuranceClaimsRequest.getClaimsDependents() != null) {
                 log.info("get Age fro insurance depende");
