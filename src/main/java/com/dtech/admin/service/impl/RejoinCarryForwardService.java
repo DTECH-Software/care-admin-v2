@@ -13,10 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 @Service
 @Log4j2
@@ -68,8 +67,8 @@ public class RejoinCarryForwardService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private Set<ApplicationUser> resolveRelevantUsers(ApplicationUser currentUser) {
-        Set<ApplicationUser> users = new LinkedHashSet<>();
+    private List<ApplicationUser> resolveRelevantUsers(ApplicationUser currentUser) {
+        List<ApplicationUser> users = new ArrayList<>();
         if (currentUser == null) {
             return users;
         }
@@ -77,6 +76,7 @@ public class RejoinCarryForwardService {
         users.add(currentUser);
         findPreviousInactiveUser(currentUser)
                 .filter(previousUser -> isEligibleForCarryForward(currentUser, previousUser))
+                .filter(previousUser -> !previousUser.getId().equals(currentUser.getId()))
                 .ifPresent(users::add);
         return users;
     }
