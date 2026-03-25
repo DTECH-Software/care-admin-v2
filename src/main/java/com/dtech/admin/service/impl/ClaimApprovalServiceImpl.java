@@ -629,6 +629,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
             InsuranceDetailsLimit insuranceDetailsLimit = insuranceClaimsRequest.getInsuranceDetailsLimit();
             InsuranceQuarter insuranceQuarter = insuranceClaimsRequest.getInsuranceQuarter();
+            Date permanentDate = user.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
+            Map<String, BigDecimal> categoryFundLimits = resolveCategoryFundLimits(insuranceDetailsLimit, permanentDate);
+            BigDecimal treatmentFundLimit = resolveTreatmentFundLimit(insuranceDetailsLimit, categoryFundLimits);
+            BigDecimal globalRemaining = subtractToZero(treatmentFundLimit, sumOfClaims);
+            String claimCategoryCode = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode();
 
             BigDecimal requestAmount = claimRequestDTO.getApprovedAmount();
 
@@ -636,23 +641,22 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
                         user,
                         insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
+                        claimCategoryCode,
                         insuranceStaffCategoryPeriod.getId(),
                         carryForwardPeriod
                 );
 
-                BigDecimal fundLimit = BigDecimal.ZERO;
-                if (insuranceClaimsRequest.getInsuranceQuarter() != null) {
-                    fundLimit = insuranceQuarter.getQuarterLimit();
-                } else {
-
-                    fundLimit = insuranceDetailsLimit.getGlobalLimit();
-                }
-
-                BigDecimal remainingBalance = fundLimit.subtract(sumOfClaimsCategory);
+                BigDecimal fundLimit = categoryFundLimits.getOrDefault(
+                        claimCategoryCode,
+                        insuranceQuarter != null && insuranceQuarter.getQuarterLimit() != null
+                                ? insuranceQuarter.getQuarterLimit()
+                                : treatmentFundLimit
+                );
+                BigDecimal categoryRemaining = subtractToZero(fundLimit, sumOfClaimsCategory);
+                BigDecimal remainingBalance = globalRemaining.min(categoryRemaining);
                 log.info("Quarter limit check -> treatment {}, category {}, period {}, sumApproved {}, fundLimit {}, remaining {}",
                         insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
+                        claimCategoryCode,
                         insuranceStaffCategoryPeriod.getId(),
                         sumOfClaimsCategory, fundLimit, remainingBalance);
 
@@ -706,10 +710,23 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 }
 
             } else {
-                if (insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode().equals(TreatmentCategory.OTHER.name())) {
-                    BigDecimal fundLimit = insuranceDetailsLimit.getGlobalLimit();
-                    BigDecimal remainingBalance = fundLimit.subtract(sumOfClaims);
+                BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getRequestedAmountByTreatmentCategory(
+                        user,
+                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
+                        claimCategoryCode,
+                        insuranceStaffCategoryPeriod.getId(),
+                        carryForwardPeriod
+                );
+                BigDecimal fundLimit = categoryFundLimits.getOrDefault(
+                        claimCategoryCode,
+                        insuranceQuarter != null && insuranceQuarter.getQuarterLimit() != null
+                                ? insuranceQuarter.getQuarterLimit()
+                                : treatmentFundLimit
+                );
+                BigDecimal categoryRemaining = subtractToZero(fundLimit, sumOfClaimsCategory);
+                BigDecimal remainingBalance = globalRemaining.min(categoryRemaining);
 
+                if (insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode().equals(TreatmentCategory.OTHER.name())) {
                     if (requestAmount.compareTo(remainingBalance) > 0) {
                         log.info("Request fund limit exceeded for OTHER treatment");
                         return ResponseEntity.ok().body(responseUtil.error(null, 1052,
@@ -717,26 +734,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     }
 
                 } else {
-                    BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getRequestedAmountByTreatmentCategory(
-                            user,
-                            insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                            insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode(),
-                            insuranceStaffCategoryPeriod.getId(),
-                            carryForwardPeriod
-                    );
-
-                    BigDecimal fundLimit = insuranceQuarter.getQuarterLimit();
-
-                    if (sumOfClaimsCategory.compareTo(fundLimit) >= 0
-                            || fundLimit.subtract(sumOfClaimsCategory).compareTo(requestAmount) < 0) {
-                        log.info("Request exceeds treatment category limit");
-                        return ResponseEntity.ok().body(responseUtil.error(null, 1052,
-                                messageSource.getMessage(ResponseMessageUtil.CLAIM_LIMIT_EXCEED_WITH_LIMIT, new Object[]{fundLimit}, locale)));
-                    }
-
-                    BigDecimal remainingBalance = insuranceDetailsLimit.getGlobalLimit().subtract(sumOfClaims);
                     if (requestAmount.compareTo(remainingBalance) > 0) {
-                        log.info("Request exceeds global limit");
+                        log.info("Request exceeds treatment category limit");
                         return ResponseEntity.ok().body(responseUtil.error(null, 1052,
                                 messageSource.getMessage(ResponseMessageUtil.CLAIM_LIMIT_EXCEED_WITH_LIMIT, new Object[]{remainingBalance}, locale)));
                     }
@@ -920,7 +919,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             BigDecimal fundLimit = claimCategoryCode != null
                     ? categoryFundLimits.getOrDefault(claimCategoryCode, BigDecimal.ZERO)
                     : BigDecimal.ZERO;
-            BigDecimal availableLimit = calculateCategoryAvailableLimit(claimCategoryCode, categoryFundLimits, categoryApprovedSums);
+            BigDecimal treatmentFundLimit = resolveTreatmentFundLimit(insuranceDetailsLimit, categoryFundLimits);
+            BigDecimal availableLimit = calculateCategoryAvailableLimit(
+                    claimCategoryCode,
+                    treatmentFundLimit,
+                    sum,
+                    categoryFundLimits,
+                    categoryApprovedSums
+            );
 
             log.info("CLAIM_APPROVAL_LIMIT periodId={}, category={}, fundLimit={}, available={}, categorySums={}",
                     periodId, claimCategoryCode, fundLimit, availableLimit, categoryApprovedSums);
@@ -1012,7 +1018,40 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 : BigDecimal.ZERO;
     }
 
+    private Map<String, BigDecimal> resolveCategoryFundLimits(InsuranceDetailsLimit insuranceDetailsLimit,
+                                                              Date permanentDate) {
+        List<InsuranceQuarter> quarters = insuranceDetailsLimit.getInsuranceQuarters();
+        if (quarters == null || quarters.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        InsuranceQuarter referenceQuarter = selectQuarterByPermanentDate(quarters, permanentDate);
+        Date rangeFrom = referenceQuarter != null ? referenceQuarter.getFromDate() : null;
+        Date rangeTo = referenceQuarter != null ? referenceQuarter.getToDate() : null;
+
+        Map<String, InsuranceQuarter> categoryQuarterMap = resolveCategoryQuarterMap(quarters, rangeFrom, rangeTo);
+        Map<String, BigDecimal> categoryFundLimits = new LinkedHashMap<>();
+        for (Map.Entry<String, InsuranceQuarter> entry : categoryQuarterMap.entrySet()) {
+            categoryFundLimits.put(entry.getKey(), resolveQuarterFundLimit(insuranceDetailsLimit, entry.getValue()));
+        }
+        return categoryFundLimits;
+    }
+
+    private BigDecimal resolveTreatmentFundLimit(InsuranceDetailsLimit insuranceDetailsLimit,
+                                                 Map<String, BigDecimal> categoryFundLimits) {
+        if (insuranceDetailsLimit.getGlobalLimit() != null) {
+            return insuranceDetailsLimit.getGlobalLimit();
+        }
+
+        return categoryFundLimits.values().stream()
+                .filter(Objects::nonNull)
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
+
     private BigDecimal calculateCategoryAvailableLimit(String claimCategoryCode,
+                                                       BigDecimal treatmentFundLimit,
+                                                       BigDecimal treatmentApprovedSum,
                                                        Map<String, BigDecimal> categoryFundLimits,
                                                        Map<String, BigDecimal> categoryApprovedSums) {
         if (claimCategoryCode == null || !categoryFundLimits.containsKey(claimCategoryCode)) {
@@ -1024,31 +1063,19 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             return BigDecimal.ZERO;
         }
 
-        SortedSet<BigDecimal> applicableBucketLimits = new TreeSet<>(Comparator.naturalOrder());
-        categoryFundLimits.values().stream()
-                .filter(Objects::nonNull)
-                .filter(limit -> limit.compareTo(claimFundLimit) >= 0)
-                .forEach(applicableBucketLimits::add);
+        BigDecimal categoryRemaining = subtractToZero(
+                claimFundLimit,
+                categoryApprovedSums.getOrDefault(claimCategoryCode, BigDecimal.ZERO)
+        );
+        BigDecimal treatmentRemaining = subtractToZero(treatmentFundLimit, treatmentApprovedSum);
+        return treatmentRemaining.min(categoryRemaining);
+    }
 
-        BigDecimal availableLimit = null;
-        for (BigDecimal bucketLimit : applicableBucketLimits) {
-            BigDecimal bucketApproved = BigDecimal.ZERO;
-            for (Map.Entry<String, BigDecimal> entry : categoryFundLimits.entrySet()) {
-                BigDecimal categoryLimit = entry.getValue();
-                if (categoryLimit == null || categoryLimit.compareTo(bucketLimit) > 0) {
-                    continue;
-                }
-                bucketApproved = bucketApproved.add(categoryApprovedSums.getOrDefault(entry.getKey(), BigDecimal.ZERO));
-            }
-
-            BigDecimal bucketRemaining = bucketLimit.subtract(bucketApproved);
-            if (bucketRemaining.compareTo(BigDecimal.ZERO) < 0) {
-                bucketRemaining = BigDecimal.ZERO;
-            }
-            availableLimit = availableLimit == null ? bucketRemaining : availableLimit.min(bucketRemaining);
-        }
-
-        return availableLimit != null ? availableLimit : BigDecimal.ZERO;
+    private BigDecimal subtractToZero(BigDecimal fundLimit, BigDecimal usedAmount) {
+        BigDecimal safeFundLimit = fundLimit != null ? fundLimit : BigDecimal.ZERO;
+        BigDecimal safeUsedAmount = usedAmount != null ? usedAmount : BigDecimal.ZERO;
+        BigDecimal remainingAmount = safeFundLimit.subtract(safeUsedAmount);
+        return remainingAmount.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : remainingAmount;
     }
 
     private InsuranceQuarter selectQuarterByPermanentDate(List<InsuranceQuarter> quarters, Date permanentDate) {
