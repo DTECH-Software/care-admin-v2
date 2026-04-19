@@ -17,6 +17,7 @@ import com.dtech.admin.dto.response.EmployeeSummaryEmployeeResponseDTO;
 import com.dtech.admin.dto.search.EmployeeSummarySearchDTO;
 import com.dtech.admin.enums.AuditTask;
 import com.dtech.admin.enums.Status;
+import com.dtech.admin.enums.TreatmentType;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
@@ -494,7 +495,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                 .findFirst()
                                 .orElse(null);
                     }
-                    if (prevPeriod != null && !Objects.equals(prevPeriod.getId(), period.getId())) {
+                    if (TreatmentType.OUTDOOR.name().equals(limit.getTreatment().getTreatmentCode())
+                            && prevPeriod != null
+                            && !Objects.equals(prevPeriod.getId(), period.getId())) {
                         BigDecimal prevSum = insuranceClaimsRequestRepository
                                 .getSumApprovedAmountByEmployeeAndTreatmentAndPeriod(
                                         employee,

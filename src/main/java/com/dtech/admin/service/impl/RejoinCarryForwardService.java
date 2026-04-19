@@ -1,6 +1,7 @@
 package com.dtech.admin.service.impl;
 
 import com.dtech.admin.enums.Status;
+import com.dtech.admin.enums.TreatmentType;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.InsurancePolicy;
@@ -159,7 +160,9 @@ public class RejoinCarryForwardService {
                 List.of(Workflow.APPROVED)
         ));
 
-        Long previousPeriodId = previousPeriod != null ? previousPeriod.getId() : null;
+        Long previousPeriodId = shouldApplyPromotionCarryForward(treatmentCode) && previousPeriod != null
+                ? previousPeriod.getId()
+                : null;
         if (previousPeriodId != null && !previousPeriodId.equals(insurancePeriodId)) {
             total = total.add(safe(insuranceClaimsRequestRepository.getSumRequestAmountByEmployeeAndTreatmentAndTreatmentCategoryAndStatus(
                     user,
@@ -183,7 +186,9 @@ public class RejoinCarryForwardService {
                 List.of(Workflow.APPROVED)
         ));
 
-        Long previousPeriodId = previousPeriod != null ? previousPeriod.getId() : null;
+        Long previousPeriodId = shouldApplyPromotionCarryForward(treatmentCode) && previousPeriod != null
+                ? previousPeriod.getId()
+                : null;
         if (previousPeriodId != null && !previousPeriodId.equals(insurancePeriodId)) {
             total = total.add(safe(insuranceClaimsRequestRepository.getSumApprovedAmountByEmployeeAndTreatmentAndPeriod(
                     user,
@@ -208,7 +213,9 @@ public class RejoinCarryForwardService {
                 List.of(Workflow.APPROVED)
         ));
 
-        Long previousPeriodId = previousPeriod != null ? previousPeriod.getId() : null;
+        Long previousPeriodId = shouldApplyPromotionCarryForward(treatmentCode) && previousPeriod != null
+                ? previousPeriod.getId()
+                : null;
         if (previousPeriodId != null && !previousPeriodId.equals(insurancePeriodId)) {
             total = total.add(safe(insuranceClaimsRequestRepository.getSumApprovedAmountByEmployeeAndTreatmentAndTreatmentCategoryAndPeriod(
                     user,
@@ -226,7 +233,9 @@ public class RejoinCarryForwardService {
                                                      String treatmentCode,
                                                      Long insurancePeriodId,
                                                      InsuranceStaffCategoryPeriod previousPeriod) {
-        Long previousPeriodId = previousPeriod != null ? previousPeriod.getId() : null;
+        Long previousPeriodId = shouldApplyPromotionCarryForward(treatmentCode) && previousPeriod != null
+                ? previousPeriod.getId()
+                : null;
         if (previousPeriodId != null && !previousPeriodId.equals(insurancePeriodId)) {
             total = total.add(safe(insuranceClaimsRequestRepository.getSumRequestAmountByEmployeeAndTreatmentAndStatus(
                     user,
@@ -236,6 +245,10 @@ public class RejoinCarryForwardService {
             )));
         }
         return total;
+    }
+
+    private boolean shouldApplyPromotionCarryForward(String treatmentCode) {
+        return TreatmentType.OUTDOOR.name().equalsIgnoreCase(normalize(treatmentCode));
     }
 
     private BigDecimal safe(BigDecimal value) {
