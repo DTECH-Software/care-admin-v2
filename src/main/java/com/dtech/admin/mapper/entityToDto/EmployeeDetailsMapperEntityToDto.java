@@ -28,6 +28,14 @@ public class EmployeeDetailsMapperEntityToDto {
             log.info("mapEmployeeDetails mapper {} ", userPersonalDetails.getId());
             EmployeeDetailsResponseDTO employeeDetailsResponseDTO = modelMapper.map(userPersonalDetails, EmployeeDetailsResponseDTO.class);
             log.info("mapEmployeeDetails mapper model {} ", employeeDetailsResponseDTO.toString());
+
+            if (employeeDetailsResponseDTO.getUserCompanyDetails() != null
+                    && employeeDetailsResponseDTO.getUserCompanyDetails().getPreviousPermanentDate() == null) {
+                employeeDetailsResponseDTO.getUserCompanyDetails()
+                        .setPreviousPermanentDate(employeeDetailsResponseDTO.getUserCompanyDetails().getPermanentDate());
+                employeeDetailsResponseDTO.getUserCompanyDetails().setPermanentDate(null);
+            }
+
             employeeDetailsResponseDTO.setUserStatusDescription(Status.valueOf(employeeDetailsResponseDTO.getUserStatus()).getDescription());
             employeeDetailsResponseDTO.setTitleDescription(Title.valueOf(employeeDetailsResponseDTO.getTitle()).getDescription());
             employeeDetailsResponseDTO.setMaritalStatusDescription(MaritalStatus.valueOf(employeeDetailsResponseDTO.getMaritalStatus()).getDescription());
