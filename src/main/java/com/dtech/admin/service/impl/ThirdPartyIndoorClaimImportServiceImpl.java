@@ -135,7 +135,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     private final EntityManager entityManager;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
         try {
             Map<String, Object> responseMap = new HashMap<>();
@@ -170,7 +170,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseEntity<byte[]> downloadTemplate(ChannelRequestDTO channelRequestDTO, Locale locale) {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("third-party-indoor-claims");
@@ -191,7 +191,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> validate(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale) {
         try {
             ValidationResult validationResult = validateFile(requestDTO);
@@ -285,7 +285,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<ThirdPartyIndoorClaimBatchSearchDTO> paginationRequest, Locale locale) {
         try {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
@@ -314,7 +314,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> view(ThirdPartyIndoorClaimBatchRequestDTO requestDTO, Locale locale) {
         try {
             return batchRepository.findById(requestDTO.getId()).map(batch -> {
