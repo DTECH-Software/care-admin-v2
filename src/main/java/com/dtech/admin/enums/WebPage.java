@@ -39,6 +39,7 @@ public enum WebPage {
     RPRT_MCR, //Medical claims report (legacy)
     RPRT_MCRP, //Medical claims report
     RPRT_PNL, //Profit and loss report
+    TPIC, //Third party indoor claims import
     SUMM_EMPV, //Employee summary
     RPLP_CRE, //Cheque creation
     RPLP_VIW //Cheque view

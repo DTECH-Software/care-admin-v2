@@ -27,6 +27,7 @@ public interface ClaimDependentsRepository extends JpaRepository<ClaimsDependent
     boolean existsAllByApplicationUserAndRelationCategoryAndStatusInAndMarried_Id(ApplicationUser applicationUser, RelationCategory relationCategory, List<Workflow> workflow, Long id);
     Optional<ClaimsDependents> findByIdAndApplicationUserAndStatusAndEligibleFacilityIn(Long id, ApplicationUser applicationUser, Workflow status, List<Facility> facility);
     List<ClaimsDependents> findByApplicationUserAndStatusAndEligibleFacilityInAndLiveStatus(ApplicationUser applicationUser, Workflow status, List<Facility> facility,Boolean live);
+    Optional<ClaimsDependents> findFirstByApplicationUserAndNicIgnoreCaseAndStatusAndEligibleFacilityInAndLiveStatus(ApplicationUser applicationUser, String nic, Workflow status, List<Facility> facility, Boolean live);
     long countByStatus(Workflow status);
 
 }

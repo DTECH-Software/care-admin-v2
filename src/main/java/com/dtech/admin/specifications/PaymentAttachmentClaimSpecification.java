@@ -1,12 +1,15 @@
 package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.PaymentAttachmentClaimSearchDTO;
+import com.dtech.admin.enums.ThirdPartyIndoorClaimRowStatus;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.*;
 import com.dtech.admin.util.DateTimeUtil;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -86,6 +89,16 @@ public class PaymentAttachmentClaimSpecification {
 
             List<Workflow> statuses = resolveStatuses(filterDto.getStatus());
             predicates.add(root.get("requestStatus").in(statuses));
+
+            Subquery<Long> importedClaimSubquery = query.subquery(Long.class);
+            Root<ThirdPartyIndoorClaimImportRow> importedClaimRoot = importedClaimSubquery.from(ThirdPartyIndoorClaimImportRow.class);
+            importedClaimSubquery.select(criteriaBuilder.count(importedClaimRoot));
+            importedClaimSubquery.where(
+                    criteriaBuilder.equal(importedClaimRoot.get("insuranceClaim"), root),
+                    criteriaBuilder.equal(importedClaimRoot.get("status"), ThirdPartyIndoorClaimRowStatus.IMPORTED)
+            );
+            predicates.add(criteriaBuilder.equal(importedClaimSubquery, 0L));
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }

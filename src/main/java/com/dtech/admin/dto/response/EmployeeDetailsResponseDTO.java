@@ -29,4 +29,5 @@ public class EmployeeDetailsResponseDTO extends CommonAuditResponseDTO {
     private String userStatus;
     private String userStatusDescription;
     private int age;
+    private EmployeeRejoinDetailsResponseDTO rejoinDetails;
 }

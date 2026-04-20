@@ -10,6 +10,7 @@ import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
 import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.dto.response.EmployeeDetailsResponseDTO;
+import com.dtech.admin.dto.response.EmployeeRejoinDetailsResponseDTO;
 import com.dtech.admin.dto.search.EmployeeSearchDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.enums.MaritalStatus;
@@ -367,6 +368,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             log.info("Employee details view {}", employeeDetailsRequestDTO);
             return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
                 EmployeeDetailsResponseDTO employeeDetailsResponseDTO = employeeDetailsMapperEntityToDto.mapEmployeeDetails(userPersonalDetails);
+                populateRejoinDetails(employeeDetailsResponseDTO, userPersonalDetails);
                 List<String> newAuditList = employeeDetailsAuditMapper.mapToDTOAudit(List.of(userPersonalDetails));
                 auditLogService.log(WebPage.EMPM.name(), WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(), employeeDetailsRequestDTO.getIp(), employeeDetailsRequestDTO.getUserAgent(), gson.toJson(newAuditList), null, employeeDetailsRequestDTO.getUsername());
                 return ResponseEntity.ok().body(responseUtil.success((Object) employeeDetailsResponseDTO, messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_RETRIEVE_SUCCESSFULLY, null, locale)));
@@ -380,6 +382,51 @@ public class EmployeeServiceImpl implements EmployeeService {
             log.error(e);
             throw e;
         }
+    }
+
+    private void populateRejoinDetails(EmployeeDetailsResponseDTO responseDTO, UserPersonalDetails currentUser) {
+        if (responseDTO == null || currentUser == null || !StringUtils.hasText(currentUser.getNic()) || currentUser.getId() == null) {
+            return;
+        }
+
+        List<UserPersonalDetails> previousProfiles = userPersonalDetailsRepository
+                .findAllByNicIgnoreCaseAndUserStatusAndIdNotOrderByIdDesc(currentUser.getNic(), Status.INACTIVE, currentUser.getId());
+
+        if (previousProfiles.isEmpty()) {
+            return;
+        }
+
+        String currentEpf = normalizeValue(currentUser.getEpfNo());
+        LinkedHashMap<String, SimpleBaseDTO> previousCompanies = new LinkedHashMap<>();
+        LinkedHashSet<String> previousEpfs = new LinkedHashSet<>();
+
+        previousProfiles.forEach(previousProfile -> {
+            String previousEpf = normalizeValue(previousProfile.getEpfNo());
+            if (previousEpf != null && !previousEpf.equalsIgnoreCase(currentEpf)) {
+                previousEpfs.add(previousEpf);
+            }
+
+            CompanyTypes companyTypes = previousProfile.getUserCompanyDetails() != null
+                    ? previousProfile.getUserCompanyDetails().getCompanyTypes()
+                    : null;
+            if (companyTypes != null && StringUtils.hasText(companyTypes.getCode())) {
+                previousCompanies.putIfAbsent(companyTypes.getCode(),
+                        new SimpleBaseDTO(companyTypes.getCode(), companyTypes.getDescription()));
+            }
+        });
+
+        if (previousCompanies.isEmpty() && previousEpfs.isEmpty()) {
+            return;
+        }
+
+        EmployeeRejoinDetailsResponseDTO rejoinDetails = new EmployeeRejoinDetailsResponseDTO();
+        rejoinDetails.setPreviousCompanies(new ArrayList<>(previousCompanies.values()));
+        rejoinDetails.setPreviousEpfs(new ArrayList<>(previousEpfs));
+        responseDTO.setRejoinDetails(rejoinDetails);
+    }
+
+    private String normalizeValue(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     @Override

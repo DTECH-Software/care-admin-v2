@@ -280,4 +280,13 @@ public class ResponseMessageUtil {
     public final static String MEDICAL_CLAIMS_REPORT_REFERENCE_SUCCESS = "val.medical.claims.report.reference.success";
     public final static String MEDICAL_CLAIMS_REPORT_FILTER_LIST_SUCCESS = "val.medical.claims.report.filter.list.success";
     public final static String MEDICAL_CLAIMS_REPORT_VIEW_SUCCESS = "val.medical.claims.report.view.success";
+
+    /*Third party indoor claims import*/
+    public final static String THIRD_PARTY_INDOOR_REFERENCE_SUCCESS = "val.third.party.indoor.reference.success";
+    public final static String THIRD_PARTY_INDOOR_VALIDATE_SUCCESS = "val.third.party.indoor.validate.success";
+    public final static String THIRD_PARTY_INDOOR_IMPORT_SUCCESS = "val.third.party.indoor.import.success";
+    public final static String THIRD_PARTY_INDOOR_IMPORT_VALIDATION_FAILED = "val.third.party.indoor.import.validation.failed";
+    public final static String THIRD_PARTY_INDOOR_FILTER_SUCCESS = "val.third.party.indoor.filter.success";
+    public final static String THIRD_PARTY_INDOOR_VIEW_SUCCESS = "val.third.party.indoor.view.success";
+    public final static String THIRD_PARTY_INDOOR_BATCH_NOT_FOUND = "val.third.party.indoor.batch.not.found";
 }

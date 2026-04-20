@@ -17,4 +17,7 @@ public interface ApplicationUserRepository extends JpaRepository<ApplicationUser
 
     Optional<ApplicationUser> findTopByUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatusAndIdNotOrderByIdDesc(
             String nic, Status status, Long id);
+
+    Optional<ApplicationUser> findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatus(
+            String epfNo, String nic, Status status);
 }
