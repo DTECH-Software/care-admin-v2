@@ -10,14 +10,10 @@ import java.util.List;
 public class ThirdPartyIndoorClaimValidationRowResponseDTO {
     private Integer rowNo;
     private String externalReferenceNo;
-    private String claimantType;
-    private String claimantTypeDescription;
+    private String companyCode;
     private String epfNo;
-    private String employeeNic;
     private String employeeName;
-    private String dependentNic;
-    private String dependentName;
-    private String dependentRelation;
+    private Integer policyYear;
     private Date fromDate;
     private Date toDate;
     private String hospital;

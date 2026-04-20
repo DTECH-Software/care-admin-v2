@@ -32,4 +32,14 @@ public interface InsuranceStaffCategoryPeriodRepository extends JpaRepository<In
 
     Optional<InsuranceStaffCategoryPeriod> findFirstByToDateLessThanEqualOrderByToDateDesc(Date currentFromDate);
 
+    @Query("SELECT i FROM InsuranceStaffCategoryPeriod i " +
+            "WHERE i.staffCategories.code = :staff " +
+            "AND i.status = :status " +
+            "AND function('year', i.fromDate) = :policyYear " +
+            "ORDER BY i.fromDate ASC")
+    List<InsuranceStaffCategoryPeriod> findByStaffCategories_CodeAndStatusAndPolicyYear(
+            @Param("staff") String staff,
+            @Param("status") Status status,
+            @Param("policyYear") Integer policyYear);
+
 }

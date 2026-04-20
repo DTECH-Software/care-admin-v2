@@ -1,6 +1,5 @@
 package com.dtech.admin.model;
 
-import com.dtech.admin.enums.ThirdPartyIndoorClaimClaimantType;
 import com.dtech.admin.enums.ThirdPartyIndoorClaimRowStatus;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -35,27 +34,17 @@ public class ThirdPartyIndoorClaimImportRow extends AdminAudit implements Serial
     @Column(name = "external_reference_no", nullable = false)
     private String externalReferenceNo;
 
-    @Column(name = "claimant_type", nullable = false)
-    @Enumerated(EnumType.STRING)
-    private ThirdPartyIndoorClaimClaimantType claimantType;
+    @Column(name = "company_code", nullable = false)
+    private String companyCode;
 
     @Column(name = "epf_no", nullable = false)
     private String epfNo;
 
-    @Column(name = "employee_nic", nullable = false)
-    private String employeeNic;
-
     @Column(name = "employee_name")
     private String employeeName;
 
-    @Column(name = "dependent_nic")
-    private String dependentNic;
-
-    @Column(name = "dependent_name")
-    private String dependentName;
-
-    @Column(name = "dependent_relation")
-    private String dependentRelation;
+    @Column(name = "policy_year", nullable = false)
+    private Integer policyYear;
 
     @Column(name = "from_date", nullable = false)
     @Temporal(TemporalType.DATE)

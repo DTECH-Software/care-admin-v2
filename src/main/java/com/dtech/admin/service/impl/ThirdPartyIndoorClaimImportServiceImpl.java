@@ -54,11 +54,9 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     private static final String TEMPLATE_FILE_NAME = "third-party-indoor-claims-template.xlsx";
     private static final List<String> TEMPLATE_HEADERS = List.of(
             "thirdPartyReferenceNo",
-            "claimantType",
+            "companyCode",
             "epfNo",
-            "employeeNic",
-            "dependentNic",
-            "dependentRelation",
+            "policyYear",
             "fromDate",
             "toDate",
             "hospital",
@@ -69,9 +67,9 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     );
     private static final List<String> REQUIRED_HEADERS = List.of(
             "thirdPartyReferenceNo",
-            "claimantType",
+            "companyCode",
             "epfNo",
-            "employeeNic",
+            "policyYear",
             "fromDate",
             "toDate",
             "disease",
@@ -114,9 +112,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
-    private final ClaimDependentsRepository claimDependentsRepository;
-
-    @Autowired
     private final TreatmentRepository treatmentRepository;
 
     @Autowired
@@ -140,9 +135,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         try {
             Map<String, Object> responseMap = new HashMap<>();
             responseMap.put("privileges", commonPrivilegeGetter.getPrivileges(channelRequestDTO.getUsername(), PAGE_CODE));
-            responseMap.put("claimantTypes", Arrays.stream(ThirdPartyIndoorClaimClaimantType.values())
-                    .map(type -> new SimpleBaseDTO(type.name(), type.getDescription()))
-                    .toList());
             responseMap.put("batchStatuses", Arrays.stream(ThirdPartyIndoorClaimBatchStatus.values())
                     .map(status -> new SimpleBaseDTO(status.name(), status.getDescription()))
                     .toList());
@@ -154,7 +146,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             responseMap.put("rules", List.of(
                     "Only active non-NS employees are allowed.",
                     "Only indoor claims are allowed.",
-                    "Dependent rows must provide dependentNic.",
+                    "companyCode and epfNo are used to identify the employee.",
+                    "policyYear is required and is used to map the insurance period.",
                     "hospital is optional."
             ));
 
@@ -375,11 +368,9 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         List<String> errors = new ArrayList<>();
 
         String externalReferenceNo = getString(row, headerIndex, "thirdPartyReferenceNo", formatter);
-        String claimantTypeText = getString(row, headerIndex, "claimantType", formatter);
+        String companyCode = getString(row, headerIndex, "companyCode", formatter);
         String epfNo = getString(row, headerIndex, "epfNo", formatter);
-        String employeeNic = getString(row, headerIndex, "employeeNic", formatter);
-        String dependentNic = getString(row, headerIndex, "dependentNic", formatter);
-        String dependentRelation = getString(row, headerIndex, "dependentRelation", formatter);
+        Integer policyYear = getInteger(row, headerIndex, "policyYear", formatter, errors);
         String hospital = getString(row, headerIndex, "hospital", formatter);
         String disease = getString(row, headerIndex, "disease", formatter);
         String remark = getString(row, headerIndex, "remark", formatter);
@@ -398,23 +389,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add("Duplicate thirdPartyReferenceNo found in the uploaded file");
         }
 
-        ThirdPartyIndoorClaimClaimantType claimantType = null;
-        if (!hasText(claimantTypeText)) {
-            errors.add("claimantType is required");
-        } else {
-            try {
-                claimantType = ThirdPartyIndoorClaimClaimantType.valueOf(claimantTypeText.trim().toUpperCase());
-            } catch (IllegalArgumentException ex) {
-                errors.add("claimantType is invalid");
-            }
+        if (!hasText(companyCode)) {
+            errors.add("companyCode is required");
         }
 
         if (!hasText(epfNo)) {
             errors.add("epfNo is required");
-        }
-
-        if (!hasText(employeeNic)) {
-            errors.add("employeeNic is required");
         }
 
         if (!hasText(disease)) {
@@ -437,22 +417,24 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add("approvedAmount cannot be greater than requestAmount");
         }
 
+        if (policyYear == null) {
+            errors.add("policyYear is required");
+        }
+
         ApplicationUser employee = null;
-        ClaimsDependents dependent = null;
         String employeeName = null;
-        String dependentName = null;
         InsuranceStaffCategoryPeriod insurancePeriod = null;
         InsuranceDetailsLimit insuranceDetailsLimit = null;
         InsuranceQuarter insuranceQuarter = null;
 
         if (errors.isEmpty()) {
             employee = applicationUserRepository
-                    .findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatus(
-                            epfNo.trim(), employeeNic.trim(), Status.ACTIVE)
+                    .findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_CodeAndUserPersonalDetails_UserStatus(
+                            epfNo.trim(), companyCode.trim(), Status.ACTIVE)
                     .orElse(null);
 
             if (employee == null) {
-                errors.add("Employee not found for the given epfNo and employeeNic");
+                errors.add("Employee not found for the given companyCode and epfNo");
             } else {
                 employeeName = buildEmployeeName(employee);
 
@@ -470,11 +452,22 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 if (companyDetails == null || companyDetails.getInsurancePolicy() == null) {
                     errors.add("Employee insurance policy is missing");
                 } else {
-                    insurancePeriod = insuranceStaffCategoryPeriodRepository.findByDateWithinRange(
-                            toDate, companyDetails.getStaffCategories().getCode()).orElse(null);
-                    if (insurancePeriod == null) {
-                        errors.add("Insurance period not found for the treatment date");
+                    List<InsuranceStaffCategoryPeriod> matchedPeriods = insuranceStaffCategoryPeriodRepository
+                            .findByStaffCategories_CodeAndStatusAndPolicyYear(
+                                    companyDetails.getStaffCategories().getCode(), Status.ACTIVE, policyYear);
+                    if (matchedPeriods.isEmpty()) {
+                        errors.add("Insurance period not found for policyYear");
+                    } else if (matchedPeriods.size() > 1) {
+                        errors.add("Multiple insurance periods found for policyYear");
                     } else {
+                        insurancePeriod = matchedPeriods.getFirst();
+                    }
+
+                    if (errors.isEmpty() && (!isDateWithinPeriod(fromDate, insurancePeriod) || !isDateWithinPeriod(toDate, insurancePeriod))) {
+                        errors.add("Treatment dates do not fall within the selected policyYear");
+                    }
+
+                    if (errors.isEmpty()) {
                         insuranceDetailsLimit = insuranceDetailsLimitRepository.findByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment(
                                 companyDetails.getInsurancePolicy(), Status.ACTIVE, insurancePeriod, treatment).orElse(null);
                         if (insuranceDetailsLimit == null) {
@@ -488,46 +481,24 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             }
         }
 
-        if (errors.isEmpty() && claimantType == ThirdPartyIndoorClaimClaimantType.DEPENDENT) {
-            if (!hasText(dependentNic)) {
-                errors.add("dependentNic is required for dependent rows");
-            } else {
-                dependent = claimDependentsRepository
-                        .findFirstByApplicationUserAndNicIgnoreCaseAndStatusAndEligibleFacilityInAndLiveStatus(
-                                employee, dependentNic.trim(), Workflow.APPROVED, INSURANCE_FACILITIES, true)
-                        .orElse(null);
-
-                if (dependent == null) {
-                    errors.add("Dependent not found or not eligible for insurance claims");
-                } else {
-                    dependentName = buildDependentName(dependent);
-                    if (hasText(dependentRelation)
-                            && dependent.getRelationCategory() != null
-                            && !dependent.getRelationCategory().name().equalsIgnoreCase(dependentRelation.trim())) {
-                        errors.add("dependentRelation does not match the existing dependent");
-                    }
-                }
-            }
-        }
-
         if (errors.isEmpty() && rowRepository.existsByExternalReferenceNoIgnoreCaseAndInsuranceClaimIsNotNull(externalReferenceNo.trim())) {
-            return new RowValidation(rowNo, externalReferenceNo.trim(), claimantType, epfNo, employeeNic, employeeName,
-                    dependentNic, dependentName, dependentRelation, fromDate, toDate, hospital, disease,
+            return new RowValidation(rowNo, externalReferenceNo.trim(), companyCode, epfNo, employeeName,
+                    policyYear, fromDate, toDate, hospital, disease,
                     requestAmount, approvedAmount, remark, ValidationStatus.DUPLICATE, List.of(),
-                    employee, dependent, insurancePeriod, insuranceDetailsLimit, insuranceQuarter, treatment, treatmentCategory);
+                    employee, insurancePeriod, insuranceDetailsLimit, insuranceQuarter, treatment, treatmentCategory);
         }
 
         ValidationStatus status = errors.isEmpty() ? ValidationStatus.VALID : ValidationStatus.FAILED;
-        return new RowValidation(rowNo, trimToNull(externalReferenceNo), claimantType, trimToNull(epfNo), trimToNull(employeeNic),
-                employeeName, trimToNull(dependentNic), dependentName, trimToNull(dependentRelation),
+        return new RowValidation(rowNo, trimToNull(externalReferenceNo), trimToNull(companyCode), trimToNull(epfNo),
+                employeeName, policyYear,
                 fromDate, toDate, trimToNull(hospital), trimToNull(disease), requestAmount, approvedAmount,
-                trimToNull(remark), status, errors, employee, dependent, insurancePeriod, insuranceDetailsLimit,
+                trimToNull(remark), status, errors, employee, insurancePeriod, insuranceDetailsLimit,
                 insuranceQuarter, treatment, treatmentCategory);
     }
 
     private InsuranceClaimsRequest createImportedClaim(RowValidation rowValidation, String username) {
         ClaimRequestIdGen claimRequestIdGen = ClaimRequestIdGen.builder()
-                .year(String.valueOf(DateTimeUtil.getYear(rowValidation.toDate())))
+                .year(String.valueOf(rowValidation.policyYear()))
                 .company(rowValidation.employee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode())
                 .staffCategory(rowValidation.employee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode())
                 .build();
@@ -557,7 +528,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         claim.setRequestStatus(Workflow.APPROVED);
         claim.setRemark(trimToNull(rowValidation.remark()));
         claim.setInsuranceClaimsDetails(claimDetails);
-        claim.setClaimsDependents(rowValidation.dependent());
+        claim.setClaimsDependents(null);
         claim.setEmployee(rowValidation.employee());
         claim.setInsuranceDetailsLimit(rowValidation.insuranceDetailsLimit());
         claim.setInsuranceQuarter(rowValidation.insuranceQuarter());
@@ -572,13 +543,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         row.setBatch(batch);
         row.setRowNo(rowValidation.rowNo());
         row.setExternalReferenceNo(rowValidation.externalReferenceNo());
-        row.setClaimantType(rowValidation.claimantType());
+        row.setCompanyCode(rowValidation.companyCode());
         row.setEpfNo(rowValidation.epfNo());
-        row.setEmployeeNic(rowValidation.employeeNic());
         row.setEmployeeName(rowValidation.employeeName());
-        row.setDependentNic(rowValidation.dependentNic());
-        row.setDependentName(rowValidation.dependentName());
-        row.setDependentRelation(rowValidation.dependentRelation());
+        row.setPolicyYear(rowValidation.policyYear());
         row.setFromDate(rowValidation.fromDate());
         row.setToDate(rowValidation.toDate());
         row.setHospital(rowValidation.hospital());
@@ -633,14 +601,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         dto.setId(row.getId());
         dto.setRowNo(row.getRowNo());
         dto.setExternalReferenceNo(row.getExternalReferenceNo());
-        dto.setClaimantType(row.getClaimantType() != null ? row.getClaimantType().name() : null);
-        dto.setClaimantTypeDescription(row.getClaimantType() != null ? row.getClaimantType().getDescription() : null);
+        dto.setCompanyCode(row.getCompanyCode());
         dto.setEpfNo(row.getEpfNo());
-        dto.setEmployeeNic(row.getEmployeeNic());
         dto.setEmployeeName(row.getEmployeeName());
-        dto.setDependentNic(row.getDependentNic());
-        dto.setDependentName(row.getDependentName());
-        dto.setDependentRelation(row.getDependentRelation());
+        dto.setPolicyYear(row.getPolicyYear());
         dto.setFromDate(row.getFromDate());
         dto.setToDate(row.getToDate());
         dto.setHospital(row.getHospital());
@@ -764,6 +728,26 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
     }
 
+    private Integer getInteger(Row row, Map<String, Integer> headerIndex, String header, DataFormatter formatter, List<String> errors) {
+        String textValue = getString(row, headerIndex, header, formatter);
+        if (!hasText(textValue)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(textValue.trim());
+        } catch (NumberFormatException ex) {
+            errors.add(header + " must be a valid whole number");
+            return null;
+        }
+    }
+
+    private boolean isDateWithinPeriod(Date date, InsuranceStaffCategoryPeriod period) {
+        if (date == null || period == null || period.getFromDate() == null || period.getToDate() == null) {
+            return false;
+        }
+        return !date.before(period.getFromDate()) && !date.after(period.getToDate());
+    }
+
     private boolean isBlankRow(Row row) {
         if (row == null) {
             return true;
@@ -783,14 +767,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
         return (Optional.ofNullable(employee.getUserPersonalDetails().getFirstName()).orElse("") + " "
                 + Optional.ofNullable(employee.getUserPersonalDetails().getLastName()).orElse("")).trim();
-    }
-
-    private String buildDependentName(ClaimsDependents dependent) {
-        if (dependent == null) {
-            return null;
-        }
-        return (Optional.ofNullable(dependent.getFirstName()).orElse("") + " "
-                + Optional.ofNullable(dependent.getLastName()).orElse("")).trim();
     }
 
     private List<String> buildImportValidationErrors(ValidationResult validationResult) {
@@ -834,13 +810,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     private record RowValidation(
             Integer rowNo,
             String externalReferenceNo,
-            ThirdPartyIndoorClaimClaimantType claimantType,
+            String companyCode,
             String epfNo,
-            String employeeNic,
             String employeeName,
-            String dependentNic,
-            String dependentName,
-            String dependentRelation,
+            Integer policyYear,
             Date fromDate,
             Date toDate,
             String hospital,
@@ -851,7 +824,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             ValidationStatus status,
             List<String> errors,
             ApplicationUser employee,
-            ClaimsDependents dependent,
             InsuranceStaffCategoryPeriod insurancePeriod,
             InsuranceDetailsLimit insuranceDetailsLimit,
             InsuranceQuarter insuranceQuarter,
@@ -862,14 +834,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             ThirdPartyIndoorClaimValidationRowResponseDTO dto = new ThirdPartyIndoorClaimValidationRowResponseDTO();
             dto.setRowNo(rowNo);
             dto.setExternalReferenceNo(externalReferenceNo);
-            dto.setClaimantType(claimantType != null ? claimantType.name() : null);
-            dto.setClaimantTypeDescription(claimantType != null ? claimantType.getDescription() : null);
+            dto.setCompanyCode(companyCode);
             dto.setEpfNo(epfNo);
-            dto.setEmployeeNic(employeeNic);
             dto.setEmployeeName(employeeName);
-            dto.setDependentNic(dependentNic);
-            dto.setDependentName(dependentName);
-            dto.setDependentRelation(dependentRelation);
+            dto.setPolicyYear(policyYear);
             dto.setFromDate(fromDate);
             dto.setToDate(toDate);
             dto.setHospital(hospital);
