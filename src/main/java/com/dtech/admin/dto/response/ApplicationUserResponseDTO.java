@@ -28,4 +28,5 @@ public class ApplicationUserResponseDTO {
     private String gender;
     private String genderDescription;
     private int age;
+    private EmployeeRejoinDetailsResponseDTO rejoinDetails;
 }

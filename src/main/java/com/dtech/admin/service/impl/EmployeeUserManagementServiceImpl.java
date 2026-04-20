@@ -77,6 +77,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     private final InsurancePolicyRepository insurancePolicyRepository;
 
     @Autowired
+    private final UserPersonalDetailsRepository userPersonalDetailsRepository;
+
+    @Autowired
     private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
@@ -725,6 +728,8 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         ApplicationUserResponseDTO applicationUserResponseDTO = employeeUserMapperEntityToDto.mapEmployeeUserDetails(applicationUser);
 
         if (applicationUser.getUserPersonalDetails() != null) {
+            populateRejoinDetails(applicationUserResponseDTO, applicationUser.getUserPersonalDetails());
+
             if (applicationUser.getUserPersonalDetails().getBirthImg() != null) {
                 applicationUserResponseDTO.getUserPersonalDetails().setBirthImg(
                         mapDocument(applicationUser.getUserPersonalDetails().getBirthImg()));
@@ -747,6 +752,52 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         }
 
         return applicationUserResponseDTO;
+    }
+
+    private void populateRejoinDetails(ApplicationUserResponseDTO responseDTO, UserPersonalDetails currentUser) {
+        if (responseDTO == null || currentUser == null || !org.springframework.util.StringUtils.hasText(currentUser.getNic())
+                || currentUser.getId() == null) {
+            return;
+        }
+
+        List<UserPersonalDetails> previousProfiles = userPersonalDetailsRepository
+                .findAllByNicIgnoreCaseAndUserStatusAndIdNotOrderByIdDesc(currentUser.getNic(), Status.INACTIVE, currentUser.getId());
+
+        if (previousProfiles.isEmpty()) {
+            return;
+        }
+
+        String currentEpf = normalizeValue(currentUser.getEpfNo());
+        LinkedHashMap<String, SimpleBaseDTO> previousCompanies = new LinkedHashMap<>();
+        LinkedHashSet<String> previousEpfs = new LinkedHashSet<>();
+
+        previousProfiles.forEach(previousProfile -> {
+            String previousEpf = normalizeValue(previousProfile.getEpfNo());
+            if (previousEpf != null && !previousEpf.equalsIgnoreCase(currentEpf)) {
+                previousEpfs.add(previousEpf);
+            }
+
+            CompanyTypes companyTypes = previousProfile.getUserCompanyDetails() != null
+                    ? previousProfile.getUserCompanyDetails().getCompanyTypes()
+                    : null;
+            if (companyTypes != null && org.springframework.util.StringUtils.hasText(companyTypes.getCode())) {
+                previousCompanies.putIfAbsent(companyTypes.getCode(),
+                        new SimpleBaseDTO(companyTypes.getCode(), companyTypes.getDescription()));
+            }
+        });
+
+        if (previousCompanies.isEmpty() && previousEpfs.isEmpty()) {
+            return;
+        }
+
+        EmployeeRejoinDetailsResponseDTO rejoinDetails = new EmployeeRejoinDetailsResponseDTO();
+        rejoinDetails.setPreviousCompanies(new ArrayList<>(previousCompanies.values()));
+        rejoinDetails.setPreviousEpfs(new ArrayList<>(previousEpfs));
+        responseDTO.setRejoinDetails(rejoinDetails);
+    }
+
+    private String normalizeValue(String value) {
+        return org.springframework.util.StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private DocumentDownloadResponseDTO mapDocument(Document document) {
