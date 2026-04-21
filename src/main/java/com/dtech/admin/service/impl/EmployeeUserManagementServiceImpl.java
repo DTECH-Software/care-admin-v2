@@ -119,6 +119,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     @Autowired
     private final EmailNotificationService emailNotificationService;
 
+    @Autowired
+    private final RejoinCarryForwardService rejoinCarryForwardService;
+
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
@@ -464,8 +467,12 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
 
                 int currentYear = DateTimeUtil.getCurrentYear();
                 log.info("Current year {}", currentYear);
-                int year = DateTimeUtil.getYear(applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate());
-                int month = DateTimeUtil.getMonth(applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate());
+                Date effectivePermanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(applicationUser);
+                if (effectivePermanentDate == null) {
+                    effectivePermanentDate = DateTimeUtil.getCurrentDateTime();
+                }
+                int year = DateTimeUtil.getYear(effectivePermanentDate);
+                int month = DateTimeUtil.getMonth(effectivePermanentDate);
                 log.info("Year {}", year);
                 log.info("Month {}", month);
 
@@ -483,7 +490,10 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                     if (insuranceDetailsLimit.getIsQuarter()) {
                         log.info("First request {} ", insuranceQuarter.getQuarterLimit());
 
-                        Date permentDateTime = applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
+                        Date permentDateTime = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(applicationUser);
+                        if (permentDateTime == null) {
+                            permentDateTime = DateTimeUtil.getCurrentDateTime();
+                        }
 
                         InsuranceQuarter treatmentQuarter = insuranceQuarterRepository.findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, TreatmentCategory.OTHER.name(), permentDateTime).orElse(null);
 

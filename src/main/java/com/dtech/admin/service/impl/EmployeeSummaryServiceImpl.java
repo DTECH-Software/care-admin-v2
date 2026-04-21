@@ -94,6 +94,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
     @Autowired
     private final Gson gson;
 
+    @Autowired
+    private final RejoinCarryForwardService rejoinCarryForwardService;
+
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceData(ChannelRequestDTO channelRequestDTO, Locale locale) {
@@ -428,7 +431,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                         Status.ACTIVE,
                         period);
 
-        java.util.Date permanentDate = employee.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
+        java.util.Date permanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(employee);
         return limits.stream()
                 .flatMap(limit -> {
                     List<com.dtech.admin.model.InsuranceQuarter> quarters = limit.getInsuranceQuarters();

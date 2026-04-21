@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -66,6 +67,23 @@ public class RejoinCarryForwardService {
         return resolveRelevantUsers(currentUser).stream()
                 .map(user -> sumApprovedAmountByCategoryForPeriods(user, treatmentCode, categoryCode, insurancePeriodId, previousPeriod))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    @Transactional(readOnly = true)
+    public Date resolveEffectivePermanentDateForLimit(ApplicationUser currentUser) {
+        return resolveRelevantUsers(currentUser).stream()
+                .map(user -> user.getUserPersonalDetails())
+                .filter(java.util.Objects::nonNull)
+                .map(personal -> personal.getUserCompanyDetails())
+                .filter(java.util.Objects::nonNull)
+                .map(company -> company.getPermanentDate())
+                .filter(java.util.Objects::nonNull)
+                .min(Date::compareTo)
+                .orElseGet(() -> currentUser != null
+                        && currentUser.getUserPersonalDetails() != null
+                        && currentUser.getUserPersonalDetails().getUserCompanyDetails() != null
+                        ? currentUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate()
+                        : null);
     }
 
     private List<ApplicationUser> resolveRelevantUsers(ApplicationUser currentUser) {

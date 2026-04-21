@@ -629,7 +629,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
             InsuranceDetailsLimit insuranceDetailsLimit = insuranceClaimsRequest.getInsuranceDetailsLimit();
             InsuranceQuarter insuranceQuarter = insuranceClaimsRequest.getInsuranceQuarter();
-            Date permanentDate = user.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
+            Date permanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(user);
             Map<String, BigDecimal> categoryFundLimits = resolveCategoryFundLimits(insuranceDetailsLimit, permanentDate);
             BigDecimal treatmentFundLimit = resolveTreatmentFundLimit(insuranceDetailsLimit, categoryFundLimits);
             BigDecimal globalRemaining = subtractToZero(treatmentFundLimit, sumOfClaims);
@@ -771,7 +771,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
                 Date currentDate = DateTimeUtil.getCurrentDateTime();
                 String staffCode = claimsRequest.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
-                Date permanentDate = claimsRequest.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
+                Date permanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(claimsRequest.getEmployee());
 
                 List<InsuranceStaffCategoryPeriod> policyPeriods = resolvePolicyPeriods(currentDate, permanentDate, staffCode);
                 Map<String, Object> limit = new LinkedHashMap<>();
@@ -871,7 +871,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         try {
             log.info("Insurance ref {}", insuranceDetailsLimit.getId());
 
-            Date permentDateTime = applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
+            Date permentDateTime = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(applicationUser);
 
             InsuranceStaffCategoryPeriod currentPeriod = insuranceDetailsLimit.getInsuranceStaffCategoryPeriod();
             String treatmentCode = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode();
