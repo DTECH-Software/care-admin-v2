@@ -12,6 +12,7 @@ import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.model.WebUser;
+import com.dtech.admin.util.ApprovalRemarkUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -366,7 +367,7 @@ public class EmailNotificationService {
         BigDecimal requestAmount = claim.getRequestAmount() != null ? claim.getRequestAmount() : BigDecimal.ZERO;
         BigDecimal levelOneApproved = findApprovedAmountByLevel(claim, ApprovalLevel.LEVEL01);
         Workflow levelOneStatus = findStatusByLevel(claim, ApprovalLevel.LEVEL01);
-        String latestRemark = findLatestRemark(claim);
+        String latestRemark = findLatestDisplayRemark(claim);
         return """
                 Dear Team,
 
@@ -391,7 +392,7 @@ public class EmailNotificationService {
         BigDecimal levelOneApproved = findApprovedAmountByLevel(claim, ApprovalLevel.LEVEL01);
         BigDecimal levelTwoApproved = findApprovedAmountByLevel(claim, ApprovalLevel.LEVEL02);
         Workflow levelOneStatus = findStatusByLevel(claim, ApprovalLevel.LEVEL01);
-        String latestRemark = findLatestRemark(claim);
+        String latestRemark = findLatestDisplayRemark(claim);
 
         StringBuilder body = new StringBuilder("""
                 Dear Team,
@@ -482,8 +483,7 @@ public class EmailNotificationService {
             body.append("Level 02 approved amount: ").append(formatAmount(levelTwoApproved, locale)).append(System.lineSeparator());
         }
 
-        String latestRemark = findLatestRemark(claim);
-        appendRemark(body, StringUtils.hasText(remark) ? remark : latestRemark);
+        appendRemark(body, StringUtils.hasText(remark) ? remark : findLatestDisplayRemark(claim));
 
         body.append(System.lineSeparator());
         body.append("""
@@ -500,7 +500,7 @@ public class EmailNotificationService {
     private String buildApprovalBody(WebUser recipient, InsuranceClaimsRequest claim, String formattedAmount, ApprovalLevel approvedBy, Locale locale) {
         BigDecimal levelOneApproved = findApprovedAmountByLevel(claim, ApprovalLevel.LEVEL01);
         BigDecimal levelTwoApproved = findApprovedAmountByLevel(claim, ApprovalLevel.LEVEL02);
-        String latestRemark = findLatestRemark(claim);
+        String latestRemark = findLatestDisplayRemark(claim);
 
         StringBuilder body = new StringBuilder("""
                 Dear Team,
@@ -542,7 +542,7 @@ public class EmailNotificationService {
         Workflow levelOneStatus = findStatusByLevel(claim, ApprovalLevel.LEVEL01);
         Workflow levelTwoStatus = findStatusByLevel(claim, ApprovalLevel.LEVEL02);
         Workflow levelThreeStatus = findStatusByLevel(claim, ApprovalLevel.LEVEL03);
-        String latestRemark = findLatestRemark(claim);
+        String latestRemark = findLatestDisplayRemark(claim);
 
         StringBuilder body = new StringBuilder("""
                 Dear Team,
@@ -619,8 +619,7 @@ public class EmailNotificationService {
             body.append("Level 02 approved amount: ").append(formatAmount(levelTwoApproved, locale)).append(System.lineSeparator());
         }
 
-        String latestRemark = findLatestRemark(claim);
-        appendRemark(body, StringUtils.hasText(remark) ? remark : latestRemark);
+        appendRemark(body, StringUtils.hasText(remark) ? remark : findLatestDisplayRemark(claim));
 
         body.append(System.lineSeparator());
         body.append("""
@@ -1007,6 +1006,11 @@ public class EmailNotificationService {
                 .max(Comparator.comparing(ApprovalWorkFlow::getApprovedDate, Comparator.nullsLast(Date::compareTo)))
                 .map(ApprovalWorkFlow::getRejectedRemark)
                 .orElse("");
+    }
+
+    private String findLatestDisplayRemark(InsuranceClaimsRequest claim) {
+        String remark = ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim);
+        return StringUtils.hasText(remark) ? remark : "";
     }
 
     private void appendRemark(StringBuilder body, String remark) {

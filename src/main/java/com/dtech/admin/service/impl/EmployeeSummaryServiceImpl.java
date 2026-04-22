@@ -36,6 +36,7 @@ import com.dtech.admin.service.EmployeeSummaryService;
 import com.dtech.admin.specifications.EmployeeSummarySpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
+import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.ResponseMessageUtil;
 import com.dtech.admin.util.ResponseUtil;
 import com.google.gson.Gson;
@@ -380,28 +381,11 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
     }
 
     private String resolveClaimRemark(InsuranceClaimsRequest claim) {
-        if (claim == null) {
-            return null;
-        }
-
-        String latestWorkflowRemark = extractLatestWorkflowRemark(claim.getApprovalWorkFlows());
-        if (hasText(latestWorkflowRemark)) {
-            return latestWorkflowRemark;
-        }
-
-        return hasText(claim.getRemark()) ? claim.getRemark() : null;
+        return ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim);
     }
 
     private String extractLatestWorkflowRemark(List<ApprovalWorkFlow> approvalWorkFlows) {
-        if (approvalWorkFlows == null || approvalWorkFlows.isEmpty()) {
-            return null;
-        }
-        return approvalWorkFlows.stream()
-                .filter(flow -> hasText(flow.getRejectedRemark()))
-                .max(Comparator.comparing(ApprovalWorkFlow::getApprovedDate,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(ApprovalWorkFlow::getRejectedRemark)
-                .orElse(null);
+        return ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(approvalWorkFlows);
     }
 
     private EmployeeSummaryBalanceRowDTO buildBalanceRow(InsuranceDetailsLimit limit,

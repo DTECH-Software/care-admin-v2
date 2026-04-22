@@ -843,23 +843,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
     }
 
     private String resolveApprovalRemark(InsuranceClaimsRequest claim) {
-        if (claim == null) {
-            return null;
-        }
-
-        String workflowRemark = claim.getApprovalWorkFlows() == null
-                ? null
-                : claim.getApprovalWorkFlows().stream()
-                .filter(workflow -> hasText(workflow.getRejectedRemark()))
-                .max(Comparator.comparing(ApprovalWorkFlow::getApprovedDate, Comparator.nullsLast(Date::compareTo)))
-                .map(ApprovalWorkFlow::getRejectedRemark)
-                .orElse(null);
-
-        if (hasText(workflowRemark)) {
-            return workflowRemark;
-        }
-
-        return hasText(claim.getRemark()) ? claim.getRemark() : null;
+        return ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim);
     }
 
     private String resolvePaymentCompanyCodeFromRequests(List<InsuranceClaimsRequest> claims) {
