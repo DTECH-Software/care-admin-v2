@@ -71,19 +71,14 @@ public class RejoinCarryForwardService {
 
     @Transactional(readOnly = true)
     public Date resolveEffectivePermanentDateForLimit(ApplicationUser currentUser) {
-        return resolveRelevantUsers(currentUser).stream()
-                .map(user -> user.getUserPersonalDetails())
-                .filter(java.util.Objects::nonNull)
-                .map(personal -> personal.getUserCompanyDetails())
-                .filter(java.util.Objects::nonNull)
-                .map(company -> company.getPermanentDate())
-                .filter(java.util.Objects::nonNull)
-                .min(Date::compareTo)
-                .orElseGet(() -> currentUser != null
-                        && currentUser.getUserPersonalDetails() != null
-                        && currentUser.getUserPersonalDetails().getUserCompanyDetails() != null
-                        ? currentUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate()
-                        : null);
+        // Rejoin carry-forward should affect utilized amounts only.
+        // Entitlement quarter/fund-limit must come from the current profile's inclusion date.
+        if (currentUser == null
+                || currentUser.getUserPersonalDetails() == null
+                || currentUser.getUserPersonalDetails().getUserCompanyDetails() == null) {
+            return null;
+        }
+        return currentUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate();
     }
 
     private List<ApplicationUser> resolveRelevantUsers(ApplicationUser currentUser) {
