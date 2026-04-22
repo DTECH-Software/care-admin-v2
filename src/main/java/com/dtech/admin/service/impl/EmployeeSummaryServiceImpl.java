@@ -391,19 +391,14 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
     private EmployeeSummaryBalanceRowDTO buildBalanceRow(InsuranceDetailsLimit limit,
                                                          com.dtech.admin.model.InsuranceQuarter quarter,
                                                          BigDecimal fundLimit,
-                                                         BigDecimal treatmentRemaining) {
-        BigDecimal remaining = fundLimit != null ? treatmentRemaining.min(fundLimit) : BigDecimal.ZERO;
-        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
-            remaining = BigDecimal.ZERO;
-        }
-
+                                                         BigDecimal availableLimit) {
         EmployeeSummaryBalanceRowDTO dto = new EmployeeSummaryBalanceRowDTO();
         dto.setTreatmentCode(limit.getTreatment().getTreatmentCode());
         dto.setTreatmentDescription(limit.getTreatment().getTreatmentDescription());
         dto.setTreatmentCategoryCode(quarter.getTreatmentCategory().getCode());
         dto.setTreatmentCategoryDescription(quarter.getTreatmentCategory().getDescription());
         dto.setFundLimit(fundLimit);
-        dto.setAvailableLimit(remaining);
+        dto.setAvailableLimit(availableLimit);
         return dto;
     }
 
@@ -454,17 +449,6 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                         return java.util.stream.Stream.empty();
                     }
 
-                    BigDecimal approvedSum = BigDecimal.ZERO;
-                    BigDecimal currentSum = insuranceClaimsRequestRepository
-                            .getSumApprovedAmountByEmployeeAndTreatmentAndPeriod(
-                                    employee,
-                                    limit.getTreatment().getTreatmentCode(),
-                                    period.getId(),
-                                    List.of(Workflow.APPROVED));
-                    if (currentSum != null) {
-                        approvedSum = currentSum;
-                    }
-
                     java.util.Date previousPermanentDate = employee.getUserPersonalDetails()
                             .getUserCompanyDetails()
                             .getPreviousPermanentDate();
@@ -482,21 +466,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                 .findFirst()
                                 .orElse(null);
                     }
-                    if (TreatmentType.OUTDOOR.name().equals(limit.getTreatment().getTreatmentCode())
-                            && prevPeriod != null
-                            && !Objects.equals(prevPeriod.getId(), period.getId())) {
-                        BigDecimal prevSum = insuranceClaimsRequestRepository
-                                .getSumApprovedAmountByEmployeeAndTreatmentAndPeriod(
-                                        employee,
-                                        limit.getTreatment().getTreatmentCode(),
-                                        prevPeriod.getId(),
-                                        List.of(Workflow.APPROVED));
-                        if (prevSum != null) {
-                            approvedSum = approvedSum.add(prevSum);
-                        }
-                    }
-
-                    BigDecimal maxFundLimit = categoryQuarterMap.values().stream()
+                    BigDecimal treatmentFundLimit = categoryQuarterMap.values().stream()
                             .map(q -> {
                                 if (limit.getIsQuarter() != null && !limit.getIsQuarter()) {
                                     return limit.getGlobalLimit();
@@ -507,10 +477,13 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                             .max(Comparator.naturalOrder())
                             .orElse(BigDecimal.ZERO);
 
-                    BigDecimal treatmentRemaining = maxFundLimit.subtract(approvedSum != null ? approvedSum : BigDecimal.ZERO);
-                    if (treatmentRemaining.compareTo(BigDecimal.ZERO) < 0) {
-                        treatmentRemaining = BigDecimal.ZERO;
-                    }
+                    BigDecimal treatmentApprovedAmount = rejoinCarryForwardService.getApprovedAmountByTreatment(
+                            employee,
+                            limit.getTreatment().getTreatmentCode(),
+                            period.getId(),
+                            prevPeriod
+                    );
+                    BigDecimal treatmentRemaining = subtractToZero(treatmentFundLimit, treatmentApprovedAmount);
                     final BigDecimal finalTreatmentRemaining = treatmentRemaining;
 
                     return categoryQuarterMap.values().stream()
@@ -524,7 +497,16 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                 if (fundLimit == null) {
                                     return null;
                                 }
-                                return buildBalanceRow(limit, categoryQuarter, fundLimit, finalTreatmentRemaining);
+                                BigDecimal categoryApprovedAmount = rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
+                                        employee,
+                                        limit.getTreatment().getTreatmentCode(),
+                                        categoryQuarter.getTreatmentCategory().getCode(),
+                                        period.getId(),
+                                        prevPeriod
+                                );
+                                BigDecimal categoryRemaining = subtractToZero(fundLimit, categoryApprovedAmount);
+                                BigDecimal availableLimit = finalTreatmentRemaining.min(categoryRemaining);
+                                return buildBalanceRow(limit, categoryQuarter, fundLimit, availableLimit);
                             })
                             .filter(Objects::nonNull);
                 })
@@ -571,6 +553,13 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                 .filter(q -> q.getFromDate().equals(rangeFrom) && q.getToDate().equals(rangeTo))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private BigDecimal subtractToZero(BigDecimal fundLimit, BigDecimal usedAmount) {
+        BigDecimal safeFundLimit = fundLimit != null ? fundLimit : BigDecimal.ZERO;
+        BigDecimal safeUsedAmount = usedAmount != null ? usedAmount : BigDecimal.ZERO;
+        BigDecimal remaining = safeFundLimit.subtract(safeUsedAmount);
+        return remaining.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : remaining;
     }
 
     // removed per-row global-limit calculation; handled in buildBalanceRows with treatment-level pool
