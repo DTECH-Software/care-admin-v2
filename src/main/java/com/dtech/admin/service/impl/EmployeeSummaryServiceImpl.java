@@ -466,6 +466,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                 .findFirst()
                                 .orElse(null);
                     }
+                    final InsuranceStaffCategoryPeriod finalPrevPeriod = prevPeriod;
                     BigDecimal treatmentFundLimit = categoryQuarterMap.values().stream()
                             .map(q -> {
                                 if (limit.getIsQuarter() != null && !limit.getIsQuarter()) {
@@ -481,7 +482,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                             employee,
                             limit.getTreatment().getTreatmentCode(),
                             period.getId(),
-                            prevPeriod
+                            finalPrevPeriod
                     );
                     BigDecimal treatmentRemaining = subtractToZero(treatmentFundLimit, treatmentApprovedAmount);
                     final BigDecimal finalTreatmentRemaining = treatmentRemaining;
@@ -502,7 +503,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                         limit.getTreatment().getTreatmentCode(),
                                         categoryQuarter.getTreatmentCategory().getCode(),
                                         period.getId(),
-                                        prevPeriod
+                                        finalPrevPeriod
                                 );
                                 BigDecimal categoryRemaining = subtractToZero(fundLimit, categoryApprovedAmount);
                                 BigDecimal availableLimit = finalTreatmentRemaining.min(categoryRemaining);
