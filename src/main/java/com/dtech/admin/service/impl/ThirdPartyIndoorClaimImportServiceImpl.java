@@ -66,6 +66,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "nonPayableAmount",
             "nonPayableItem",
             "claimAmount",
+            "approvedAmount",
             "remark"
     );
     private static final List<String> REQUIRED_HEADERS = List.of(
@@ -79,7 +80,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "intimatedDate",
             "paidDate",
             "nonPayableAmount",
-            "claimAmount"
+            "claimAmount",
+            "approvedAmount"
     );
     private static final List<Facility> INSURANCE_FACILITIES = List.of(Facility.INSURANCE, Facility.BOTH);
     private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
@@ -153,7 +155,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "Only indoor claims are allowed.",
                     "companyCode and epfNo are used to identify the employee.",
                     "policyYear is required and is used to map the insurance period.",
-                    "approvedAmount is calculated as claimAmount - nonPayableAmount.",
+                    "approvedAmount is entered manually and cannot be greater than claimAmount.",
                     "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
 
@@ -387,7 +389,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         Date paidDate = getDate(row, headerIndex, "paidDate", formatter, errors);
         BigDecimal nonPayableAmount = getBigDecimal(row, headerIndex, "nonPayableAmount", formatter, errors);
         BigDecimal claimAmount = getBigDecimal(row, headerIndex, "claimAmount", formatter, errors);
-        BigDecimal approvedAmount = calculateApprovedAmount(claimAmount, nonPayableAmount);
+        BigDecimal approvedAmount = getBigDecimal(row, headerIndex, "approvedAmount", formatter, errors);
 
         if (!hasText(externalReferenceNo)) {
             errors.add("thirdPartyReferenceNo is required");
@@ -422,12 +424,16 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add("claimAmount must be greater than zero");
         }
 
+        if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add("approvedAmount must be greater than zero");
+        }
+
         if (nonPayableAmount != null && nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
             errors.add("nonPayableAmount cannot be negative");
         }
 
-        if (claimAmount != null && nonPayableAmount != null && nonPayableAmount.compareTo(claimAmount) >= 0) {
-            errors.add("claimAmount must be greater than nonPayableAmount");
+        if (claimAmount != null && approvedAmount != null && approvedAmount.compareTo(claimAmount) > 0) {
+            errors.add("approvedAmount cannot be greater than claimAmount");
         }
 
         if (nonPayableAmount != null
@@ -752,13 +758,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add(header + " must be a valid number");
             return null;
         }
-    }
-
-    private BigDecimal calculateApprovedAmount(BigDecimal claimAmount, BigDecimal nonPayableAmount) {
-        if (claimAmount == null || nonPayableAmount == null) {
-            return null;
-        }
-        return claimAmount.subtract(nonPayableAmount);
     }
 
     private Integer getInteger(Row row, Map<String, Integer> headerIndex, String header, DataFormatter formatter, List<String> errors) {

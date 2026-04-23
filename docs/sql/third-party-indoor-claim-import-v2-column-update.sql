@@ -11,7 +11,8 @@ SET policy_no = COALESCE(policy_no, 'MIGRATED'),
     intimated_date = COALESCE(intimated_date, from_date),
     paid_date = COALESCE(paid_date, to_date),
     non_payable_amount = COALESCE(non_payable_amount, 0.00),
-    claim_amount = COALESCE(claim_amount, request_amount);
+    claim_amount = COALESCE(claim_amount, approved_amount),
+    approved_amount = COALESCE(approved_amount, claim_amount);
 
 ALTER TABLE third_party_indoor_claim_batch_row
     MODIFY COLUMN policy_no VARCHAR(100) NOT NULL,
@@ -23,4 +24,3 @@ ALTER TABLE third_party_indoor_claim_batch_row
 ALTER TABLE third_party_indoor_claim_batch_row
     DROP COLUMN hospital,
     DROP COLUMN disease,
-    DROP COLUMN request_amount;
