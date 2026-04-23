@@ -155,7 +155,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "Only indoor claims are allowed.",
                     "companyCode and epfNo are used to identify the employee.",
                     "policyYear is required and is used to map the insurance period.",
-                    "approvedAmount is entered manually and cannot be greater than claimAmount.",
+                    "approvedAmount is entered manually.",
                     "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
 
@@ -420,20 +420,16 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add("intimatedDate cannot be after paidDate");
         }
 
-        if (claimAmount != null && claimAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            errors.add("claimAmount must be greater than zero");
+        if (claimAmount != null && claimAmount.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("claimAmount cannot be negative");
         }
 
-        if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            errors.add("approvedAmount must be greater than zero");
+        if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("approvedAmount cannot be negative");
         }
 
         if (nonPayableAmount != null && nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
             errors.add("nonPayableAmount cannot be negative");
-        }
-
-        if (claimAmount != null && approvedAmount != null && approvedAmount.compareTo(claimAmount) > 0) {
-            errors.add("approvedAmount cannot be greater than claimAmount");
         }
 
         if (nonPayableAmount != null
