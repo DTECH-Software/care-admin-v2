@@ -46,6 +46,9 @@ public class ThirdPartyIndoorClaimImportRow extends AdminAudit implements Serial
     @Column(name = "policy_year", nullable = false)
     private Integer policyYear;
 
+    @Column(name = "policy_no", nullable = false)
+    private String policyNo;
+
     @Column(name = "from_date", nullable = false)
     @Temporal(TemporalType.DATE)
     private Date fromDate;
@@ -54,14 +57,22 @@ public class ThirdPartyIndoorClaimImportRow extends AdminAudit implements Serial
     @Temporal(TemporalType.DATE)
     private Date toDate;
 
-    @Column(name = "hospital")
-    private String hospital;
+    @Column(name = "intimated_date", nullable = false)
+    @Temporal(TemporalType.DATE)
+    private Date intimatedDate;
 
-    @Column(name = "disease", nullable = false)
-    private String disease;
+    @Column(name = "paid_date", nullable = false)
+    @Temporal(TemporalType.DATE)
+    private Date paidDate;
 
-    @Column(name = "request_amount", nullable = false)
-    private BigDecimal requestAmount;
+    @Column(name = "non_payable_amount", nullable = false)
+    private BigDecimal nonPayableAmount;
+
+    @Column(name = "non_payable_item", length = 1000)
+    private String nonPayableItem;
+
+    @Column(name = "claim_amount", nullable = false)
+    private BigDecimal claimAmount;
 
     @Column(name = "approved_amount", nullable = false)
     private BigDecimal approvedAmount;

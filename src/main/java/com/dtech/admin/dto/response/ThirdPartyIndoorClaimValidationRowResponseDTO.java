@@ -14,11 +14,14 @@ public class ThirdPartyIndoorClaimValidationRowResponseDTO {
     private String epfNo;
     private String employeeName;
     private Integer policyYear;
+    private String policyNo;
     private Date fromDate;
     private Date toDate;
-    private String hospital;
-    private String disease;
-    private BigDecimal requestAmount;
+    private Date intimatedDate;
+    private Date paidDate;
+    private BigDecimal nonPayableAmount;
+    private String nonPayableItem;
+    private BigDecimal claimAmount;
     private BigDecimal approvedAmount;
     private String remark;
     private String status;

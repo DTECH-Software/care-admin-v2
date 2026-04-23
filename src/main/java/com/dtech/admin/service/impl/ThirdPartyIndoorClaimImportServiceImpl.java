@@ -51,18 +51,21 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     private static final String PAGE_CODE = com.dtech.admin.enums.WebPage.TPIC.name();
     private static final String FIXED_TREATMENT_CODE = TreatmentType.INDOOR.name();
     private static final String FIXED_TREATMENT_CATEGORY_CODE = com.dtech.admin.enums.TreatmentCategory.OTHER.name();
+    private static final String IMPORTED_CLAIM_DISEASE = "Third Party Indoor Claim";
     private static final String TEMPLATE_FILE_NAME = "third-party-indoor-claims-template.xlsx";
     private static final List<String> TEMPLATE_HEADERS = List.of(
             "thirdPartyReferenceNo",
             "companyCode",
             "epfNo",
             "policyYear",
+            "policyNo",
             "fromDate",
             "toDate",
-            "hospital",
-            "disease",
-            "requestAmount",
-            "approvedAmount",
+            "intimatedDate",
+            "paidDate",
+            "nonPayableAmount",
+            "nonPayableItem",
+            "claimAmount",
             "remark"
     );
     private static final List<String> REQUIRED_HEADERS = List.of(
@@ -70,11 +73,13 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "companyCode",
             "epfNo",
             "policyYear",
+            "policyNo",
             "fromDate",
             "toDate",
-            "disease",
-            "requestAmount",
-            "approvedAmount"
+            "intimatedDate",
+            "paidDate",
+            "nonPayableAmount",
+            "claimAmount"
     );
     private static final List<Facility> INSURANCE_FACILITIES = List.of(Facility.INSURANCE, Facility.BOTH);
     private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
@@ -148,7 +153,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "Only indoor claims are allowed.",
                     "companyCode and epfNo are used to identify the employee.",
                     "policyYear is required and is used to map the insurance period.",
-                    "hospital is optional."
+                    "approvedAmount is calculated as claimAmount - nonPayableAmount.",
+                    "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
 
             auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.REF_DATA.name(), AuditTask.GETTING_ALL_REFERENCE_DATA.getDescription(),
@@ -371,14 +377,17 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         String companyCode = getString(row, headerIndex, "companyCode", formatter);
         String epfNo = getString(row, headerIndex, "epfNo", formatter);
         Integer policyYear = getInteger(row, headerIndex, "policyYear", formatter, errors);
-        String hospital = getString(row, headerIndex, "hospital", formatter);
-        String disease = getString(row, headerIndex, "disease", formatter);
+        String policyNo = getString(row, headerIndex, "policyNo", formatter);
+        String nonPayableItem = getString(row, headerIndex, "nonPayableItem", formatter);
         String remark = getString(row, headerIndex, "remark", formatter);
 
         Date fromDate = getDate(row, headerIndex, "fromDate", formatter, errors);
         Date toDate = getDate(row, headerIndex, "toDate", formatter, errors);
-        BigDecimal requestAmount = getBigDecimal(row, headerIndex, "requestAmount", formatter, errors);
-        BigDecimal approvedAmount = getBigDecimal(row, headerIndex, "approvedAmount", formatter, errors);
+        Date intimatedDate = getDate(row, headerIndex, "intimatedDate", formatter, errors);
+        Date paidDate = getDate(row, headerIndex, "paidDate", formatter, errors);
+        BigDecimal nonPayableAmount = getBigDecimal(row, headerIndex, "nonPayableAmount", formatter, errors);
+        BigDecimal claimAmount = getBigDecimal(row, headerIndex, "claimAmount", formatter, errors);
+        BigDecimal approvedAmount = calculateApprovedAmount(claimAmount, nonPayableAmount);
 
         if (!hasText(externalReferenceNo)) {
             errors.add("thirdPartyReferenceNo is required");
@@ -397,24 +406,34 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add("epfNo is required");
         }
 
-        if (!hasText(disease)) {
-            errors.add("disease is required");
+        if (!hasText(policyNo)) {
+            errors.add("policyNo is required");
         }
 
         if (fromDate != null && toDate != null && fromDate.after(toDate)) {
             errors.add("fromDate cannot be after toDate");
         }
 
-        if (requestAmount != null && requestAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            errors.add("requestAmount must be greater than zero");
+        if (intimatedDate != null && paidDate != null && intimatedDate.after(paidDate)) {
+            errors.add("intimatedDate cannot be after paidDate");
         }
 
-        if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            errors.add("approvedAmount must be greater than zero");
+        if (claimAmount != null && claimAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add("claimAmount must be greater than zero");
         }
 
-        if (requestAmount != null && approvedAmount != null && approvedAmount.compareTo(requestAmount) > 0) {
-            errors.add("approvedAmount cannot be greater than requestAmount");
+        if (nonPayableAmount != null && nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("nonPayableAmount cannot be negative");
+        }
+
+        if (claimAmount != null && nonPayableAmount != null && nonPayableAmount.compareTo(claimAmount) >= 0) {
+            errors.add("claimAmount must be greater than nonPayableAmount");
+        }
+
+        if (nonPayableAmount != null
+                && nonPayableAmount.compareTo(BigDecimal.ZERO) > 0
+                && !hasText(nonPayableItem)) {
+            errors.add("nonPayableItem is required when nonPayableAmount is greater than zero");
         }
 
         if (policyYear == null) {
@@ -483,15 +502,16 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
 
         if (errors.isEmpty() && rowRepository.existsByExternalReferenceNoIgnoreCaseAndInsuranceClaimIsNotNull(externalReferenceNo.trim())) {
             return new RowValidation(rowNo, externalReferenceNo.trim(), companyCode, epfNo, employeeName,
-                    policyYear, fromDate, toDate, hospital, disease,
-                    requestAmount, approvedAmount, remark, ValidationStatus.DUPLICATE, List.of(),
+                    policyYear, policyNo, fromDate, toDate, intimatedDate, paidDate,
+                    nonPayableAmount, nonPayableItem, claimAmount, approvedAmount, remark, ValidationStatus.DUPLICATE, List.of(),
                     employee, insurancePeriod, insuranceDetailsLimit, insuranceQuarter, treatment, treatmentCategory);
         }
 
         ValidationStatus status = errors.isEmpty() ? ValidationStatus.VALID : ValidationStatus.FAILED;
         return new RowValidation(rowNo, trimToNull(externalReferenceNo), trimToNull(companyCode), trimToNull(epfNo),
-                employeeName, policyYear,
-                fromDate, toDate, trimToNull(hospital), trimToNull(disease), requestAmount, approvedAmount,
+                employeeName, policyYear, trimToNull(policyNo),
+                fromDate, toDate, intimatedDate, paidDate,
+                nonPayableAmount, trimToNull(nonPayableItem), claimAmount, approvedAmount,
                 trimToNull(remark), status, errors, employee, insurancePeriod, insuranceDetailsLimit,
                 insuranceQuarter, treatment, treatmentCategory);
     }
@@ -519,12 +539,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         claimDetails.setTreatmentCategory(rowValidation.treatmentCategory());
         claimDetails.setFromTreatmentDate(rowValidation.fromDate());
         claimDetails.setToTreatmentDate(rowValidation.toDate());
-        claimDetails.setDisease(rowValidation.disease());
+        claimDetails.setDisease(IMPORTED_CLAIM_DISEASE);
         claimDetails.setInsuranceStaffCategoryPeriod(rowValidation.insurancePeriod());
 
         InsuranceClaimsRequest claim = new InsuranceClaimsRequest();
         claim.setRequestId(requestId);
-        claim.setRequestAmount(rowValidation.requestAmount());
+        claim.setRequestAmount(rowValidation.claimAmount());
         claim.setRequestStatus(Workflow.APPROVED);
         claim.setRemark(trimToNull(rowValidation.remark()));
         claim.setInsuranceClaimsDetails(claimDetails);
@@ -547,11 +567,14 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         row.setEpfNo(rowValidation.epfNo());
         row.setEmployeeName(rowValidation.employeeName());
         row.setPolicyYear(rowValidation.policyYear());
+        row.setPolicyNo(rowValidation.policyNo());
         row.setFromDate(rowValidation.fromDate());
         row.setToDate(rowValidation.toDate());
-        row.setHospital(rowValidation.hospital());
-        row.setDisease(rowValidation.disease());
-        row.setRequestAmount(rowValidation.requestAmount());
+        row.setIntimatedDate(rowValidation.intimatedDate());
+        row.setPaidDate(rowValidation.paidDate());
+        row.setNonPayableAmount(rowValidation.nonPayableAmount());
+        row.setNonPayableItem(rowValidation.nonPayableItem());
+        row.setClaimAmount(rowValidation.claimAmount());
         row.setApprovedAmount(rowValidation.approvedAmount());
         row.setRemark(rowValidation.remark());
         row.setErrorMessage(rowValidation.errors().isEmpty() ? null : String.join("; ", rowValidation.errors()));
@@ -605,11 +628,14 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         dto.setEpfNo(row.getEpfNo());
         dto.setEmployeeName(row.getEmployeeName());
         dto.setPolicyYear(row.getPolicyYear());
+        dto.setPolicyNo(row.getPolicyNo());
         dto.setFromDate(row.getFromDate());
         dto.setToDate(row.getToDate());
-        dto.setHospital(row.getHospital());
-        dto.setDisease(row.getDisease());
-        dto.setRequestAmount(row.getRequestAmount());
+        dto.setIntimatedDate(row.getIntimatedDate());
+        dto.setPaidDate(row.getPaidDate());
+        dto.setNonPayableAmount(row.getNonPayableAmount());
+        dto.setNonPayableItem(row.getNonPayableItem());
+        dto.setClaimAmount(row.getClaimAmount());
         dto.setApprovedAmount(row.getApprovedAmount());
         dto.setRemark(row.getRemark());
         dto.setStatus(row.getStatus() != null ? row.getStatus().name() : null);
@@ -728,6 +754,13 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
     }
 
+    private BigDecimal calculateApprovedAmount(BigDecimal claimAmount, BigDecimal nonPayableAmount) {
+        if (claimAmount == null || nonPayableAmount == null) {
+            return null;
+        }
+        return claimAmount.subtract(nonPayableAmount);
+    }
+
     private Integer getInteger(Row row, Map<String, Integer> headerIndex, String header, DataFormatter formatter, List<String> errors) {
         String textValue = getString(row, headerIndex, header, formatter);
         if (!hasText(textValue)) {
@@ -814,11 +847,14 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             String epfNo,
             String employeeName,
             Integer policyYear,
+            String policyNo,
             Date fromDate,
             Date toDate,
-            String hospital,
-            String disease,
-            BigDecimal requestAmount,
+            Date intimatedDate,
+            Date paidDate,
+            BigDecimal nonPayableAmount,
+            String nonPayableItem,
+            BigDecimal claimAmount,
             BigDecimal approvedAmount,
             String remark,
             ValidationStatus status,
@@ -838,11 +874,14 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             dto.setEpfNo(epfNo);
             dto.setEmployeeName(employeeName);
             dto.setPolicyYear(policyYear);
+            dto.setPolicyNo(policyNo);
             dto.setFromDate(fromDate);
             dto.setToDate(toDate);
-            dto.setHospital(hospital);
-            dto.setDisease(disease);
-            dto.setRequestAmount(requestAmount);
+            dto.setIntimatedDate(intimatedDate);
+            dto.setPaidDate(paidDate);
+            dto.setNonPayableAmount(nonPayableAmount);
+            dto.setNonPayableItem(nonPayableItem);
+            dto.setClaimAmount(claimAmount);
             dto.setApprovedAmount(approvedAmount);
             dto.setRemark(remark);
             dto.setStatus(status.name());
