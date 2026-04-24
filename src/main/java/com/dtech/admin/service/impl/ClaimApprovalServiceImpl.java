@@ -611,7 +611,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             }
 
             InsuranceStaffCategoryPeriod carryForwardPeriod = resolvePreviousPeriodForCarry(user, insuranceStaffCategoryPeriod);
-            BigDecimal sumOfClaims = rejoinCarryForwardService.getRequestedAmountByTreatment(
+            BigDecimal sumOfClaims = rejoinCarryForwardService.getApprovedAmountByTreatment(
                     user,
                     insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
                     insuranceStaffCategoryPeriod.getId(),
@@ -631,6 +631,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             InsuranceQuarter insuranceQuarter = insuranceClaimsRequest.getInsuranceQuarter();
             Date permanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(user);
             Map<String, BigDecimal> categoryFundLimits = resolveCategoryFundLimits(insuranceDetailsLimit, permanentDate);
+            Map<String, BigDecimal> categoryApprovedSums = resolveCategoryApprovedSums(
+                    user,
+                    insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
+                    insuranceStaffCategoryPeriod.getId(),
+                    carryForwardPeriod,
+                    categoryFundLimits.keySet()
+            );
+            sumOfClaims = resolveEffectiveTreatmentApprovedSum(sumOfClaims, categoryApprovedSums);
             BigDecimal treatmentFundLimit = resolveTreatmentFundLimit(insuranceDetailsLimit, categoryFundLimits);
             BigDecimal globalRemaining = subtractToZero(treatmentFundLimit, sumOfClaims);
             String claimCategoryCode = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatmentCategory().getCode();
@@ -638,13 +646,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             BigDecimal requestAmount = claimRequestDTO.getApprovedAmount();
 
             if (insuranceDetailsLimit.getIsQuarter()) {
-                BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
-                        user,
-                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                        claimCategoryCode,
-                        insuranceStaffCategoryPeriod.getId(),
-                        carryForwardPeriod
-                );
+                BigDecimal sumOfClaimsCategory = categoryApprovedSums.getOrDefault(claimCategoryCode, BigDecimal.ZERO);
 
                 BigDecimal fundLimit = categoryFundLimits.getOrDefault(
                         claimCategoryCode,
@@ -722,13 +724,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 }
 
             } else {
-                BigDecimal sumOfClaimsCategory = rejoinCarryForwardService.getRequestedAmountByTreatmentCategory(
-                        user,
-                        insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
-                        claimCategoryCode,
-                        insuranceStaffCategoryPeriod.getId(),
-                        carryForwardPeriod
-                );
+                BigDecimal sumOfClaimsCategory = categoryApprovedSums.getOrDefault(claimCategoryCode, BigDecimal.ZERO);
                 BigDecimal fundLimit = categoryFundLimits.getOrDefault(
                         claimCategoryCode,
                         insuranceQuarter != null && insuranceQuarter.getQuarterLimit() != null
@@ -927,6 +923,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 categoryApprovedSums.put(categoryCode,
                         getApprovedCategorySum(applicationUser, treatmentCode, categoryCode, periodId, prevPeriod));
             }
+            sum = resolveEffectiveTreatmentApprovedSum(sum, categoryApprovedSums);
 
             BigDecimal fundLimit = claimCategoryCode != null
                     ? categoryFundLimits.getOrDefault(claimCategoryCode, BigDecimal.ZERO)
@@ -968,6 +965,30 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 periodId,
                 prevPeriod
         );
+    }
+
+    private Map<String, BigDecimal> resolveCategoryApprovedSums(ApplicationUser applicationUser,
+                                                                String treatmentCode,
+                                                                Long periodId,
+                                                                InsuranceStaffCategoryPeriod prevPeriod,
+                                                                java.util.Set<String> categoryCodes) {
+        Map<String, BigDecimal> categoryApprovedSums = new LinkedHashMap<>();
+        for (String categoryCode : categoryCodes) {
+            categoryApprovedSums.put(
+                    categoryCode,
+                    getApprovedCategorySum(applicationUser, treatmentCode, categoryCode, periodId, prevPeriod)
+            );
+        }
+        return categoryApprovedSums;
+    }
+
+    private BigDecimal resolveEffectiveTreatmentApprovedSum(BigDecimal directTreatmentApprovedSum,
+                                                            Map<String, BigDecimal> categoryApprovedSums) {
+        BigDecimal safeDirectSum = directTreatmentApprovedSum != null ? directTreatmentApprovedSum : BigDecimal.ZERO;
+        BigDecimal categoryTotal = categoryApprovedSums.values().stream()
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return safeDirectSum.max(categoryTotal);
     }
 
     private InsuranceStaffCategoryPeriod resolvePreviousPeriodForCarry(ApplicationUser applicationUser,
