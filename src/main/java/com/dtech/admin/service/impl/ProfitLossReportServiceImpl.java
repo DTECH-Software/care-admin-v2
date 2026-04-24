@@ -23,13 +23,13 @@ import com.dtech.admin.repository.ChequePaymentDdfRepository;
 import com.dtech.admin.repository.ChequePaymentRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.PaymentAdviceRepository;
-import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ProfitLossReportService;
 import com.dtech.admin.specifications.ChequePaymentDdfSpecification;
 import com.dtech.admin.specifications.ChequePaymentSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
+import com.dtech.admin.util.MedicalClaimStaffCategoryResolver;
 import com.dtech.admin.util.ResponseMessageUtil;
 import com.dtech.admin.util.ResponseUtil;
 import com.google.gson.Gson;
@@ -114,7 +114,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     private final ChequePaymentDdfRepository chequePaymentDdfRepository;
 
     @Autowired
-    private final StaffCategoriesRepository staffCategoriesRepository;
+    private final MedicalClaimStaffCategoryResolver medicalClaimStaffCategoryResolver;
 
     @Override
     @Transactional
@@ -128,8 +128,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
 
             List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
-            List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
-                    .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
+            List<SimpleBaseDTO> staffCategories = medicalClaimStaffCategoryResolver.loadReferenceCategories();
 
             responseMap.put("privileges", privileges);
             responseMap.put("company", company);
@@ -203,20 +202,25 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
         Set<String> monthFilter = normalizeMonths(filter.getMonths());
         String companyFilter = hasText(filter.getCompany()) ? filter.getCompany().trim() : null;
         Integer yearFilter = parseYear(filter.getYear());
-        String staffCategoryFilter = hasText(filter.getStaffCategory()) ? filter.getStaffCategory().trim() : null;
+        String staffCategoryFilter = hasText(filter.getStaffCategory())
+                ? medicalClaimStaffCategoryResolver.normalizeSelectionCode(filter.getStaffCategory())
+                : null;
+        List<String> storedStaffCategoryCodes = hasText(staffCategoryFilter)
+                ? medicalClaimStaffCategoryResolver.expandStoredCodesForFilter(staffCategoryFilter)
+                : List.of();
 
         Map<String, String> companyDescriptions = loadCompanyDescriptions();
         Map<String, String> staffCategoryDescriptions = reportType == ReportType.HEALTH_CLAIM && hasText(staffCategoryFilter)
-                ? loadStaffCategoryDescriptions()
+                ? medicalClaimStaffCategoryResolver.loadDescriptionMap()
                 : Map.of();
         Map<String, ProfitLossReportRowDTO> summary = new LinkedHashMap<>();
 
         if (reportType.includesMedical()) {
             List<PaymentAdvice> advices = loadPaymentAdvice(PaymentAdviceType.MEDICAL, true, companyFilter,
-                    staffCategoryFilter, yearFilter);
+                    storedStaffCategoryCodes, yearFilter);
             addPaidAmounts(summary, advices, monthFilter, companyDescriptions);
 
-            List<ChequePayment> cheques = loadChequePayments(companyFilter, staffCategoryFilter, monthFilter, yearFilter);
+            List<ChequePayment> cheques = loadChequePayments(companyFilter, storedStaffCategoryCodes, monthFilter, yearFilter);
             addReceivedAmounts(summary, cheques, monthFilter, companyDescriptions);
         }
 
@@ -332,7 +336,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     private List<PaymentAdvice> loadPaymentAdvice(PaymentAdviceType type,
                                                   boolean includeNullType,
                                                   String companyCode,
-                                                  String staffCategory,
+                                                  List<String> staffCategoryCodes,
                                                   Integer yearFilter) {
         Specification<PaymentAdvice> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -345,8 +349,9 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             if (hasText(companyCode)) {
                 predicates.add(cb.equal(cb.lower(root.get("companyCode")), companyCode.toLowerCase()));
             }
-            if (hasText(staffCategory)) {
-                predicates.add(cb.equal(cb.lower(root.get("staffCategoryCode")), staffCategory.toLowerCase()));
+            if (staffCategoryCodes != null && !staffCategoryCodes.isEmpty()) {
+                predicates.add(cb.lower(root.get("staffCategoryCode")).in(
+                        staffCategoryCodes.stream().map(String::toLowerCase).toList()));
             }
             if (yearFilter != null) {
                 Date startDate = buildYearStart(yearFilter);
@@ -360,15 +365,15 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     }
 
     private List<ChequePayment> loadChequePayments(String companyCode,
-                                                   String staffCategory,
+                                                   List<String> staffCategoryCodes,
                                                    Set<String> monthFilter,
                                                    Integer yearFilter) {
         ChequePaymentSearchDTO search = new ChequePaymentSearchDTO();
         if (hasText(companyCode)) {
             search.setCompany(companyCode);
         }
-        if (hasText(staffCategory)) {
-            search.setStaffCategory(staffCategory);
+        if (staffCategoryCodes != null && !staffCategoryCodes.isEmpty()) {
+            search.setStaffCategoryCodes(staffCategoryCodes);
         }
         if (yearFilter != null) {
             search.setYear(String.valueOf(yearFilter));
@@ -596,8 +601,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     }
 
     private Map<String, String> loadStaffCategoryDescriptions() {
-        return staffCategoriesRepository.findAll().stream()
-                .collect(Collectors.toMap(val -> val.getCode(), val -> val.getDescription(), (a, b) -> a));
+        return medicalClaimStaffCategoryResolver.loadDescriptionMap();
     }
 
     private List<ProfitLossReportRowDTO> sortRows(List<ProfitLossReportRowDTO> rows,

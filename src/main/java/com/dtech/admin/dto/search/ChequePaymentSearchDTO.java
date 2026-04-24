@@ -2,6 +2,7 @@ package com.dtech.admin.dto.search;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.util.List;
@@ -19,4 +20,6 @@ public class ChequePaymentSearchDTO {
     private String chequeDateTo;
     private String amountFrom;
     private String amountTo;
+    @JsonIgnore
+    private List<String> staffCategoryCodes;
 }

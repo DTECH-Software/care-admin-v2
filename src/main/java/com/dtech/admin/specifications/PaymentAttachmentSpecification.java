@@ -32,7 +32,14 @@ public class PaymentAttachmentSpecification {
                 predicates.add(cb.equal(cb.lower(root.get("companyCode")), filterDto.getCompany().toLowerCase()));
             }
 
-            if (hasText(filterDto.getStaffCategory())) {
+            List<String> staffCategoryCodes = filterDto.getStaffCategoryCodes();
+            if (staffCategoryCodes != null && !staffCategoryCodes.isEmpty()) {
+                staffCategoryCodes = staffCategoryCodes.stream()
+                        .filter(PaymentAttachmentSpecification::hasText)
+                        .map(String::toLowerCase)
+                        .toList();
+                predicates.add(cb.lower(root.get("staffCategoryCode")).in(staffCategoryCodes));
+            } else if (hasText(filterDto.getStaffCategory())) {
                 predicates.add(cb.equal(cb.lower(root.get("staffCategoryCode")), filterDto.getStaffCategory().toLowerCase()));
             }
 

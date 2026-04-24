@@ -21,7 +21,6 @@ import com.dtech.admin.model.PaymentAdvice;
 import com.dtech.admin.model.PaymentAdviceAttachment;
 import com.dtech.admin.model.PaymentAttachment;
 import com.dtech.admin.model.PaymentAttachmentClaim;
-import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.CompanyTypeRepository;
@@ -29,12 +28,12 @@ import com.dtech.admin.repository.PaymentAdviceAttachmentRepository;
 import com.dtech.admin.repository.PaymentAdviceRepository;
 import com.dtech.admin.repository.PaymentAttachmentClaimRepository;
 import com.dtech.admin.repository.PaymentAttachmentRepository;
-import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.PaymentAdviceService;
 import com.dtech.admin.specifications.PaymentAdviceAttachmentSpecification;
 import com.dtech.admin.specifications.PaymentAdviceSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
+import com.dtech.admin.util.MedicalClaimStaffCategoryResolver;
 import com.dtech.admin.util.PaginationUtil;
 import com.dtech.admin.util.ResponseMessageUtil;
 import com.dtech.admin.util.ResponseUtil;
@@ -101,9 +100,6 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     private final CompanyTypeRepository companyTypeRepository;
 
     @Autowired
-    private final StaffCategoriesRepository staffCategoriesRepository;
-
-    @Autowired
     private final MessageSource messageSource;
 
     @Autowired
@@ -117,6 +113,9 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
 
     @Autowired
     private final Gson gson;
+
+    @Autowired
+    private final MedicalClaimStaffCategoryResolver medicalClaimStaffCategoryResolver;
 
     @Override
     @Transactional
@@ -156,6 +155,10 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
             PaymentAdviceAttachmentSearchDTO filter = Optional.ofNullable(paginationRequest.getSearch())
                     .orElseGet(PaymentAdviceAttachmentSearchDTO::new);
+            String requestedStaffCategoryCode = medicalClaimStaffCategoryResolver
+                    .normalizeSelectionCode(filter.getStaffCategory());
+            filter.setStaffCategoryCodes(medicalClaimStaffCategoryResolver
+                    .expandStoredCodesForFilter(requestedStaffCategoryCode));
 
             Page<PaymentAttachment> attachments = paymentAttachmentRepository
                     .findAll(PaymentAdviceAttachmentSpecification.getSpecification(filter), pageable);
@@ -236,8 +239,10 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
                         messageSource.getMessage(ResponseMessageUtil.PAYMENT_ADVICE_COMPANY_MISMATCH, null, locale)));
             }
 
-            if (hasText(paymentAdviceCreateDTO.getStaffCategoryCode())
-                    && !staffCategoryCode.equalsIgnoreCase(paymentAdviceCreateDTO.getStaffCategoryCode())) {
+            String requestedStaffCategoryCode = medicalClaimStaffCategoryResolver
+                    .normalizeSelectionCode(paymentAdviceCreateDTO.getStaffCategoryCode());
+            if (hasText(requestedStaffCategoryCode)
+                    && !staffCategoryCode.equalsIgnoreCase(requestedStaffCategoryCode)) {
                 return ResponseEntity.ok().body(responseUtil.error(null, 1058,
                         messageSource.getMessage(ResponseMessageUtil.PAYMENT_ADVICE_STAFF_CATEGORY_MISMATCH, null, locale)));
             }
@@ -303,6 +308,10 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
             PaymentAdviceSearchDTO filter = Optional.ofNullable(paginationRequest.getSearch())
                     .orElseGet(PaymentAdviceSearchDTO::new);
+            String requestedStaffCategoryCode = medicalClaimStaffCategoryResolver
+                    .normalizeSelectionCode(filter.getStaffCategory());
+            filter.setStaffCategoryCodes(medicalClaimStaffCategoryResolver
+                    .expandStoredCodesForFilter(requestedStaffCategoryCode));
 
             Page<PaymentAdvice> advicePage = paymentAdviceRepository
                     .findAll(PaymentAdviceSpecification.getSpecification(filter), pageable);
@@ -548,7 +557,26 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     private String resolveStaffCategoryCode(List<PaymentAttachment> attachments) {
         String code = null;
         for (PaymentAttachment attachment : attachments) {
-            String current = normalizeCode(attachment.getStaffCategoryCode());
+            String current = resolveStaffCategoryCodeFromClaims(paymentAttachmentClaimRepository.findAllByPaymentAttachment(attachment));
+            if (!hasText(current)) {
+                return null;
+            }
+            if (code == null) {
+                code = current;
+            } else if (!code.equalsIgnoreCase(current)) {
+                return STAFF_CATEGORY_MISMATCH;
+            }
+        }
+        return code;
+    }
+
+    private String resolveStaffCategoryCodeFromClaims(List<PaymentAttachmentClaim> attachmentClaims) {
+        String code = null;
+        for (PaymentAttachmentClaim attachmentClaim : attachmentClaims) {
+            String current = Optional.ofNullable(attachmentClaim.getInsuranceClaimsRequest())
+                    .map(medicalClaimStaffCategoryResolver::resolveForClaim)
+                    .orElseGet(() -> medicalClaimStaffCategoryResolver
+                            .normalizeSelectionCode(attachmentClaim.getStaffCategoryCode()));
             if (!hasText(current)) {
                 return null;
             }
@@ -869,8 +897,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     }
 
     private List<SimpleBaseDTO> loadStaffCategories() {
-        return staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
-                .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
+        return medicalClaimStaffCategoryResolver.loadReferenceCategories();
     }
 
     private Map<String, String> loadCompanyDescriptions() {
@@ -884,13 +911,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     }
 
     private Map<String, String> loadStaffCategoryDescriptions() {
-        return staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream()
-                .filter(Objects::nonNull)
-                .filter(category -> hasText(category.getCode()))
-                .collect(Collectors.toMap(category -> normalizeCode(category.getCode()),
-                        StaffCategories::getDescription,
-                        (left, right) -> left,
-                        LinkedHashMap::new));
+        return medicalClaimStaffCategoryResolver.loadDescriptionMap();
     }
 
     private String resolveDescription(Map<String, String> descriptions, String code) {

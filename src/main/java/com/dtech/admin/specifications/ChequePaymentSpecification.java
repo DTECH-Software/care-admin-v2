@@ -27,7 +27,10 @@ public class ChequePaymentSpecification {
                 predicates.add(cb.equal(root.get("companyCode"), searchDTO.getCompany()));
             }
 
-            if (hasText(searchDTO.getStaffCategory())) {
+            List<String> staffCategoryCodes = searchDTO.getStaffCategoryCodes();
+            if (staffCategoryCodes != null && !staffCategoryCodes.isEmpty()) {
+                predicates.add(root.get("staffCategoryCode").in(staffCategoryCodes));
+            } else if (hasText(searchDTO.getStaffCategory())) {
                 predicates.add(cb.equal(root.get("staffCategoryCode"), searchDTO.getStaffCategory()));
             }
 

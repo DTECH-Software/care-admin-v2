@@ -19,16 +19,15 @@ import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.model.ChequePayment;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.Document;
-import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.repository.ChequePaymentRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.DocumentRepository;
-import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ChequePaymentService;
 import com.dtech.admin.specifications.ChequePaymentSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
+import com.dtech.admin.util.MedicalClaimStaffCategoryResolver;
 import com.dtech.admin.util.PaginationUtil;
 import com.dtech.admin.util.ResponseMessageUtil;
 import com.dtech.admin.util.ResponseUtil;
@@ -88,9 +87,6 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
     private final CompanyTypeRepository companyTypeRepository;
 
     @Autowired
-    private final StaffCategoriesRepository staffCategoriesRepository;
-
-    @Autowired
     private final DocumentRepository documentRepository;
 
     @Autowired
@@ -107,6 +103,9 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
 
     @Autowired
     private final Gson gson;
+
+    @Autowired
+    private final MedicalClaimStaffCategoryResolver medicalClaimStaffCategoryResolver;
 
     @Override
     @Transactional
@@ -149,7 +148,8 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
 
             ChequePayment payment = new ChequePayment();
             payment.setCompanyCode(createDTO.getCompany());
-            payment.setStaffCategoryCode(createDTO.getStaffCategory());
+            payment.setStaffCategoryCode(medicalClaimStaffCategoryResolver
+                    .normalizeSelectionCode(createDTO.getStaffCategory()));
             payment.setYear(createDTO.getYear());
             payment.setMonths(months);
             payment.setChequeNo(createDTO.getChequeNo());
@@ -186,6 +186,10 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
             ChequePaymentSearchDTO search = Optional.ofNullable(paginationRequest.getSearch())
                     .orElseGet(ChequePaymentSearchDTO::new);
+            String requestedStaffCategoryCode = medicalClaimStaffCategoryResolver
+                    .normalizeSelectionCode(search.getStaffCategory());
+            search.setStaffCategoryCodes(medicalClaimStaffCategoryResolver
+                    .expandStoredCodesForFilter(requestedStaffCategoryCode));
 
             Page<ChequePayment> page = chequePaymentRepository.findAll(
                     ChequePaymentSpecification.getSpecification(search), pageable);
@@ -241,6 +245,12 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
         try {
             log.info("Cheque payment export {}", paginationRequest);
             ChequePaymentSearchDTO search = paginationRequest.getSearch();
+            if (search != null) {
+                String requestedStaffCategoryCode = medicalClaimStaffCategoryResolver
+                        .normalizeSelectionCode(search.getStaffCategory());
+                search.setStaffCategoryCodes(medicalClaimStaffCategoryResolver
+                        .expandStoredCodesForFilter(requestedStaffCategoryCode));
+            }
             List<ChequePayment> rows = Objects.nonNull(search)
                     ? chequePaymentRepository.findAll(ChequePaymentSpecification.getSpecification(search))
                     : chequePaymentRepository.findAll(ChequePaymentSpecification.getSpecification());
@@ -271,9 +281,7 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
     }
 
     private List<SimpleBaseDTO> loadStaffCategories() {
-        return staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream()
-                .map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription()))
-                .collect(Collectors.toList());
+        return medicalClaimStaffCategoryResolver.loadReferenceCategories();
     }
 
     private Map<String, String> loadCompanyDescriptions() {
@@ -282,8 +290,7 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
     }
 
     private Map<String, String> loadStaffCategoryDescriptions() {
-        return staffCategoriesRepository.findAll().stream()
-                .collect(Collectors.toMap(StaffCategories::getCode, StaffCategories::getDescription, (a, b) -> a));
+        return medicalClaimStaffCategoryResolver.loadDescriptionMap();
     }
 
     private List<SimpleBaseDTO> buildMonthList() {

@@ -55,8 +55,15 @@ public class PaymentAttachmentClaimSpecification {
                 predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(treatmentCategoryJoin.get("code")), filterDto.getTreatmentCategory().toLowerCase()));
             }
 
-            if (hasText(filterDto.getStaffCategory())) {
-                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(staffCategoriesJoin.get("code")), filterDto.getStaffCategory().toLowerCase()));
+            List<String> staffCategoryCodes = filterDto.getStaffCategoryCodes();
+            if (staffCategoryCodes != null && !staffCategoryCodes.isEmpty()) {
+                staffCategoryCodes = staffCategoryCodes.stream().filter(PaymentAttachmentClaimSpecification::hasText)
+                        .map(String::toLowerCase)
+                        .toList();
+                predicates.add(criteriaBuilder.lower(staffCategoriesJoin.get("code")).in(staffCategoryCodes));
+            } else if (hasText(filterDto.getStaffCategory())) {
+                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(staffCategoriesJoin.get("code")),
+                        filterDto.getStaffCategory().toLowerCase()));
             }
 
             if (hasText(filterDto.getCompany())) {
