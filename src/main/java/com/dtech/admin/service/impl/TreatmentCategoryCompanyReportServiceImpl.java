@@ -322,13 +322,14 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             sheet.setColumnWidth(4, 24 * 256);
             sheet.setColumnWidth(5, 18 * 256);
             sheet.setColumnWidth(6, 18 * 256);
+            sheet.setColumnWidth(7, 18 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Treatment Category Company Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 6));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 7));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -339,10 +340,15 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             createStringCell(row, 4, "Treatment Category", headerStyle);
             createStringCell(row, 5, "Request Total Amount", headerStyle);
             createStringCell(row, 6, "Approved Total Amount", headerStyle);
+            createStringCell(row, 7, "Remaining Balance", headerStyle);
 
             int lineNo = 1;
             for (TreatmentCategoryCompanyReportRowDTO rowDTO : rows) {
                 row = sheet.createRow(rowIndex++);
+                BigDecimal remainingBalance = calculateRemainingBalance(
+                        rowDTO.getRequestTotalAmount(),
+                        rowDTO.getApprovedTotalAmount()
+                );
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, buildDisplay(rowDTO.getCompanyCode(), rowDTO.getCompanyDescription()), dataStyle);
                 createStringCell(row, 2, buildDisplay(rowDTO.getStaffCategoryCode(), rowDTO.getStaffCategoryDescription()), dataStyle);
@@ -350,6 +356,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                 createStringCell(row, 4, buildDisplay(rowDTO.getTreatmentCategoryCode(), rowDTO.getTreatmentCategoryDescription()), dataStyle);
                 createStringCell(row, 5, toAmountString(rowDTO.getRequestTotalAmount()), dataStyle);
                 createStringCell(row, 6, toAmountString(rowDTO.getApprovedTotalAmount()), dataStyle);
+                createStringCell(row, 7, toAmountString(remainingBalance), dataStyle);
             }
 
             workbook.write(out);
@@ -386,5 +393,11 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
 
     private String toAmountString(BigDecimal amount) {
         return amount != null ? amount.toPlainString() : "0";
+    }
+
+    private BigDecimal calculateRemainingBalance(BigDecimal requestAmount, BigDecimal approvedAmount) {
+        BigDecimal request = requestAmount != null ? requestAmount : BigDecimal.ZERO;
+        BigDecimal approved = approvedAmount != null ? approvedAmount : BigDecimal.ZERO;
+        return request.subtract(approved);
     }
 }
