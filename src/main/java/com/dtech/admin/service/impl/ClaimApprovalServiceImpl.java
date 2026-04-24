@@ -1072,7 +1072,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
     private BigDecimal resolveTreatmentFundLimit(InsuranceDetailsLimit insuranceDetailsLimit,
                                                  Map<String, BigDecimal> categoryFundLimits) {
-        if (insuranceDetailsLimit.getGlobalLimit() != null) {
+        if (!Boolean.TRUE.equals(insuranceDetailsLimit.getIsQuarter())
+                && insuranceDetailsLimit.getGlobalLimit() != null) {
             return insuranceDetailsLimit.getGlobalLimit();
         }
 
