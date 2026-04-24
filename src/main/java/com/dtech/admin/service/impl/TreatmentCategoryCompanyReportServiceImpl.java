@@ -219,6 +219,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                 dto.setTreatmentCategoryDescription(category != null ? category.getDescription() : "");
                 dto.setRequestTotalAmount(BigDecimal.ZERO);
                 dto.setApprovedTotalAmount(BigDecimal.ZERO);
+                dto.setRemainingBalance(BigDecimal.ZERO);
                 return dto;
             });
 
@@ -226,6 +227,10 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             BigDecimal approvedAmount = claim.getApprovedAmount() != null ? claim.getApprovedAmount() : BigDecimal.ZERO;
             row.setRequestTotalAmount(row.getRequestTotalAmount().add(requestAmount));
             row.setApprovedTotalAmount(row.getApprovedTotalAmount().add(approvedAmount));
+            row.setRemainingBalance(calculateRemainingBalance(
+                    row.getRequestTotalAmount(),
+                    row.getApprovedTotalAmount()
+            ));
         }
 
         return new ArrayList<>(summary.values());
@@ -250,6 +255,8 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             case "requestTotalAmount" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getRequestTotalAmount,
                     Comparator.nullsLast(BigDecimal::compareTo));
             case "approvedTotalAmount" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getApprovedTotalAmount,
+                    Comparator.nullsLast(BigDecimal::compareTo));
+            case "remainingBalance" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getRemainingBalance,
                     Comparator.nullsLast(BigDecimal::compareTo));
             default -> null;
         };
@@ -278,6 +285,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             case "treatmentCategory", "treatmentCategoryCode" -> "treatmentCategoryCode";
             case "requestTotalAmount" -> "requestTotalAmount";
             case "approvedTotalAmount" -> "approvedTotalAmount";
+            case "remainingBalance" -> "remainingBalance";
             default -> null;
         };
     }
@@ -345,10 +353,6 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             int lineNo = 1;
             for (TreatmentCategoryCompanyReportRowDTO rowDTO : rows) {
                 row = sheet.createRow(rowIndex++);
-                BigDecimal remainingBalance = calculateRemainingBalance(
-                        rowDTO.getRequestTotalAmount(),
-                        rowDTO.getApprovedTotalAmount()
-                );
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, buildDisplay(rowDTO.getCompanyCode(), rowDTO.getCompanyDescription()), dataStyle);
                 createStringCell(row, 2, buildDisplay(rowDTO.getStaffCategoryCode(), rowDTO.getStaffCategoryDescription()), dataStyle);
@@ -356,7 +360,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                 createStringCell(row, 4, buildDisplay(rowDTO.getTreatmentCategoryCode(), rowDTO.getTreatmentCategoryDescription()), dataStyle);
                 createStringCell(row, 5, toAmountString(rowDTO.getRequestTotalAmount()), dataStyle);
                 createStringCell(row, 6, toAmountString(rowDTO.getApprovedTotalAmount()), dataStyle);
-                createStringCell(row, 7, toAmountString(remainingBalance), dataStyle);
+                createStringCell(row, 7, toAmountString(rowDTO.getRemainingBalance()), dataStyle);
             }
 
             workbook.write(out);
