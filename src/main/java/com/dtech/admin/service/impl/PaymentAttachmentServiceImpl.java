@@ -194,6 +194,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                     .orElseGet(PaymentAttachmentClaimSearchDTO::new);
             String requestedStaffCategoryCode = medicalClaimStaffCategoryResolver
                     .normalizeSelectionCode(filter.getStaffCategory());
+            filter.setStaffCategory(requestedStaffCategoryCode);
             filter.setStaffCategoryCodes(medicalClaimStaffCategoryResolver
                     .expandActualCodesForFilter(requestedStaffCategoryCode));
 

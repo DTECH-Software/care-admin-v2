@@ -1,6 +1,7 @@
 package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.PaymentAttachmentClaimSearchDTO;
+import com.dtech.admin.enums.Status;
 import com.dtech.admin.enums.ThirdPartyIndoorClaimRowStatus;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.*;
@@ -35,14 +36,25 @@ public class PaymentAttachmentClaimSpecification {
             Join<InsuranceClaimsDetails, TreatmentCategory> treatmentCategoryJoin = root.join("insuranceClaimsDetails", JoinType.LEFT)
                     .join("treatmentCategory", JoinType.LEFT);
 
+            Join<InsuranceClaimsDetails, InsuranceStaffCategoryPeriod> insuranceStaffCategoryPeriodJoin =
+                    root.join("insuranceClaimsDetails", JoinType.LEFT)
+                            .join("insuranceStaffCategoryPeriod", JoinType.LEFT);
+
+            Join<InsuranceStaffCategoryPeriod, StaffCategories> claimStaffCategoryJoin =
+                    insuranceStaffCategoryPeriodJoin.join("staffCategories", JoinType.LEFT);
+
+            Join<InsuranceClaimsRequest, InsuranceDetailsLimit> insuranceDetailsLimitJoin =
+                    root.join("insuranceDetailsLimit", JoinType.LEFT);
+
+            Join<InsuranceDetailsLimit, InsurancePolicy> insurancePolicyJoin =
+                    insuranceDetailsLimitJoin.join("insurancePolicy", JoinType.LEFT);
+
             Join<ApplicationUser, UserPersonalDetails> userPersonalDetailsJoin = root.join("employee", JoinType.LEFT)
                     .join("userPersonalDetails", JoinType.LEFT);
 
             Join<UserPersonalDetails, UserCompanyDetails> companyDetailsJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT);
 
             Join<UserCompanyDetails, CompanyTypes> companyTypesJoin = companyDetailsJoin.join("companyTypes", JoinType.LEFT);
-            Join<UserCompanyDetails, StaffCategories> staffCategoriesJoin = companyDetailsJoin.join("staffCategories", JoinType.LEFT);
-
             if (hasText(filterDto.getClaimId())) {
                 predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("requestId")), "%" + filterDto.getClaimId().toLowerCase() + "%"));
             }
@@ -60,9 +72,41 @@ public class PaymentAttachmentClaimSpecification {
                 staffCategoryCodes = staffCategoryCodes.stream().filter(PaymentAttachmentClaimSpecification::hasText)
                         .map(String::toLowerCase)
                         .toList();
-                predicates.add(criteriaBuilder.lower(staffCategoriesJoin.get("code")).in(staffCategoryCodes));
+                predicates.add(criteriaBuilder.lower(claimStaffCategoryJoin.get("code")).in(staffCategoryCodes));
+                if (hasText(filterDto.getStaffCategory())) {
+                    String normalizedRequestedCode = filterDto.getStaffCategory().toLowerCase();
+
+                    Subquery<Long> mappedGroupSubquery = query.subquery(Long.class);
+                    Root<InsurancePolicyStaffCategoryGroup> mappedGroupRoot = mappedGroupSubquery.from(InsurancePolicyStaffCategoryGroup.class);
+                    mappedGroupSubquery.select(criteriaBuilder.literal(1L));
+                    mappedGroupSubquery.where(
+                            criteriaBuilder.equal(mappedGroupRoot.get("insurancePolicy").get("id"), insurancePolicyJoin.get("id")),
+                            criteriaBuilder.equal(criteriaBuilder.lower(mappedGroupRoot.get("staffCategories").get("code")),
+                                    criteriaBuilder.lower(claimStaffCategoryJoin.get("code"))),
+                            criteriaBuilder.equal(criteriaBuilder.lower(mappedGroupRoot.get("mainCategoryCode")), normalizedRequestedCode),
+                            criteriaBuilder.equal(mappedGroupRoot.get("status"), Status.ACTIVE)
+                    );
+
+                    Subquery<Long> anyGroupSubquery = query.subquery(Long.class);
+                    Root<InsurancePolicyStaffCategoryGroup> anyGroupRoot = anyGroupSubquery.from(InsurancePolicyStaffCategoryGroup.class);
+                    anyGroupSubquery.select(criteriaBuilder.literal(1L));
+                    anyGroupSubquery.where(
+                            criteriaBuilder.equal(anyGroupRoot.get("insurancePolicy").get("id"), insurancePolicyJoin.get("id")),
+                            criteriaBuilder.equal(criteriaBuilder.lower(anyGroupRoot.get("staffCategories").get("code")),
+                                    criteriaBuilder.lower(claimStaffCategoryJoin.get("code"))),
+                            criteriaBuilder.equal(anyGroupRoot.get("status"), Status.ACTIVE)
+                    );
+
+                    predicates.add(criteriaBuilder.or(
+                            criteriaBuilder.exists(mappedGroupSubquery),
+                            criteriaBuilder.and(
+                                    criteriaBuilder.not(criteriaBuilder.exists(anyGroupSubquery)),
+                                    criteriaBuilder.equal(criteriaBuilder.lower(claimStaffCategoryJoin.get("code")), normalizedRequestedCode)
+                            )
+                    ));
+                }
             } else if (hasText(filterDto.getStaffCategory())) {
-                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(staffCategoriesJoin.get("code")),
+                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(claimStaffCategoryJoin.get("code")),
                         filterDto.getStaffCategory().toLowerCase()));
             }
 
