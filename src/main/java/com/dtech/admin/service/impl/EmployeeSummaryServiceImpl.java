@@ -318,7 +318,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         }
         dto.setSubmittedValue(claim.getRequestAmount());
         dto.setAppliedDate(claim.getCreatedDate());
-        dto.setApprovedValue(claim.getApprovedAmount());
+        dto.setApprovedValue(resolveSummaryApprovedValue(claim));
         dto.setRemark(resolveClaimRemark(claim));
         return dto;
     }
@@ -512,6 +512,17 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                             .filter(Objects::nonNull);
                 })
                 .toList();
+    }
+
+    private BigDecimal resolveSummaryApprovedValue(InsuranceClaimsRequest claim) {
+        BigDecimal approvedAmount = claim.getApprovedAmount();
+        if (approvedAmount == null) {
+            return null;
+        }
+        if (Workflow.UNDER_REVIEW.equals(claim.getRequestStatus())) {
+            return approvedAmount.abs().negate();
+        }
+        return approvedAmount;
     }
 
     private com.dtech.admin.model.InsuranceQuarter selectQuarterByPermanentDate(
