@@ -336,14 +336,15 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             sheet.setColumnWidth(13, 18 * 256);
             sheet.setColumnWidth(14, 20 * 256);
             sheet.setColumnWidth(15, 20 * 256);
-            sheet.setColumnWidth(16, 14 * 256);
+            sheet.setColumnWidth(16, 20 * 256);
+            sheet.setColumnWidth(17, 14 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Medical Claims Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 16));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 17));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -363,7 +364,8 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             createStringCell(row, 13, "Cheque No", headerStyle);
             createStringCell(row, 14, "Cheque Created Date", headerStyle);
             createStringCell(row, 15, "Final Remark", headerStyle);
-            createStringCell(row, 16, "Created Date", headerStyle);
+            createStringCell(row, 16, "Final Approve Date", headerStyle);
+            createStringCell(row, 17, "Created Date", headerStyle);
 
             int lineNo = 1;
             Map<Long, PaymentAdvice> adviceByClaimId = resolvePaymentAdviceByClaimId(rows);
@@ -409,6 +411,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
 
                 PaymentAdvice advice = rowDTO.getId() != null ? adviceByClaimId.get(rowDTO.getId()) : null;
                 BigDecimal remainingBalance = calculateRemainingBalance(rowDTO.getRequestAmount(), rowDTO.getApprovedAmount());
+                String finalApproveDate = formatDate(resolveFinalApproveDate(rowDTO));
 
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, safeString(rowDTO.getRequestId()), dataStyle);
@@ -426,7 +429,8 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                 createStringCell(row, 13, resolveChequeNo(advice), dataStyle);
                 createStringCell(row, 14, formatDate(advice != null ? advice.getCreatedDate() : null), dataStyle);
                 createStringCell(row, 15, resolveFinalRemark(rowDTO), dataStyle);
-                createStringCell(row, 16, formatDate(rowDTO.getCreatedDate()), dataStyle);
+                createStringCell(row, 16, finalApproveDate, dataStyle);
+                createStringCell(row, 17, formatDate(rowDTO.getCreatedDate()), dataStyle);
             }
 
             workbook.write(out);
@@ -463,6 +467,21 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(ApprovalWorkFlow::getRejectedRemark)
                 .orElse("");
+    }
+
+    private java.util.Date resolveFinalApproveDate(InsuranceClaimsRequest claim) {
+        if (claim == null || claim.getApprovalWorkFlows() == null || claim.getApprovalWorkFlows().isEmpty()) {
+            return null;
+        }
+        return claim.getApprovalWorkFlows().stream()
+                .filter(Objects::nonNull)
+                .filter(flow -> flow.getStatus() == Workflow.APPROVED)
+                .filter(flow -> flow.getApprovalLevel() == com.dtech.admin.enums.ApprovalLevel.LEVEL02
+                        || flow.getApprovalLevel() == com.dtech.admin.enums.ApprovalLevel.LEVEL03)
+                .map(ApprovalWorkFlow::getApprovedDate)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
     }
 
     private Map<Long, String> getPaymentAdviceStatusMap(List<InsuranceClaimsRequest> claims) {
