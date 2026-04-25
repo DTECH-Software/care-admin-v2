@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.List;
 
 @Repository
@@ -231,4 +232,6 @@ public interface InsuranceClaimsRequestRepository extends JpaRepository<Insuranc
             ApplicationUser employee, String code, Long insuranceStaffCategoryPeriodId, Long insurancePolicyId, Workflow requestStatus);
 
     long countByRequestStatus(Workflow requestStatus);
+
+    List<InsuranceClaimsRequest> findAllByCreatedDateBetween(Date fromDate, Date toDate);
 }

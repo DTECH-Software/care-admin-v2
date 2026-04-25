@@ -42,5 +42,6 @@ public enum WebPage {
     TPIC, //Third party indoor claims import
     SUMM_EMPV, //Employee summary
     RPLP_CRE, //Cheque creation
-    RPLP_VIW //Cheque view
+    RPLP_VIW, //Cheque view
+    RPRT_RCTR //Received claim total report
 }

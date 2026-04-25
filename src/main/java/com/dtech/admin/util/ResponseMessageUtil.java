@@ -281,6 +281,10 @@ public class ResponseMessageUtil {
     public final static String MEDICAL_CLAIMS_REPORT_FILTER_LIST_SUCCESS = "val.medical.claims.report.filter.list.success";
     public final static String MEDICAL_CLAIMS_REPORT_VIEW_SUCCESS = "val.medical.claims.report.view.success";
 
+    /*Received claim total report*/
+    public final static String RECEIVED_CLAIM_TOTAL_REPORT_REFERENCE_SUCCESS = "val.received.claim.total.report.reference.success";
+    public final static String RECEIVED_CLAIM_TOTAL_REPORT_FILTER_LIST_SUCCESS = "val.received.claim.total.report.filter.list.success";
+
     /*Third party indoor claims import*/
     public final static String THIRD_PARTY_INDOOR_REFERENCE_SUCCESS = "val.third.party.indoor.reference.success";
     public final static String THIRD_PARTY_INDOOR_VALIDATE_SUCCESS = "val.third.party.indoor.validate.success";

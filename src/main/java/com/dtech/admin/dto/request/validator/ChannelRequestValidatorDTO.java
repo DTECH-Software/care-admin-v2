@@ -27,6 +27,7 @@ import lombok.Data;
                 "DELETE",
                 "ADD",
                 "RESET_PASSWORD",
+                "FILE_DOWNLOAD",
                 "LOGOUT"
         }, required = {"username"}, message = "Username is required.")
 public class ChannelRequestValidatorDTO {
