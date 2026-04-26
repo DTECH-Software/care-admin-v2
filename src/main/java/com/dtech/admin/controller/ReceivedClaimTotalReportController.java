@@ -45,7 +45,7 @@ public class ReceivedClaimTotalReportController {
         return reportService.getReferenceDate(gson.fromJson(gson.toJson(validatorDTO), ChannelRequestDTO.class), locale);
     }
 
-    @PostMapping(path = "/filter", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(path = "/filter-list", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     @ApiOperation(value = "Handle received claim total report filter request", notes = "Received claim total report filter request success or failed")
     public ResponseEntity<ApiResponse<Object>> filter(@RequestBody @Valid PaginationRequest<ReceivedClaimTotalReportSearchDTO> paginationRequest,
                                                       Locale locale) {

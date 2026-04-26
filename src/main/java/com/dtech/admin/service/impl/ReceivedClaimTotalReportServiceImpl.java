@@ -140,7 +140,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             log.info("Received claim total report filter list {}", paginationRequest);
             ReceivedClaimTotalReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
 
-            auditLogService.log(PAGE_RECEIVED_CLAIM_TOTAL_REPORT, WebTask.FILTER_LIST.name(),
+            auditLogService.log(PAGE_RECEIVED_CLAIM_TOTAL_REPORT, WebTask.SEARCH.name(),
                     AuditTask.SEARCH_FILTER.getDescription(), paginationRequest.getIp(),
                     paginationRequest.getUserAgent(), gson.toJson(responseDTO), null, paginationRequest.getUsername());
 
@@ -161,7 +161,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             ReceivedClaimTotalReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
             byte[] excelBytes = buildExcel(responseDTO);
 
-            auditLogService.log(PAGE_RECEIVED_CLAIM_TOTAL_REPORT, WebTask.FILE_DOWNLOAD.name(),
+            auditLogService.log(PAGE_RECEIVED_CLAIM_TOTAL_REPORT, WebTask.VIEW.name(),
                     AuditTask.VIEW_DATA.getDescription(), paginationRequest.getIp(),
                     paginationRequest.getUserAgent(), gson.toJson(paginationRequest.getSearch()), null,
                     paginationRequest.getUsername());
