@@ -272,10 +272,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
 
             paymentAttachmentCreateDTO.setStaffCategoryCode(derivedStaffCategory);
 
-            String paymentCompanyCode = resolvePaymentCompanyCodeFromRequests(claims);
-            String derivedCompanyCode = hasText(paymentCompanyCode)
-                    ? paymentCompanyCode
-                    : resolveCompanyCode(claims);
+            String derivedCompanyCode = resolveCompanyCode(claims);
             if (hasText(derivedCompanyCode)) {
                 paymentAttachmentCreateDTO.setCompanyCode(derivedCompanyCode);
             }
@@ -719,12 +716,15 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         dto.setAttachmentYear(attachment.getAttachmentYear());
         dto.setAttachmentSequence(attachment.getAttachmentSequence());
         dto.setNotes(attachment.getNotes());
-        dto.setCompanyCode(attachment.getCompanyCode());
-        dto.setCompanyDescription(resolveDescription(companyDescriptions, attachment.getCompanyCode()));
+        List<PaymentAttachmentClaim> attachedClaims = attachment.getClaims().isEmpty()
+                ? paymentAttachmentClaimRepository.findAllByPaymentAttachment(attachment)
+                : attachment.getClaims();
+        String companyCode = Optional.ofNullable(resolveCompanyCodeFromAttachmentClaims(attachedClaims))
+                .orElse(attachment.getCompanyCode());
+        dto.setCompanyCode(companyCode);
+        dto.setCompanyDescription(resolveDescription(companyDescriptions, companyCode));
         String paymentCompanyCode = resolvePaymentCompanyCodeFromAttachmentClaims(
-                attachment.getClaims().isEmpty()
-                        ? paymentAttachmentClaimRepository.findAllByPaymentAttachment(attachment)
-                        : attachment.getClaims());
+                attachedClaims);
         dto.setPaymentCompanyCode(paymentCompanyCode);
         dto.setPaymentCompanyDescription(resolveDescription(companyDescriptions, paymentCompanyCode));
         dto.setStaffCategoryCode(attachment.getStaffCategoryCode());
@@ -741,10 +741,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         dto.setLastModifiedBy(attachment.getLastModifiedBy());
 
         if (includeClaims) {
-            List<PaymentAttachmentClaim> claims = attachment.getClaims().isEmpty() ?
-                    paymentAttachmentClaimRepository.findAllByPaymentAttachment(attachment) :
-                    attachment.getClaims();
-            dto.setClaims(claims.stream()
+            dto.setClaims(attachedClaims.stream()
                     .map(claim -> mapClaimToResponse(claim, companyDescriptions, staffCategoryDescriptions,
                             treatmentCategoryDescriptions, treatmentDescriptions))
                     .collect(Collectors.toList()));
@@ -797,10 +794,13 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         dto.setId(attachment.getId());
         dto.setAttachmentNo(attachment.getAttachmentNo());
         dto.setStatus(attachment.getStatus().name());
-        dto.setCompanyCode(attachment.getCompanyCode());
-        dto.setCompanyDescription(resolveDescription(companyDescriptions, attachment.getCompanyCode()));
+        List<PaymentAttachmentClaim> attachedClaims = paymentAttachmentClaimRepository.findAllByPaymentAttachment(attachment);
+        String companyCode = Optional.ofNullable(resolveCompanyCodeFromAttachmentClaims(attachedClaims))
+                .orElse(attachment.getCompanyCode());
+        dto.setCompanyCode(companyCode);
+        dto.setCompanyDescription(resolveDescription(companyDescriptions, companyCode));
         String paymentCompanyCode = resolvePaymentCompanyCodeFromAttachmentClaims(
-                paymentAttachmentClaimRepository.findAllByPaymentAttachment(attachment));
+                attachedClaims);
         dto.setPaymentCompanyCode(paymentCompanyCode);
         dto.setPaymentCompanyDescription(resolveDescription(companyDescriptions, paymentCompanyCode));
         dto.setStaffCategoryCode(attachment.getStaffCategoryCode());
@@ -880,6 +880,24 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                     .map(UserCompanyDetails::getCompanyTypes)
                     .map(CompanyTypes::getCode)
                     .orElse(null);
+
+            if (!hasText(claimCompany)) {
+                continue;
+            }
+
+            if (company == null) {
+                company = claimCompany;
+            } else if (!company.equalsIgnoreCase(claimCompany)) {
+                return null;
+            }
+        }
+        return company;
+    }
+
+    private String resolveCompanyCodeFromAttachmentClaims(List<PaymentAttachmentClaim> claims) {
+        String company = null;
+        for (PaymentAttachmentClaim claim : claims) {
+            String claimCompany = claim != null ? claim.getCompanyCode() : null;
 
             if (!hasText(claimCompany)) {
                 continue;
@@ -1036,6 +1054,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         responseMap.put("treatmentCategory", loadTreatmentCategories());
         responseMap.put("treatment", loadClaimCategories());
         responseMap.put("company", loadCompanyTypes());
+        responseMap.put("paymentCompany", loadCompanyTypes());
         responseMap.put("staffCategories", loadStaffCategories());
 
         auditLogService.log(page.name(), WebTask.REF_DATA.name(),
@@ -1109,6 +1128,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 .append("</div>")
                 .append("<div class=\"block\">")
                 .append("<div>Company: ").append(escapeHtml(responseDTO.getCompanyCode())).append("</div>")
+                .append("<div>Payment Company: ").append(escapeHtml(responseDTO.getPaymentCompanyCode())).append("</div>")
                 .append("<div>Staff Category: ").append(escapeHtml(responseDTO.getStaffCategoryCode())).append("</div>")
                 .append("<div>Treatment Category: ").append(escapeHtml(responseDTO.getTreatmentCategory())).append("</div>")
                 .append("<div>Notes: ").append(escapeHtml(responseDTO.getNotes())).append("</div>")
@@ -1120,6 +1140,8 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 .append("<th>Claim Request ID</th>")
                 .append("<th>Employee Name</th>")
                 .append("<th>EPF</th>")
+                .append("<th>Company</th>")
+                .append("<th>Payment Company</th>")
                 .append("<th>Claim Category</th>")
                 .append("<th>Treatment Category</th>")
                 .append("<th>Request Amount</th>")
@@ -1136,6 +1158,8 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                     .append("<td>").append(escapeHtml(claim.getRequestId())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getEmployeeName())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getEpf())).append("</td>")
+                    .append("<td>").append(escapeHtml(claim.getCompanyCode())).append("</td>")
+                    .append("<td>").append(escapeHtml(claim.getPaymentCompanyCode())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getClaimCategory())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getTreatmentCategory())).append("</td>")
                     .append("<td>").append(formatAmount(claim.getRequestAmount())).append("</td>")
@@ -1176,6 +1200,9 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             params.put("companyCode", hasText(responseDTO.getCompanyDescription())
                     ? responseDTO.getCompanyDescription()
                     : responseDTO.getCompanyCode());
+            params.put("paymentCompanyCode", hasText(responseDTO.getPaymentCompanyDescription())
+                    ? responseDTO.getPaymentCompanyDescription()
+                    : responseDTO.getPaymentCompanyCode());
             params.put("staffCategoryCode", hasText(responseDTO.getStaffCategoryDescription())
                     ? responseDTO.getStaffCategoryDescription()
                     : responseDTO.getStaffCategoryCode());
@@ -1258,14 +1285,15 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             sheet.setColumnWidth(4, 14 * 256);
             sheet.setColumnWidth(5, 14 * 256);
             sheet.setColumnWidth(6, 12 * 256);
-            sheet.setColumnWidth(7, 24 * 256);
+            sheet.setColumnWidth(7, 12 * 256);
+            sheet.setColumnWidth(8, 24 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Payment Attachment");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 0, 7));
+            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 0, 8));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -1277,19 +1305,23 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             row = sheet.createRow(rowIndex++);
             createStringCell(row, 0, "Company", labelStyle);
             createStringCell(row, 1, responseDTO.getCompanyCode(), null);
-            createStringCell(row, 3, "Staff Category", labelStyle);
-            createStringCell(row, 4, responseDTO.getStaffCategoryCode(), null);
+            createStringCell(row, 3, "Payment Company", labelStyle);
+            createStringCell(row, 4, responseDTO.getPaymentCompanyCode(), null);
 
             row = sheet.createRow(rowIndex++);
-            createStringCell(row, 0, "Treatment Category", labelStyle);
-            createStringCell(row, 1, responseDTO.getTreatmentCategory(), null);
+            createStringCell(row, 0, "Staff Category", labelStyle);
+            createStringCell(row, 1, responseDTO.getStaffCategoryCode(), null);
+            createStringCell(row, 3, "Treatment Category", labelStyle);
+            createStringCell(row, 4, responseDTO.getTreatmentCategory(), null);
+
+            row = sheet.createRow(rowIndex++);
             createStringCell(row, 3, "Created By", labelStyle);
             createStringCell(row, 4, buildCreatedBy(responseDTO.getCreatedBy(), responseDTO.getCreatedDate()), null);
 
             row = sheet.createRow(rowIndex++);
             createStringCell(row, 0, "Notes", labelStyle);
             createStringCell(row, 1, responseDTO.getNotes(), null);
-            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 1, 7));
+            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 1, 8));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -1297,10 +1329,11 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             createStringCell(row, 1, "Claim ID", headerStyle);
             createStringCell(row, 2, "EPF", headerStyle);
             createStringCell(row, 3, "Company", headerStyle);
-            createStringCell(row, 4, "Requested", headerStyle);
-            createStringCell(row, 5, "Approved", headerStyle);
-            createStringCell(row, 6, "Status", headerStyle);
-            createStringCell(row, 7, "Remark", headerStyle);
+            createStringCell(row, 4, "Payment Company", headerStyle);
+            createStringCell(row, 5, "Requested", headerStyle);
+            createStringCell(row, 6, "Approved", headerStyle);
+            createStringCell(row, 7, "Status", headerStyle);
+            createStringCell(row, 8, "Remark", headerStyle);
 
             List<PaymentAttachmentClaimResponseDTO> claims = Optional.ofNullable(responseDTO.getClaims()).orElse(List.of());
             int lineNo = 1;
@@ -1315,21 +1348,25 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
 
                 String companyCode = hasText(claim.getCompanyCode()) ? claim.getCompanyCode() : responseDTO.getCompanyCode();
                 createStringCell(row, 3, companyCode, dataStyle);
+                String paymentCompanyCode = hasText(claim.getPaymentCompanyCode())
+                        ? claim.getPaymentCompanyCode()
+                        : responseDTO.getPaymentCompanyCode();
+                createStringCell(row, 4, paymentCompanyCode, dataStyle);
 
-                Cell requestCell = row.createCell(4);
+                Cell requestCell = row.createCell(5);
                 requestCell.setCellValue(Optional.ofNullable(claim.getRequestAmount()).orElse(BigDecimal.ZERO).doubleValue());
                 requestCell.setCellStyle(amountStyle);
 
-                Cell approvedCell = row.createCell(5);
+                Cell approvedCell = row.createCell(6);
                 approvedCell.setCellValue(Optional.ofNullable(claim.getApprovedAmount()).orElse(BigDecimal.ZERO).doubleValue());
                 approvedCell.setCellStyle(amountStyle);
 
-                createStringCell(row, 6, claim.getClaimStatus(), statusStyle);
+                createStringCell(row, 7, claim.getClaimStatus(), statusStyle);
 
                 String remark = hasText(claim.getRemark())
                         ? claim.getRemark()
                         : Optional.ofNullable(claim.getClaimStatus()).orElse("");
-                createStringCell(row, 7, remark, dataStyle);
+                createStringCell(row, 8, remark, dataStyle);
             }
 
             rowIndex++;
@@ -1340,12 +1377,12 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             totalClaimsCell.setCellStyle(dataStyle);
 
             createStringCell(row, 3, "Total Requested", labelStyle);
-            Cell totalRequestedCell = row.createCell(4);
+            Cell totalRequestedCell = row.createCell(5);
             totalRequestedCell.setCellValue(Optional.ofNullable(summary.getTotalRequestedAmount()).orElse(BigDecimal.ZERO).doubleValue());
             totalRequestedCell.setCellStyle(amountStyle);
 
-            createStringCell(row, 5, "Total Approved", labelStyle);
-            Cell totalApprovedCell = row.createCell(6);
+            createStringCell(row, 6, "Total Approved", labelStyle);
+            Cell totalApprovedCell = row.createCell(7);
             totalApprovedCell.setCellValue(Optional.ofNullable(summary.getTotalApprovedAmount()).orElse(BigDecimal.ZERO).doubleValue());
             totalApprovedCell.setCellStyle(amountStyle);
 

@@ -55,6 +55,7 @@ public class PaymentAttachmentClaimSpecification {
             Join<UserPersonalDetails, UserCompanyDetails> companyDetailsJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT);
 
             Join<UserCompanyDetails, CompanyTypes> companyTypesJoin = companyDetailsJoin.join("companyTypes", JoinType.LEFT);
+            Join<UserCompanyDetails, CompanyTypes> paymentCompanyJoin = companyDetailsJoin.join("paymentCompany", JoinType.LEFT);
             if (hasText(filterDto.getClaimId())) {
                 predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("requestId")), "%" + filterDto.getClaimId().toLowerCase() + "%"));
             }
@@ -112,6 +113,10 @@ public class PaymentAttachmentClaimSpecification {
 
             if (hasText(filterDto.getCompany())) {
                 predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(companyTypesJoin.get("code")), filterDto.getCompany().toLowerCase()));
+            }
+
+            if (hasText(filterDto.getPaymentCompany())) {
+                predicates.add(criteriaBuilder.equal(criteriaBuilder.lower(paymentCompanyJoin.get("code")), filterDto.getPaymentCompany().toLowerCase()));
             }
 
             if (hasText(filterDto.getEpf())) {

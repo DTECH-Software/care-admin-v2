@@ -14,6 +14,7 @@ public class PaymentAttachmentClaimSearchDTO {
     private String treatmentCategory;
     private String claimId;
     private String company;
+    private String paymentCompany;
     private String epf;
     @JsonFormat(pattern = "yyyy/MM/dd")
     private String dateFrom;

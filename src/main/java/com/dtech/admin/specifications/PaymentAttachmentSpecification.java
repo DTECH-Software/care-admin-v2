@@ -2,8 +2,16 @@ package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.PaymentAttachmentSearchDTO;
 import com.dtech.admin.enums.PaymentAttachmentStatus;
+import com.dtech.admin.model.ApplicationUser;
+import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.PaymentAttachment;
+import com.dtech.admin.model.PaymentAttachmentClaim;
+import com.dtech.admin.model.UserCompanyDetails;
+import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.util.DateTimeUtil;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,13 +31,23 @@ public class PaymentAttachmentSpecification {
     public static Specification<PaymentAttachment> getSpecification(PaymentAttachmentSearchDTO filterDto) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            Join<PaymentAttachment, PaymentAttachmentClaim> claimJoin = root.join("claims", JoinType.LEFT);
+            Join<PaymentAttachmentClaim, InsuranceClaimsRequest> requestJoin = claimJoin.join("insuranceClaimsRequest", JoinType.LEFT);
+            Join<InsuranceClaimsRequest, ApplicationUser> employeeJoin = requestJoin.join("employee", JoinType.LEFT);
+            Join<ApplicationUser, UserPersonalDetails> personalJoin = employeeJoin.join("userPersonalDetails", JoinType.LEFT);
+            Join<UserPersonalDetails, UserCompanyDetails> companyDetailsJoin = personalJoin.join("userCompanyDetails", JoinType.LEFT);
+            Join<UserCompanyDetails, CompanyTypes> paymentCompanyJoin = companyDetailsJoin.join("paymentCompany", JoinType.LEFT);
 
             if (hasText(filterDto.getAttachmentNo())) {
                 predicates.add(cb.like(cb.lower(root.get("attachmentNo")), "%" + filterDto.getAttachmentNo().toLowerCase() + "%"));
             }
 
             if (hasText(filterDto.getCompany())) {
-                predicates.add(cb.equal(cb.lower(root.get("companyCode")), filterDto.getCompany().toLowerCase()));
+                predicates.add(cb.equal(cb.lower(claimJoin.get("companyCode")), filterDto.getCompany().toLowerCase()));
+            }
+
+            if (hasText(filterDto.getPaymentCompany())) {
+                predicates.add(cb.equal(cb.lower(paymentCompanyJoin.get("code")), filterDto.getPaymentCompany().toLowerCase()));
             }
 
             List<String> staffCategoryCodes = filterDto.getStaffCategoryCodes();
@@ -72,6 +90,7 @@ public class PaymentAttachmentSpecification {
                 predicates.add(root.get("status").in(statuses));
             }
 
+            query.distinct(true);
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }

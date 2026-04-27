@@ -42,6 +42,7 @@ import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.MedicalClaimsReportService;
 import com.dtech.admin.specifications.MedicalClaimsReportSpecification;
+import com.dtech.admin.util.DateTimeUtil;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
 import com.dtech.admin.util.ApprovalRemarkUtil;
@@ -77,6 +78,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -286,6 +288,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             List<InsuranceClaimsRequest> claims = Objects.nonNull(search)
                     ? insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification(search))
                     : insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification());
+            claims = filterByFinalDecisionDate(claims, search);
 
             byte[] excelBytes = buildExcel(claims);
 
@@ -480,6 +483,55 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
         dto.setFinalRemark(resolveFinalRemark(claim));
         dto.setFinalApproveDate(resolveFinalApproveDate(claim));
         dto.setRejectionDate(resolveRejectionDate(claim));
+    }
+
+    private List<InsuranceClaimsRequest> filterByFinalDecisionDate(List<InsuranceClaimsRequest> claims,
+                                                                   ClaimRequestSearchDTO search) {
+        if (claims == null || search == null || (!hasText(search.getFromDate()) && !hasText(search.getToDate()))) {
+            return claims;
+        }
+
+        Date fromDate = parseBoundaryDate(search.getFromDate(), true);
+        Date toDate = parseBoundaryDate(search.getToDate(), false);
+
+        return claims.stream()
+                .filter(claim -> {
+                    Date decisionDate = resolveReportDecisionDate(claim);
+                    if (decisionDate == null) {
+                        return false;
+                    }
+                    if (fromDate != null && decisionDate.before(fromDate)) {
+                        return false;
+                    }
+                    return toDate == null || !decisionDate.after(toDate);
+                })
+                .toList();
+    }
+
+    private Date resolveReportDecisionDate(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return null;
+        }
+        if (Workflow.APPROVED.equals(claim.getRequestStatus())) {
+            return resolveFinalApproveDate(claim);
+        }
+        if (Workflow.REJECTED.equals(claim.getRequestStatus())) {
+            return resolveRejectionDate(claim);
+        }
+        return null;
+    }
+
+    private Date parseBoundaryDate(String value, boolean startOfDay) {
+        if (!hasText(value)) {
+            return null;
+        }
+        try {
+            return startOfDay
+                    ? DateTimeUtil.getStartOfDay(normalizeDate(value))
+                    : DateTimeUtil.getEndOfDay(normalizeDate(value));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid date range", e);
+        }
     }
 
     private String resolveFinalRemark(InsuranceClaimsRequest claim) {
@@ -718,6 +770,10 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
         }
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
         return formatter.format(date);
+    }
+
+    private String normalizeDate(String value) {
+        return value.contains("-") ? value.replace("-", "/") : value;
     }
 
     private String toAmountString(BigDecimal amount) {

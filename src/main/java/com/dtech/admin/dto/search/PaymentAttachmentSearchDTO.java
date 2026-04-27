@@ -11,6 +11,7 @@ import java.util.List;
 public class PaymentAttachmentSearchDTO {
     private String attachmentNo;
     private String company;
+    private String paymentCompany;
     private String staffCategory;
     private String treatmentCategory;
     @JsonFormat(pattern = "yyyy/MM/dd")

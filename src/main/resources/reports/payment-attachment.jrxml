@@ -32,6 +32,7 @@
     <parameter name="attachmentNo" class="java.lang.String"/>
     <parameter name="createdDate" class="java.lang.String"/>
     <parameter name="companyCode" class="java.lang.String"/>
+    <parameter name="paymentCompanyCode" class="java.lang.String"/>
     <parameter name="staffCategoryCode" class="java.lang.String"/>
     <parameter name="treatmentCategory" class="java.lang.String"/>
     <parameter name="createdBy" class="java.lang.String"/>
@@ -41,6 +42,7 @@
 
     <field name="requestId" class="java.lang.String"/>
     <field name="companyCode" class="java.lang.String"/>
+    <field name="paymentCompanyCode" class="java.lang.String"/>
     <field name="epf" class="java.lang.String"/>
     <field name="requestAmount" class="java.math.BigDecimal"/>
     <field name="approvedAmount" class="java.math.BigDecimal"/>
@@ -62,7 +64,7 @@
     </title>
 
     <pageHeader>
-        <band height="52">
+        <band height="68">
             <staticText>
                 <reportElement x="0" y="0" width="90" height="14" style="Label"/>
                 <text><![CDATA[Attachment No:]]></text>
@@ -101,11 +103,11 @@
 
             <staticText>
                 <reportElement x="0" y="32" width="120" height="14" style="Label"/>
-                <text><![CDATA[Treatment Category:]]></text>
+                <text><![CDATA[Payment Company:]]></text>
             </staticText>
             <textField>
                 <reportElement x="122" y="32" width="220" height="14" style="Base"/>
-                <textFieldExpression><![CDATA[$P{treatmentCategory}]]></textFieldExpression>
+                <textFieldExpression><![CDATA[$P{paymentCompanyCode}]]></textFieldExpression>
             </textField>
 
             <staticText>
@@ -115,6 +117,15 @@
             <textField>
                 <reportElement x="452" y="32" width="103" height="14" style="Base"/>
                 <textFieldExpression><![CDATA[$P{createdBy}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="48" width="120" height="14" style="Label"/>
+                <text><![CDATA[Treatment Category:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="122" y="48" width="220" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{treatmentCategory}]]></textFieldExpression>
             </textField>
         </band>
     </pageHeader>
@@ -127,27 +138,32 @@
                 <text><![CDATA[Request ID]]></text>
             </staticText>
             <staticText>
-                <reportElement x="140" y="0" width="60" height="20" style="TableHeader"/>
+                <reportElement x="140" y="0" width="55" height="20" style="TableHeader"/>
                 <textElement verticalAlignment="Middle"/>
                 <text><![CDATA[Company]]></text>
             </staticText>
             <staticText>
-                <reportElement x="200" y="0" width="60" height="20" style="TableHeader"/>
+                <reportElement x="195" y="0" width="75" height="20" style="TableHeader"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Payment Company]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="270" y="0" width="50" height="20" style="TableHeader"/>
                 <textElement verticalAlignment="Middle"/>
                 <text><![CDATA[EPF No]]></text>
             </staticText>
             <staticText>
-                <reportElement x="260" y="0" width="80" height="20" style="TableHeader"/>
+                <reportElement x="320" y="0" width="70" height="20" style="TableHeader"/>
                 <textElement textAlignment="Right" verticalAlignment="Middle"/>
                 <text><![CDATA[Submitted Amt]]></text>
             </staticText>
             <staticText>
-                <reportElement x="340" y="0" width="80" height="20" style="TableHeader"/>
+                <reportElement x="390" y="0" width="70" height="20" style="TableHeader"/>
                 <textElement textAlignment="Right" verticalAlignment="Middle"/>
                 <text><![CDATA[Received Amt]]></text>
             </staticText>
             <staticText>
-                <reportElement x="420" y="0" width="135" height="20" style="TableHeader"/>
+                <reportElement x="460" y="0" width="95" height="20" style="TableHeader"/>
                 <textElement verticalAlignment="Middle"/>
                 <text><![CDATA[Remark]]></text>
             </staticText>
@@ -163,31 +179,37 @@
             </textField>
 
             <textField>
-                <reportElement x="140" y="0" width="60" height="18" style="TableDetail"/>
+                <reportElement x="140" y="0" width="55" height="18" style="TableDetail"/>
                 <textElement verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{companyCode}]]></textFieldExpression>
             </textField>
 
             <textField>
-                <reportElement x="200" y="0" width="60" height="18" style="TableDetail"/>
+                <reportElement x="195" y="0" width="75" height="18" style="TableDetail"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{paymentCompanyCode}]]></textFieldExpression>
+            </textField>
+
+            <textField>
+                <reportElement x="270" y="0" width="50" height="18" style="TableDetail"/>
                 <textElement verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{epf}]]></textFieldExpression>
             </textField>
 
             <textField pattern="#,##0.00">
-                <reportElement x="260" y="0" width="80" height="18" style="TableDetail"/>
+                <reportElement x="320" y="0" width="70" height="18" style="TableDetail"/>
                 <textElement textAlignment="Right" verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{requestAmount}]]></textFieldExpression>
             </textField>
 
             <textField pattern="#,##0.00">
-                <reportElement x="340" y="0" width="80" height="18" style="TableDetail"/>
+                <reportElement x="390" y="0" width="70" height="18" style="TableDetail"/>
                 <textElement textAlignment="Right" verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{approvedAmount}]]></textFieldExpression>
             </textField>
 
             <textField textAdjust="StretchHeight">
-                <reportElement x="420" y="0" width="135" height="18" style="TableDetail"/>
+                <reportElement x="460" y="0" width="95" height="18" style="TableDetail"/>
                 <textElement verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[
                     ($F{remark} != null && !$F{remark}.trim().isEmpty())
