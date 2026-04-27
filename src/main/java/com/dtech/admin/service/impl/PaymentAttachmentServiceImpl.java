@@ -1263,9 +1263,11 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
             headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setWrapText(true);
             applyBorders(headerStyle);
 
             CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setWrapText(true);
             applyBorders(dataStyle);
 
             CellStyle statusStyle = workbook.createCellStyle();
@@ -1279,7 +1281,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             applyBorders(amountStyle);
 
             sheet.setColumnWidth(0, 6 * 256);
-            sheet.setColumnWidth(1, 18 * 256);
+            sheet.setColumnWidth(1, 34 * 256);
             sheet.setColumnWidth(2, 10 * 256);
             sheet.setColumnWidth(3, 12 * 256);
             sheet.setColumnWidth(4, 14 * 256);
