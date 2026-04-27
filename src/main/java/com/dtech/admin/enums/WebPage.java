@@ -44,5 +44,6 @@ public enum WebPage {
     RPLP_CRE, //Cheque creation
     RPLP_VIW, //Cheque view
     RPRT_RCTR, //Received claim total report
-    RPRT_CSR //Claim status report
+    RPRT_CSR, //Claim status report
+    RPRT_RCR //Rejected claim report
 }

@@ -289,6 +289,10 @@ public class ResponseMessageUtil {
     public final static String CLAIM_STATUS_REPORT_REFERENCE_SUCCESS = "val.claim.status.report.reference.success";
     public final static String CLAIM_STATUS_REPORT_FILTER_LIST_SUCCESS = "val.claim.status.report.filter.list.success";
 
+    /*Rejected claim report*/
+    public final static String REJECTED_CLAIM_REPORT_REFERENCE_SUCCESS = "val.rejected.claim.report.reference.success";
+    public final static String REJECTED_CLAIM_REPORT_FILTER_LIST_SUCCESS = "val.rejected.claim.report.filter.list.success";
+
     /*Third party indoor claims import*/
     public final static String THIRD_PARTY_INDOOR_REFERENCE_SUCCESS = "val.third.party.indoor.reference.success";
     public final static String THIRD_PARTY_INDOOR_VALIDATE_SUCCESS = "val.third.party.indoor.validate.success";
