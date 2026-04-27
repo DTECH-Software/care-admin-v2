@@ -24,6 +24,10 @@ public class ClaimsRequestResponseDTO {
     private String approvalLevelDescription;
     private String paymentAdviceStatus;
     private String paymentAdviceStatusDescription;
+    private String adviceNo;
+    private String finalRemark;
+    private Date finalApproveDate;
+    private Date rejectionDate;
     private Map<String,Object> limits;
     private List<SimpleBaseDTO> policyList;
     private Date createdDate;

@@ -1,9 +1,11 @@
 package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.ClaimRequestSearchDTO;
+import com.dtech.admin.enums.ApprovalLevel;
 import com.dtech.admin.enums.PaymentAttachmentStatus;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApplicationUser;
+import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
@@ -17,6 +19,8 @@ import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.util.DateTimeUtil;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -58,23 +62,7 @@ public class MedicalClaimsReportSpecification {
                     root.join("insuranceClaimsDetails", JoinType.LEFT)
                             .join("insuranceStaffCategoryPeriod", JoinType.LEFT);
 
-            if (filterDto != null && hasText(filterDto.getFromDate())) {
-                try {
-                    Date fromDate = DateTimeUtil.getStartOfDay(normalizeDate(filterDto.getFromDate()));
-                    predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdDate"), fromDate));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            if (filterDto != null && hasText(filterDto.getToDate())) {
-                try {
-                    Date toDate = DateTimeUtil.getEndOfDay(normalizeDate(filterDto.getToDate()));
-                    predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("createdDate"), toDate));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            applyFinalDecisionDateFilter(filterDto, root, query, criteriaBuilder, predicates);
 
             if (filterDto != null && hasText(filterDto.getRequestId())) {
                 String requestId = filterDto.getRequestId().trim().toLowerCase();
@@ -111,7 +99,8 @@ public class MedicalClaimsReportSpecification {
             }
 
             if (filterDto != null && hasText(filterDto.getCompany())) {
-                predicates.add(criteriaBuilder.equal(companyTypesJoin.get("code"), filterDto.getCompany().toLowerCase()));
+                predicates.add(criteriaBuilder.equal(criteriaBuilder.upper(companyTypesJoin.get("code")),
+                        filterDto.getCompany().trim().toUpperCase()));
             }
 
             if (filterDto != null && hasText(filterDto.getStaffCategory())) {
@@ -158,6 +147,43 @@ public class MedicalClaimsReportSpecification {
             query.distinct(true);
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    private static void applyFinalDecisionDateFilter(ClaimRequestSearchDTO filterDto,
+                                                     Root<InsuranceClaimsRequest> root,
+                                                     CriteriaQuery<?> query,
+                                                     CriteriaBuilder criteriaBuilder,
+                                                     List<Predicate> predicates) {
+        if (filterDto == null || (!hasText(filterDto.getFromDate()) && !hasText(filterDto.getToDate()))) {
+            return;
+        }
+
+        Subquery<Date> decisionDateSubquery = query.subquery(Date.class);
+        Root<InsuranceClaimsRequest> decisionRoot = decisionDateSubquery.from(InsuranceClaimsRequest.class);
+        Join<InsuranceClaimsRequest, ApprovalWorkFlow> decisionWorkflowJoin =
+                decisionRoot.join("approvalWorkFlows", JoinType.LEFT);
+
+        decisionDateSubquery.select(criteriaBuilder.greatest(decisionWorkflowJoin.<Date>get("approvedDate")))
+                .where(
+                        criteriaBuilder.equal(decisionRoot.get("id"), root.get("id")),
+                        criteriaBuilder.equal(decisionWorkflowJoin.get("status"), root.get("requestStatus")),
+                        decisionWorkflowJoin.get("approvalLevel").in(List.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03)),
+                        criteriaBuilder.isNotNull(decisionWorkflowJoin.get("approvedDate"))
+                );
+
+        try {
+            if (hasText(filterDto.getFromDate())) {
+                Date fromDate = DateTimeUtil.getStartOfDay(normalizeDate(filterDto.getFromDate()));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(decisionDateSubquery, fromDate));
+            }
+
+            if (hasText(filterDto.getToDate())) {
+                Date toDate = DateTimeUtil.getEndOfDay(normalizeDate(filterDto.getToDate()));
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(decisionDateSubquery, toDate));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static Specification<InsuranceClaimsRequest> getSpecification() {

@@ -26,8 +26,10 @@ public class ClaimRequestSearchDTO {
     private String employeeName;
     @JsonAlias({"paymentAdviceGenerated"})
     private String paymentAdviceStatus;
+    @JsonAlias({"dateFrom"})
     @JsonFormat(pattern = "yyyy/MM/dd")
     private String fromDate;
+    @JsonAlias({"dateTo"})
     @JsonFormat(pattern = "yyyy/MM/dd")
     private String toDate;
 }
