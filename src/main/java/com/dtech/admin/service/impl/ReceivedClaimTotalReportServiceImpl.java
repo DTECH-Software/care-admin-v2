@@ -5,6 +5,7 @@ import com.dtech.admin.dto.request.ChannelRequestDTO;
 import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
+import com.dtech.admin.dto.response.ReceivedClaimTotalReportNormalStaffDTO;
 import com.dtech.admin.dto.response.ReceivedClaimTotalReportResponseDTO;
 import com.dtech.admin.dto.response.ReceivedClaimTotalReportRowDTO;
 import com.dtech.admin.dto.search.ReceivedClaimTotalReportSearchDTO;
@@ -71,10 +72,12 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
     private static final String PAGE_RECEIVED_CLAIM_TOTAL_REPORT = WebPage.RPRT_RCTR.name();
     private static final String EXEC_MIDDLE_LABEL = "EXECUTIVE & MIDDLE MANAGEMENT LEVEL STAFF";
     private static final String SENIOR_STAFF_LABEL = "SENIOR STAFF";
+    private static final String NORMAL_STAFF_LABEL = "NORMAL STAFF";
     private static final String ALL_STAFF_LABEL = "ALL STAFF";
     private static final String PERIOD_SEPARATOR = " / ";
     private static final Set<String> EXEC_MIDDLE_CODES = Set.of("EXOP", "EX-OP1", "EX-OP2", "MM");
     private static final Set<String> SENIOR_STAFF_CODES = Set.of("SNR");
+    private static final Set<String> NORMAL_STAFF_CODES = Set.of("NS");
 
     @Autowired
     private final MessageSource messageSource;
@@ -115,6 +118,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
 
             responseMap.put("privileges", privileges);
             responseMap.put("reportGroups", List.of(
+                    new SimpleBaseDTO("NORMAL_STAFF", "Normal Staff Claims Received & Settlement Details"),
                     new SimpleBaseDTO("THIRD_PARTY", "Medical Claims Received & Settlement Details"),
                     new SimpleBaseDTO("WECARE", "Wecare System Received Medical Claims Details"),
                     new SimpleBaseDTO("DDF", "DDF Claims Received & Settlement Details")
@@ -184,10 +188,48 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         ReceivedClaimTotalReportResponseDTO dto = new ReceivedClaimTotalReportResponseDTO();
         dto.setPeriod(dateRange.periodText());
         dto.setMonthTitle(dateRange.monthTitle());
+        dto.setNormalStaffClaims(buildNormalStaffRows(dateRange, search));
         dto.setThirdPartyClaims(buildThirdPartyRows(dateRange));
         dto.setWecareClaims(buildWecareRows(dateRange));
         dto.setDdfClaims(buildDdfRows(dateRange));
         return dto;
+    }
+
+    private ReceivedClaimTotalReportNormalStaffDTO buildNormalStaffRows(DateRange dateRange,
+                                                                        ReceivedClaimTotalReportSearchDTO search) {
+        List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
+                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
+                .filter(claim -> claim.getId() == null
+                        || !thirdPartyIndoorClaimImportRowRepository.existsByInsuranceClaim_Id(claim.getId()))
+                .filter(claim -> NORMAL_STAFF_CODES.contains(
+                        staffCategoryResolver.normalizeCode(staffCategoryResolver.resolveForClaim(claim))))
+                .toList();
+
+        long received = claims.size();
+        long settled = claims.stream()
+                .filter(claim -> Workflow.APPROVED.equals(claim.getRequestStatus()))
+                .count();
+        long rejected = claims.stream()
+                .filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus()))
+                .count();
+        long underReview = claims.stream()
+                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .count();
+        long assumeRejectClaims = search != null && search.getNormalStaffAssumeRejectClaims() != null
+                ? Math.max(0, search.getNormalStaffAssumeRejectClaims())
+                : 0;
+
+        return new ReceivedClaimTotalReportNormalStaffDTO(
+                NORMAL_STAFF_LABEL,
+                dateRange.periodText(),
+                received,
+                underReview,
+                settled,
+                rejected,
+                assumeRejectClaims,
+                underReview,
+                settled
+        );
     }
 
     private List<ReceivedClaimTotalReportRowDTO> buildThirdPartyRows(DateRange dateRange) {
@@ -313,6 +355,10 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             CellStyle remarkBodyStyle = createBodyStyle(workbook, true);
 
             int rowIndex = 2;
+            rowIndex = writeNormalStaffSection(sheet, rowIndex,
+                    "MEDICAL CLAIMS RECEIVED & SETTLEMENT DETAILS - " + report.getMonthTitle(),
+                    report.getNormalStaffClaims(), titleStyle, headerStyle, remarkHeaderStyle, bodyStyle);
+            rowIndex += 2;
             rowIndex = writeSection(sheet, rowIndex,
                     "MEDICAL CLAIMS RECEIVED & SETTLEMENT DETAILS - " + report.getMonthTitle(),
                     report.getThirdPartyClaims(), titleStyle, headerStyle, remarkHeaderStyle, bodyStyle, remarkBodyStyle);
@@ -325,7 +371,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                     "DDF CLAIMS RECEIVED & SETTLEMENT DETAILS - " + report.getMonthTitle(),
                     report.getDdfClaims(), titleStyle, headerStyle, remarkHeaderStyle, bodyStyle, remarkBodyStyle);
 
-            int[] widths = {45, 28, 24, 24, 58};
+            int[] widths = {45, 28, 24, 28, 28, 24, 24, 22, 24};
             for (int i = 0; i < widths.length; i++) {
                 sheet.setColumnWidth(i, widths[i] * 256);
             }
@@ -335,6 +381,57 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         } catch (Exception e) {
             throw new RuntimeException("Failed to build received claim total report Excel", e);
         }
+    }
+
+    private int writeNormalStaffSection(Sheet sheet,
+                                        int startRow,
+                                        String title,
+                                        ReceivedClaimTotalReportNormalStaffDTO rowDTO,
+                                        CellStyle titleStyle,
+                                        CellStyle headerStyle,
+                                        CellStyle yellowHeaderStyle,
+                                        CellStyle bodyStyle) {
+        Row titleRow = sheet.createRow(startRow);
+        titleRow.setHeightInPoints(28);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue(title);
+        titleCell.setCellStyle(titleStyle);
+        sheet.addMergedRegion(new CellRangeAddress(startRow, startRow, 0, 8));
+
+        Row headerRow = sheet.createRow(startRow + 2);
+        headerRow.setHeightInPoints(52);
+        String[] headers = {
+                "STAFF CATEGORY",
+                "CLAIM RECEIVED PERIOD",
+                "NO OF RECEIVED CLAIMS",
+                "STILL PROCESSING CLAIMS",
+                "NO OF SETTLED CLAIMS",
+                "NO OF REJECTED CLAIMS",
+                "ASSUMING NO OF REJECT CLAIMS",
+                "NOT YET PROCESSED",
+                "NO OF SETTLED CLAIMS - WECARE"
+        };
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(i == 6 ? yellowHeaderStyle : headerStyle);
+        }
+
+        int rowIndex = startRow + 3;
+        if (rowDTO != null) {
+            Row row = sheet.createRow(rowIndex++);
+            row.setHeightInPoints(28);
+            writeCell(row, 0, rowDTO.getStaffCategory(), bodyStyle);
+            writeCell(row, 1, rowDTO.getClaimReceivedPeriod(), bodyStyle);
+            writeCell(row, 2, rowDTO.getReceivedClaims(), bodyStyle);
+            writeCell(row, 3, rowDTO.getStillProcessingClaims(), bodyStyle);
+            writeCell(row, 4, rowDTO.getSettledClaims(), bodyStyle);
+            writeCell(row, 5, rowDTO.getRejectedClaims(), bodyStyle);
+            writeCell(row, 6, rowDTO.getAssumeRejectClaims(), bodyStyle);
+            writeCell(row, 7, rowDTO.getNotYetProcessedClaims(), bodyStyle);
+            writeCell(row, 8, rowDTO.getWecareSettledClaims(), bodyStyle);
+        }
+        return rowIndex;
     }
 
     private int writeSection(Sheet sheet,

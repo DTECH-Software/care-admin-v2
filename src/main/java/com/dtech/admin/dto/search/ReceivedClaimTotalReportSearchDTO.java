@@ -13,4 +13,7 @@ public class ReceivedClaimTotalReportSearchDTO {
     @JsonAlias({"dateTo"})
     @JsonFormat(pattern = "yyyy/MM/dd")
     private String toDate;
+
+    @JsonAlias({"normalstaffassumeRejectClaims", "normalStaffAssumedRejectClaims", "assumeRejectClaims"})
+    private Long normalStaffAssumeRejectClaims;
 }
