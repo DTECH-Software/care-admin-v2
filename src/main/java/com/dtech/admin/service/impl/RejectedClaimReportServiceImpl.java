@@ -714,7 +714,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     }
 
     private static String formatDate(Date date) {
-        return date.toInstant()
+        return java.time.Instant.ofEpochMilli(date.getTime())
                 .atZone(ZoneId.systemDefault())
                 .toLocalDate()
                 .toString();
