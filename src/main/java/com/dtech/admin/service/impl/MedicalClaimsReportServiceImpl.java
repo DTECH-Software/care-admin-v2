@@ -373,7 +373,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             createStringCell(row, 11, "Remaining Balance", headerStyle);
             createStringCell(row, 12, "Status", headerStyle);
             createStringCell(row, 13, "Advice No", headerStyle);
-            createStringCell(row, 14, "Cheque No", headerStyle);
+            createStringCell(row, 14, "Voucher No", headerStyle);
             createStringCell(row, 15, "Cheque Created Date", headerStyle);
             createStringCell(row, 16, "Final Remark", headerStyle);
             createStringCell(row, 17, "Final Approve Date", headerStyle);
