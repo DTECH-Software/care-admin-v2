@@ -57,31 +57,34 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "thirdPartyReferenceNo",
             "companyCode",
             "epfNo",
-            "policyYear",
             "policyNo",
-            "fromDate",
-            "toDate",
+            "Policy Period From",
+            "Policy Period To",
             "intimatedDate",
             "paidDate",
             "nonPayableAmount",
             "nonPayableItem",
             "claimAmount",
-            "approvedAmount",
+            "Paid Amount",
             "remark"
     );
     private static final List<String> REQUIRED_HEADERS = List.of(
             "thirdPartyReferenceNo",
             "companyCode",
             "epfNo",
-            "policyYear",
             "policyNo",
-            "fromDate",
-            "toDate",
+            "policyPeriodFrom",
+            "policyPeriodTo",
             "intimatedDate",
             "paidDate",
             "nonPayableAmount",
             "claimAmount",
-            "approvedAmount"
+            "paidAmount"
+    );
+    private static final Map<String, List<String>> HEADER_ALIASES = Map.of(
+            "policyPeriodFrom", List.of("policyPeriodFrom", "fromDate"),
+            "policyPeriodTo", List.of("policyPeriodTo", "toDate"),
+            "paidAmount", List.of("paidAmount", "approvedAmount")
     );
     private static final List<Facility> INSURANCE_FACILITIES = List.of(Facility.INSURANCE, Facility.BOTH);
     private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
@@ -154,8 +157,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "Only active non-NS employees are allowed.",
                     "Only indoor claims are allowed.",
                     "companyCode and epfNo are used to identify the employee.",
-                    "policyYear is required and is used to map the insurance period.",
-                    "approvedAmount is entered manually.",
+                    "Policy Period From and Policy Period To are used to map the insurance period.",
+                    "Paid Amount is entered manually.",
                     "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
 
@@ -378,18 +381,18 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         String externalReferenceNo = getString(row, headerIndex, "thirdPartyReferenceNo", formatter);
         String companyCode = getString(row, headerIndex, "companyCode", formatter);
         String epfNo = getString(row, headerIndex, "epfNo", formatter);
-        Integer policyYear = getInteger(row, headerIndex, "policyYear", formatter, errors);
         String policyNo = getString(row, headerIndex, "policyNo", formatter);
         String nonPayableItem = getString(row, headerIndex, "nonPayableItem", formatter);
         String remark = getString(row, headerIndex, "remark", formatter);
 
-        Date fromDate = getDate(row, headerIndex, "fromDate", formatter, errors);
-        Date toDate = getDate(row, headerIndex, "toDate", formatter, errors);
+        Date fromDate = getDate(row, headerIndex, "policyPeriodFrom", formatter, errors);
+        Date toDate = getDate(row, headerIndex, "policyPeriodTo", formatter, errors);
         Date intimatedDate = getDate(row, headerIndex, "intimatedDate", formatter, errors);
         Date paidDate = getDate(row, headerIndex, "paidDate", formatter, errors);
         BigDecimal nonPayableAmount = getBigDecimal(row, headerIndex, "nonPayableAmount", formatter, errors);
         BigDecimal claimAmount = getBigDecimal(row, headerIndex, "claimAmount", formatter, errors);
-        BigDecimal approvedAmount = getBigDecimal(row, headerIndex, "approvedAmount", formatter, errors);
+        BigDecimal approvedAmount = getBigDecimal(row, headerIndex, "paidAmount", formatter, errors);
+        Integer policyYear = null;
 
         if (!hasText(externalReferenceNo)) {
             errors.add("thirdPartyReferenceNo is required");
@@ -413,7 +416,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
 
         if (fromDate != null && toDate != null && fromDate.after(toDate)) {
-            errors.add("fromDate cannot be after toDate");
+            errors.add("policyPeriodFrom cannot be after policyPeriodTo");
         }
 
         if (intimatedDate != null && paidDate != null && intimatedDate.after(paidDate)) {
@@ -425,7 +428,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
 
         if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) < 0) {
-            errors.add("approvedAmount cannot be negative");
+            errors.add("paidAmount cannot be negative");
         }
 
         if (nonPayableAmount != null && nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
@@ -436,10 +439,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 && nonPayableAmount.compareTo(BigDecimal.ZERO) > 0
                 && !hasText(nonPayableItem)) {
             errors.add("nonPayableItem is required when nonPayableAmount is greater than zero");
-        }
-
-        if (policyYear == null) {
-            errors.add("policyYear is required");
         }
 
         ApplicationUser employee = null;
@@ -472,20 +471,18 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
 
                 if (companyDetails == null || companyDetails.getInsurancePolicy() == null) {
                     errors.add("Employee insurance policy is missing");
-                } else {
-                    List<InsuranceStaffCategoryPeriod> matchedPeriods = insuranceStaffCategoryPeriodRepository
-                            .findByStaffCategories_CodeAndStatusAndPolicyYear(
-                                    companyDetails.getStaffCategories().getCode(), Status.ACTIVE, policyYear);
-                    if (matchedPeriods.isEmpty()) {
-                        errors.add("Insurance period not found for policyYear");
-                    } else if (matchedPeriods.size() > 1) {
-                        errors.add("Multiple insurance periods found for policyYear");
+                } else if (errors.isEmpty()) {
+                    insurancePeriod = insuranceStaffCategoryPeriodRepository
+                            .findByDateWithinRange(fromDate, companyDetails.getStaffCategories().getCode())
+                            .orElse(null);
+                    if (insurancePeriod == null || !Status.ACTIVE.equals(insurancePeriod.getStatus())) {
+                        errors.add("Insurance period not found for policy period dates");
+                    } else if (!isDateWithinPeriod(toDate, insurancePeriod)) {
+                        errors.add("Policy period dates do not fall within one insurance period");
                     } else {
-                        insurancePeriod = matchedPeriods.getFirst();
-                    }
-
-                    if (errors.isEmpty() && (!isDateWithinPeriod(fromDate, insurancePeriod) || !isDateWithinPeriod(toDate, insurancePeriod))) {
-                        errors.add("Treatment dates do not fall within the selected policyYear");
+                        policyYear = insurancePeriod.getFromDate() != null
+                                ? DateTimeUtil.getYear(insurancePeriod.getFromDate())
+                                : DateTimeUtil.getYear(fromDate);
                     }
 
                     if (errors.isEmpty()) {
@@ -685,8 +682,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
 
         List<String> missingHeaders = REQUIRED_HEADERS.stream()
-                .map(this::normalizeHeader)
-                .filter(header -> !headerIndex.containsKey(header))
+                .filter(header -> resolveColumnIndex(headerIndex, header) == null)
                 .toList();
         if (!missingHeaders.isEmpty()) {
             throw new IllegalArgumentException("Missing required columns: " + String.join(", ", missingHeaders));
@@ -705,7 +701,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     }
 
     private String getString(Row row, Map<String, Integer> headerIndex, String header, DataFormatter formatter) {
-        Integer columnIndex = headerIndex.get(normalizeHeader(header));
+        Integer columnIndex = resolveColumnIndex(headerIndex, header);
         if (columnIndex == null) {
             return null;
         }
@@ -723,7 +719,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             return null;
         }
 
-        Integer columnIndex = headerIndex.get(normalizeHeader(header));
+        Integer columnIndex = resolveColumnIndex(headerIndex, header);
         Cell cell = row.getCell(columnIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
         if (cell != null && cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
             return DateTimeUtil.getStartOfDay(cell.getDateCellValue());
@@ -739,6 +735,16 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
 
         errors.add(header + " has an invalid date format");
+        return null;
+    }
+
+    private Integer resolveColumnIndex(Map<String, Integer> headerIndex, String header) {
+        for (String alias : HEADER_ALIASES.getOrDefault(header, List.of(header))) {
+            Integer columnIndex = headerIndex.get(normalizeHeader(alias));
+            if (columnIndex != null) {
+                return columnIndex;
+            }
+        }
         return null;
     }
 
