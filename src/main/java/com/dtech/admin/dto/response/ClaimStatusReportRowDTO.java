@@ -15,6 +15,7 @@ public class ClaimStatusReportRowDTO {
     private String dependentName;
     private String dependentCategory;
     private String treatmentType;
+    private String treatmentCategory;
     private BigDecimal requestAmount;
     private BigDecimal approvedAmount;
     private String claimStatus;

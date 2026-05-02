@@ -21,5 +21,6 @@ public class ClaimStatusReportSearchDTO {
     private String dependentName;
     private String dependentCategory;
     private String treatment;
+    private String treatmentCategory;
     private String claimStatus;
 }

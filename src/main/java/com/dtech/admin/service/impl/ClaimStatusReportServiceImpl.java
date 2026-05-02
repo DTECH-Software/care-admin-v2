@@ -19,10 +19,12 @@ import com.dtech.admin.model.ClaimsDependents;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.Treatment;
+import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
+import com.dtech.admin.repository.TreatmentCategoryRepository;
 import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ClaimStatusReportService;
@@ -103,6 +105,9 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
     private final TreatmentRepository treatmentRepository;
 
     @Autowired
+    private final TreatmentCategoryRepository treatmentCategoryRepository;
+
+    @Autowired
     private final MedicalClaimStaffCategoryResolver staffCategoryResolver;
 
     @Override
@@ -126,6 +131,9 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
             responseMap.put("dependentCategory", buildDependentCategoryReference());
             responseMap.put("treatment", treatmentRepository.findAllByStatus(Status.ACTIVE).stream()
                     .map(treatment -> new SimpleBaseDTO(treatment.getTreatmentCode(), treatment.getTreatmentDescription()))
+                    .toList());
+            responseMap.put("treatmentCategory", treatmentCategoryRepository.findAllByStatus(Status.ACTIVE).stream()
+                    .map(category -> new SimpleBaseDTO(category.getCode(), category.getDescription()))
                     .toList());
 
             auditLogService.log(PAGE_CLAIM_STATUS_REPORT, WebTask.REF_DATA.name(),
@@ -232,6 +240,13 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
                 .orElse(null))) {
             return false;
         }
+        if (hasText(search.getTreatmentCategory()) && !equalsIgnoreCase(search.getTreatmentCategory(),
+                Optional.ofNullable(claim.getInsuranceClaimsDetails())
+                        .map(details -> details.getTreatmentCategory())
+                        .map(TreatmentCategory::getCode)
+                        .orElse(null))) {
+            return false;
+        }
         return !hasText(search.getClaimStatus()) || equalsIgnoreCase(search.getClaimStatus(),
                 Optional.ofNullable(claim.getRequestStatus()).map(Workflow::name).orElse(null));
     }
@@ -255,6 +270,10 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
         dto.setTreatmentType(Optional.ofNullable(claim.getInsuranceClaimsDetails())
                 .map(details -> details.getTreatment())
                 .map(Treatment::getTreatmentDescription)
+                .orElse(null));
+        dto.setTreatmentCategory(Optional.ofNullable(claim.getInsuranceClaimsDetails())
+                .map(details -> details.getTreatmentCategory())
+                .map(TreatmentCategory::getDescription)
                 .orElse(null));
         dto.setRequestAmount(claim.getRequestAmount());
         dto.setApprovedAmount(claim.getApprovedAmount());
@@ -346,6 +365,7 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
                     "Dependent Name",
                     "Dependent Category",
                     "Treatment Type",
+                    "Treatment Category",
                     "Request Amount",
                     "Approved Amount",
                     "Claim Status",
@@ -370,13 +390,14 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
                 writeTextCell(row, 5, rowDTO.getDependentName(), bodyStyle);
                 writeTextCell(row, 6, rowDTO.getDependentCategory(), bodyStyle);
                 writeTextCell(row, 7, rowDTO.getTreatmentType(), bodyStyle);
-                writeAmountCell(row, 8, rowDTO.getRequestAmount(), amountStyle);
-                writeAmountCell(row, 9, rowDTO.getApprovedAmount(), amountStyle);
-                writeTextCell(row, 10, rowDTO.getClaimStatus(), bodyStyle);
-                writeTextCell(row, 11, rowDTO.getFinalRemark(), bodyStyle);
+                writeTextCell(row, 8, rowDTO.getTreatmentCategory(), bodyStyle);
+                writeAmountCell(row, 9, rowDTO.getRequestAmount(), amountStyle);
+                writeAmountCell(row, 10, rowDTO.getApprovedAmount(), amountStyle);
+                writeTextCell(row, 11, rowDTO.getClaimStatus(), bodyStyle);
+                writeTextCell(row, 12, rowDTO.getFinalRemark(), bodyStyle);
             }
 
-            int[] widths = {16, 35, 28, 16, 30, 30, 22, 22, 18, 18, 18, 50};
+            int[] widths = {16, 35, 28, 16, 30, 30, 22, 22, 24, 18, 18, 18, 50};
             for (int i = 0; i < widths.length; i++) {
                 sheet.setColumnWidth(i, widths[i] * 256);
             }
