@@ -16,4 +16,7 @@ public class RejectedClaimReportSearchDTO {
 
     private String company;
     private String staffCategory;
+
+    @JsonAlias({"policyPeriod", "policyPeriodId"})
+    private String periodId;
 }

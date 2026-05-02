@@ -1,20 +1,20 @@
 package com.dtech.admin.dto.response;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Data
-public class RejectedClaimReportResponseDTO {
-    private String title;
-    private String subTitle;
-    private String staffCategoryTitle;
-    private String period;
-    private String monthTitle;
+@NoArgsConstructor
+@AllArgsConstructor
+public class RejectedClaimReportPeriodDTO {
+    private Long periodId;
+    private String periodDescription;
     private long totalReceivedClaims;
     private long totalRejectedClaims;
     private BigDecimal rejectedPercentage;
     private List<RejectedClaimReportCompanyDTO> companies;
-    private List<RejectedClaimReportPeriodDTO> policyPeriods;
 }

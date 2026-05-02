@@ -6,6 +6,7 @@ import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
 import com.dtech.admin.dto.response.RejectedClaimReportCompanyDTO;
+import com.dtech.admin.dto.response.RejectedClaimReportPeriodDTO;
 import com.dtech.admin.dto.response.RejectedClaimReportReasonDTO;
 import com.dtech.admin.dto.response.RejectedClaimReportResponseDTO;
 import com.dtech.admin.dto.search.RejectedClaimReportSearchDTO;
@@ -16,12 +17,15 @@ import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
+import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.model.Remark;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
+import com.dtech.admin.repository.InsuranceStaffCategoryPeriodRepository;
 import com.dtech.admin.repository.RemarkRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.RejectedClaimReportService;
@@ -111,6 +115,9 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     private final RemarkRepository remarkRepository;
 
     @Autowired
+    private final InsuranceStaffCategoryPeriodRepository insuranceStaffCategoryPeriodRepository;
+
+    @Autowired
     private final MedicalClaimStaffCategoryResolver staffCategoryResolver;
 
     @Override
@@ -126,6 +133,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             responseMap.put("privileges", privileges);
             responseMap.put("company", buildCompanyReference());
             responseMap.put("staffCategories", buildStaffCategoryReference());
+            responseMap.put("policyPeriods", buildPolicyPeriodReference());
             responseMap.put("returnReasons", remarkRepository.findAllByRemarkCategoryAndStatus(RemarkCategory.INSURANCE, Status.ACTIVE).stream()
                     .map(remark -> new SimpleBaseDTO(remark.getCode(), remark.getDescription()))
                     .toList());
@@ -193,39 +201,52 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         DateRange dateRange = resolveDateRange(search);
         RemarkDictionary remarkDictionary = loadRemarkDictionary();
         Map<String, String> staffCategoryDescriptions = staffCategoryResolver.loadDescriptionMap();
+        PeriodSelection selectedPeriod = resolveSelectedPeriod(search);
 
         List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
                 .filter(claim -> matchesFilters(claim, search))
-                .sorted(Comparator.comparing(this::resolveCompanyCode, Comparator.nullsLast(String::compareTo)))
+                .filter(claim -> matchesSelectedPeriod(claim, selectedPeriod))
+                .sorted(Comparator
+                        .comparing(this::resolvePeriodSortDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(this::resolveCompanyCode, Comparator.nullsLast(String::compareTo)))
                 .toList();
 
-        Map<String, CompanyBucket> companyBuckets = new LinkedHashMap<>();
+        Map<String, PeriodBucket> periodBuckets = new LinkedHashMap<>();
         for (InsuranceClaimsRequest claim : claims) {
+            PeriodInfo periodInfo = resolvePeriodInfo(claim);
+            Long bucketPeriodId = selectedPeriod != null ? selectedPeriod.periodId() : periodInfo.periodId();
+            String bucketDescription = selectedPeriod != null ? selectedPeriod.description() : periodInfo.description();
+            PeriodBucket periodBucket = periodBuckets.computeIfAbsent(periodInfo.key(),
+                    key -> new PeriodBucket(bucketPeriodId, bucketDescription));
             CompanyInfo companyInfo = resolveCompanyInfo(claim);
-            CompanyBucket bucket = companyBuckets.computeIfAbsent(companyInfo.code(),
+            CompanyBucket bucket = periodBucket.companyBuckets.computeIfAbsent(companyInfo.code(),
                     code -> new CompanyBucket(companyInfo.code(), companyInfo.description()));
             bucket.receivedClaims++;
+            periodBucket.totalReceivedClaims++;
 
             if (Workflow.REJECTED.equals(claim.getRequestStatus())) {
                 bucket.rejectedClaims++;
+                periodBucket.totalRejectedClaims++;
                 String reason = resolveReturnReason(ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim), remarkDictionary);
                 bucket.reasonCounts.merge(reason, 1L, Long::sum);
             }
         }
 
-        List<RejectedClaimReportCompanyDTO> companyRows = companyBuckets.values().stream()
-                .map(bucket -> new RejectedClaimReportCompanyDTO(
-                        bucket.companyCode,
-                        bucket.companyDescription,
-                        bucket.receivedClaims,
-                        bucket.rejectedClaims,
-                        toReasonRows(bucket.reasonCounts, remarkDictionary)
+        List<RejectedClaimReportPeriodDTO> periodRows = periodBuckets.values().stream()
+                .map(bucket -> new RejectedClaimReportPeriodDTO(
+                        bucket.periodId,
+                        bucket.periodDescription,
+                        bucket.totalReceivedClaims,
+                        bucket.totalRejectedClaims,
+                        calculatePercentage(bucket.totalRejectedClaims, bucket.totalReceivedClaims),
+                        toCompanyRows(bucket.companyBuckets, remarkDictionary)
                 ))
                 .toList();
 
-        long totalReceived = companyRows.stream().mapToLong(RejectedClaimReportCompanyDTO::getReceivedClaims).sum();
-        long totalRejected = companyRows.stream().mapToLong(RejectedClaimReportCompanyDTO::getRejectedClaims).sum();
+        long totalReceived = periodRows.stream().mapToLong(RejectedClaimReportPeriodDTO::getTotalReceivedClaims).sum();
+        long totalRejected = periodRows.stream().mapToLong(RejectedClaimReportPeriodDTO::getTotalRejectedClaims).sum();
+        List<RejectedClaimReportCompanyDTO> companyRows = aggregateCompanies(periodRows);
 
         RejectedClaimReportResponseDTO dto = new RejectedClaimReportResponseDTO();
         dto.setTitle("REJECTED CLAIMS REPORT");
@@ -237,6 +258,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         dto.setTotalRejectedClaims(totalRejected);
         dto.setRejectedPercentage(calculatePercentage(totalRejected, totalReceived));
         dto.setCompanies(companyRows);
+        dto.setPolicyPeriods(periodRows);
         return dto;
     }
 
@@ -253,6 +275,88 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         return !hasText(search.getStaffCategory()) || isAll(search.getStaffCategory())
                 || equalsIgnoreCase(staffCategoryResolver.normalizeSelectionCode(search.getStaffCategory()),
                 staffCategoryResolver.resolveForClaim(claim));
+    }
+
+    private boolean matchesSelectedPeriod(InsuranceClaimsRequest claim, PeriodSelection selectedPeriod) {
+        if (selectedPeriod == null) {
+            return true;
+        }
+        InsuranceStaffCategoryPeriod period = resolveClaimPeriod(claim);
+        return period != null
+                && sameDate(period.getFromDate(), selectedPeriod.fromDate())
+                && sameDate(period.getToDate(), selectedPeriod.toDate());
+    }
+
+    private PeriodSelection resolveSelectedPeriod(RejectedClaimReportSearchDTO search) {
+        if (search == null || !hasText(search.getPeriodId()) || isAll(search.getPeriodId())) {
+            return null;
+        }
+        try {
+            Long periodId = Long.valueOf(search.getPeriodId().trim());
+            InsuranceStaffCategoryPeriod period = insuranceStaffCategoryPeriodRepository.findById(periodId)
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid policy period"));
+            return new PeriodSelection(period.getId(), period.getFromDate(), period.getToDate(), formatPeriod(period));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid policy period", e);
+        }
+    }
+
+    private List<SimpleBaseDTO> buildPolicyPeriodReference() {
+        Map<String, SimpleBaseDTO> periods = new LinkedHashMap<>();
+        periods.put(ALL, new SimpleBaseDTO(ALL, "All Policy Periods"));
+
+        insuranceStaffCategoryPeriodRepository.findAll().stream()
+                .filter(period -> period != null && Status.ACTIVE.equals(period.getStatus()))
+                .filter(period -> period.getFromDate() != null && period.getToDate() != null)
+                .sorted(Comparator
+                        .comparing(InsuranceStaffCategoryPeriod::getFromDate, Comparator.reverseOrder())
+                        .thenComparing(InsuranceStaffCategoryPeriod::getToDate, Comparator.reverseOrder()))
+                .forEach(period -> periods.putIfAbsent(periodKey(period),
+                        new SimpleBaseDTO(String.valueOf(period.getId()), formatPeriod(period))));
+
+        return new ArrayList<>(periods.values());
+    }
+
+    private List<RejectedClaimReportCompanyDTO> toCompanyRows(Map<String, CompanyBucket> companyBuckets,
+                                                              RemarkDictionary remarkDictionary) {
+        return companyBuckets.values().stream()
+                .map(bucket -> new RejectedClaimReportCompanyDTO(
+                        bucket.companyCode,
+                        bucket.companyDescription,
+                        bucket.receivedClaims,
+                        bucket.rejectedClaims,
+                        toReasonRows(bucket.reasonCounts, remarkDictionary)
+                ))
+                .toList();
+    }
+
+    private List<RejectedClaimReportCompanyDTO> aggregateCompanies(List<RejectedClaimReportPeriodDTO> periodRows) {
+        Map<String, CompanyBucket> aggregate = new LinkedHashMap<>();
+        for (RejectedClaimReportPeriodDTO period : Objects.requireNonNullElse(periodRows, List.<RejectedClaimReportPeriodDTO>of())) {
+            for (RejectedClaimReportCompanyDTO company : Objects.requireNonNullElse(period.getCompanies(),
+                    List.<RejectedClaimReportCompanyDTO>of())) {
+                CompanyBucket bucket = aggregate.computeIfAbsent(company.getCompanyCode(),
+                        code -> new CompanyBucket(company.getCompanyCode(), company.getCompanyDescription()));
+                bucket.receivedClaims += company.getReceivedClaims();
+                bucket.rejectedClaims += company.getRejectedClaims();
+                for (RejectedClaimReportReasonDTO reason : Objects.requireNonNullElse(company.getReasons(),
+                        List.<RejectedClaimReportReasonDTO>of())) {
+                    bucket.reasonCounts.merge(reason.getReturnReason(), reason.getRejectedClaims(), Long::sum);
+                }
+            }
+        }
+
+        return aggregate.values().stream()
+                .map(bucket -> new RejectedClaimReportCompanyDTO(
+                        bucket.companyCode,
+                        bucket.companyDescription,
+                        bucket.receivedClaims,
+                        bucket.rejectedClaims,
+                        bucket.reasonCounts.entrySet().stream()
+                                .map(entry -> new RejectedClaimReportReasonDTO(entry.getValue(), entry.getKey()))
+                                .toList()
+                ))
+                .toList();
     }
 
     private List<RejectedClaimReportReasonDTO> toReasonRows(Map<String, Long> reasonCounts,
@@ -345,6 +449,45 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         return resolveCompanyInfo(claim).code();
     }
 
+    private PeriodInfo resolvePeriodInfo(InsuranceClaimsRequest claim) {
+        InsuranceStaffCategoryPeriod period = resolveClaimPeriod(claim);
+        if (period == null) {
+            return new PeriodInfo("UNKNOWN", null, "UNKNOWN");
+        }
+        return new PeriodInfo(periodKey(period), period.getId(), formatPeriod(period));
+    }
+
+    private InsuranceStaffCategoryPeriod resolveClaimPeriod(InsuranceClaimsRequest claim) {
+        return Optional.ofNullable(claim)
+                .map(InsuranceClaimsRequest::getInsuranceClaimsDetails)
+                .map(InsuranceClaimsDetails::getInsuranceStaffCategoryPeriod)
+                .orElse(null);
+    }
+
+    private Date resolvePeriodSortDate(InsuranceClaimsRequest claim) {
+        return Optional.ofNullable(resolveClaimPeriod(claim))
+                .map(InsuranceStaffCategoryPeriod::getFromDate)
+                .orElse(null);
+    }
+
+    private String periodKey(InsuranceStaffCategoryPeriod period) {
+        if (period == null || period.getFromDate() == null || period.getToDate() == null) {
+            return "UNKNOWN";
+        }
+        return formatDate(period.getFromDate()) + "|" + formatDate(period.getToDate());
+    }
+
+    private String formatPeriod(InsuranceStaffCategoryPeriod period) {
+        if (period == null || period.getFromDate() == null || period.getToDate() == null) {
+            return "UNKNOWN";
+        }
+        return formatDate(period.getFromDate()) + PERIOD_SEPARATOR + formatDate(period.getToDate());
+    }
+
+    private boolean sameDate(Date first, Date second) {
+        return first != null && second != null && formatDate(first).equals(formatDate(second));
+    }
+
     private DateRange resolveDateRange(RejectedClaimReportSearchDTO search) {
         if (search == null || !hasText(search.getFromDate()) || !hasText(search.getToDate())) {
             throw new IllegalArgumentException("fromDate and toDate are required");
@@ -382,41 +525,12 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             writeMergedCell(sheet, rowIndex++, 0, 3, report.getSubTitle(), subTitleStyle);
             writeMergedCell(sheet, rowIndex++, 0, 3, report.getStaffCategoryTitle(), staffHeaderStyle);
 
-            Row headerRow = sheet.createRow(rowIndex++);
-            String[] headers = {"COMPANY", "NO. OF RECEIVED", "NO. OF REJECTED CLAIMS", "RETURN REASON"};
-            for (int i = 0; i < headers.length; i++) {
-                writeTextCell(headerRow, i, headers[i], headerStyle);
-            }
-
-            for (RejectedClaimReportCompanyDTO company : Objects.requireNonNullElse(report.getCompanies(),
-                    List.<RejectedClaimReportCompanyDTO>of())) {
-                List<RejectedClaimReportReasonDTO> reasons = Objects.requireNonNullElse(company.getReasons(),
-                        List.<RejectedClaimReportReasonDTO>of());
-
-                if (reasons.isEmpty()) {
-                    Row row = sheet.createRow(rowIndex++);
-                    writeTextCell(row, 0, company.getCompanyCode(), bodyStyle);
-                    writeNumberCell(row, 1, company.getReceivedClaims(), bodyStyle);
-                    writeNumberCell(row, 2, 0L, bodyStyle);
-                    writeTextCell(row, 3, "", bodyStyle);
-                    continue;
-                }
-
-                boolean firstReason = true;
-                for (RejectedClaimReportReasonDTO reason : reasons) {
-                    Row row = sheet.createRow(rowIndex++);
-                    writeTextCell(row, 0, firstReason ? company.getCompanyCode() : "", bodyStyle);
-                    writeNumberCell(row, 1, firstReason ? company.getReceivedClaims() : null, bodyStyle);
-                    writeNumberCell(row, 2, reason.getRejectedClaims(), bodyStyle);
-                    writeTextCell(row, 3, reason.getReturnReason(), bodyStyle);
-                    firstReason = false;
-                }
-
-                Row totalRow = sheet.createRow(rowIndex++);
-                writeTextCell(totalRow, 0, "", totalStyle);
-                writeTextCell(totalRow, 1, "", totalStyle);
-                writeNumberCell(totalRow, 2, company.getRejectedClaims(), totalStyle);
-                writeTextCell(totalRow, 3, "", totalStyle);
+            for (RejectedClaimReportPeriodDTO period : Objects.requireNonNullElse(report.getPolicyPeriods(),
+                    List.<RejectedClaimReportPeriodDTO>of())) {
+                writeMergedCell(sheet, rowIndex++, 0, 3,
+                        "POLICY PERIOD: " + Objects.requireNonNullElse(period.getPeriodDescription(), "UNKNOWN"),
+                        staffHeaderStyle);
+                rowIndex = writeCompanyTable(sheet, rowIndex, period.getCompanies(), headerStyle, bodyStyle, totalStyle);
                 rowIndex++;
             }
 
@@ -437,6 +551,53 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         } catch (Exception e) {
             throw new RuntimeException("Failed to build rejected claim report Excel", e);
         }
+    }
+
+    private int writeCompanyTable(Sheet sheet,
+                                  int rowIndex,
+                                  List<RejectedClaimReportCompanyDTO> companies,
+                                  CellStyle headerStyle,
+                                  CellStyle bodyStyle,
+                                  CellStyle totalStyle) {
+        Row headerRow = sheet.createRow(rowIndex++);
+        String[] headers = {"COMPANY", "NO. OF RECEIVED", "NO. OF REJECTED CLAIMS", "RETURN REASON"};
+        for (int i = 0; i < headers.length; i++) {
+            writeTextCell(headerRow, i, headers[i], headerStyle);
+        }
+
+        for (RejectedClaimReportCompanyDTO company : Objects.requireNonNullElse(companies,
+                List.<RejectedClaimReportCompanyDTO>of())) {
+            List<RejectedClaimReportReasonDTO> reasons = Objects.requireNonNullElse(company.getReasons(),
+                    List.<RejectedClaimReportReasonDTO>of());
+
+            if (reasons.isEmpty()) {
+                Row row = sheet.createRow(rowIndex++);
+                writeTextCell(row, 0, company.getCompanyCode(), bodyStyle);
+                writeNumberCell(row, 1, company.getReceivedClaims(), bodyStyle);
+                writeNumberCell(row, 2, 0L, bodyStyle);
+                writeTextCell(row, 3, "", bodyStyle);
+                continue;
+            }
+
+            boolean firstReason = true;
+            for (RejectedClaimReportReasonDTO reason : reasons) {
+                Row row = sheet.createRow(rowIndex++);
+                writeTextCell(row, 0, firstReason ? company.getCompanyCode() : "", bodyStyle);
+                writeNumberCell(row, 1, firstReason ? company.getReceivedClaims() : null, bodyStyle);
+                writeNumberCell(row, 2, reason.getRejectedClaims(), bodyStyle);
+                writeTextCell(row, 3, reason.getReturnReason(), bodyStyle);
+                firstReason = false;
+            }
+
+            Row totalRow = sheet.createRow(rowIndex++);
+            writeTextCell(totalRow, 0, "", totalStyle);
+            writeTextCell(totalRow, 1, "", totalStyle);
+            writeNumberCell(totalRow, 2, company.getRejectedClaims(), totalStyle);
+            writeTextCell(totalRow, 3, "", totalStyle);
+            rowIndex++;
+        }
+
+        return rowIndex;
     }
 
     private void writeMergedCell(Sheet sheet, int rowIndex, int firstColumn, int lastColumn, String value, CellStyle style) {
@@ -552,6 +713,13 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         return value.contains("-") ? value.replace("-", "/") : value;
     }
 
+    private static String formatDate(Date date) {
+        return date.toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .toString();
+    }
+
     private String normalizeReason(String value) {
         return value == null ? "" : value.trim()
                 .replace('_', ' ')
@@ -596,7 +764,26 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     private record CompanyInfo(String code, String description) {
     }
 
+    private record PeriodSelection(Long periodId, Date fromDate, Date toDate, String description) {
+    }
+
+    private record PeriodInfo(String key, Long periodId, String description) {
+    }
+
     private record RemarkDictionary(Map<String, String> aliases, Map<String, Integer> order) {
+    }
+
+    private static class PeriodBucket {
+        private final Long periodId;
+        private final String periodDescription;
+        private long totalReceivedClaims;
+        private long totalRejectedClaims;
+        private final Map<String, CompanyBucket> companyBuckets = new LinkedHashMap<>();
+
+        private PeriodBucket(Long periodId, String periodDescription) {
+            this.periodId = periodId;
+            this.periodDescription = periodDescription;
+        }
     }
 
     private static class CompanyBucket {
