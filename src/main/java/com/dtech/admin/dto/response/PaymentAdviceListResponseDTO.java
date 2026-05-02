@@ -12,6 +12,8 @@ public class PaymentAdviceListResponseDTO {
     private String voucherNo;
     private String companyCode;
     private String companyDescription;
+    private String paymentCompanyCode;
+    private String paymentCompanyDescription;
     private String staffCategoryCode;
     private String staffCategoryDescription;
     private BigDecimal totalRequestedAmount;

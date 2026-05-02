@@ -42,6 +42,8 @@
     <parameter name="preparedBy" class="java.lang.String"/>
 
     <field name="attachmentNo" class="java.lang.String"/>
+    <field name="companyCode" class="java.lang.String"/>
+    <field name="companyDescription" class="java.lang.String"/>
     <field name="approvedAmount" class="java.math.BigDecimal"/>
 
     <variable name="rowNumber" class="java.lang.Integer" calculation="Count">
@@ -139,7 +141,7 @@
                 </textField>
                 <staticText>
                     <reportElement x="330" y="54" width="140" height="14" style="Label"/>
-                    <text><![CDATA[Invoice No's]]></text>
+                    <text><![CDATA[Company]]></text>
                 </staticText>
                 <staticText>
                     <reportElement x="475" y="54" width="80" height="14" style="Label"/>
@@ -195,7 +197,7 @@
             <textField>
                 <reportElement x="331" y="0" width="139" height="18" style="Base"/>
                 <textElement verticalAlignment="Middle"/>
-                <textFieldExpression><![CDATA[""]]></textFieldExpression>
+                <textFieldExpression><![CDATA[$F{companyDescription} == null || $F{companyDescription}.trim().isEmpty() ? $F{companyCode} : $F{companyDescription}]]></textFieldExpression>
             </textField>
 
             <textField pattern="#,##0.00">

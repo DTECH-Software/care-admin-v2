@@ -131,6 +131,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
             responseMap.put("defaultStatus", List.of(new SimpleBaseDTO(
                     PaymentAdviceStatus.FINALIZED.name(), PaymentAdviceStatus.FINALIZED.name())));
             responseMap.put("company", loadCompanyTypes());
+            responseMap.put("paymentCompany", loadCompanyTypes());
             responseMap.put("staffCategories", loadStaffCategories());
 
             auditLogService.log(PAGE_CREATE, WebTask.REF_DATA.name(),
@@ -483,18 +484,25 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
             dto.setPaymentCompanyDescription(resolveDescription(companyDescriptions, paymentCompanyCode));
 
             dto.setAttachments(attachments.stream()
-                    .map(this::mapAdviceAttachmentToResponse)
+                    .map(attachment -> mapAdviceAttachmentToResponse(attachment, companyDescriptions))
                     .collect(Collectors.toList()));
         }
         return dto;
     }
 
-    private PaymentAdviceAttachmentResponseDTO mapAdviceAttachmentToResponse(PaymentAdviceAttachment attachment) {
+    private PaymentAdviceAttachmentResponseDTO mapAdviceAttachmentToResponse(PaymentAdviceAttachment attachment,
+                                                                             Map<String, String> companyDescriptions) {
         PaymentAdviceAttachmentResponseDTO dto = new PaymentAdviceAttachmentResponseDTO();
         dto.setId(attachment.getId());
-        dto.setPaymentAttachmentId(
-                attachment.getPaymentAttachment() != null ? attachment.getPaymentAttachment().getId() : null);
+        PaymentAttachment paymentAttachment = attachment.getPaymentAttachment();
+        dto.setPaymentAttachmentId(paymentAttachment != null ? paymentAttachment.getId() : null);
         dto.setAttachmentNo(attachment.getAttachmentNo());
+        String companyCode = resolveAttachmentCompanyCode(paymentAttachment);
+        dto.setCompanyCode(companyCode);
+        dto.setCompanyDescription(resolveDescription(companyDescriptions, companyCode));
+        String paymentCompanyCode = resolvePaymentCompanyCode(paymentAttachment);
+        dto.setPaymentCompanyCode(paymentCompanyCode);
+        dto.setPaymentCompanyDescription(resolveDescription(companyDescriptions, paymentCompanyCode));
         dto.setRequestAmount(attachment.getRequestAmount());
         dto.setApprovedAmount(attachment.getApprovedAmount());
         return dto;
@@ -515,6 +523,9 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
         dto.setCreatedDate(advice.getCreatedDate());
         dto.setCreatedBy(advice.getCreatedBy());
         dto.setCompanyDescription(resolveDescription(companyDescriptions, dto.getCompanyCode()));
+        String paymentCompanyCode = resolvePaymentCompanyCode(paymentAdviceAttachmentRepository.findAllByPaymentAdvice(advice));
+        dto.setPaymentCompanyCode(paymentCompanyCode);
+        dto.setPaymentCompanyDescription(resolveDescription(companyDescriptions, paymentCompanyCode));
         dto.setStaffCategoryDescription(resolveDescription(staffCategoryDescriptions, dto.getStaffCategoryCode()));
         return dto;
     }
@@ -534,6 +545,9 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
         dto.setCreatedDate(attachment.getCreatedDate());
         dto.setCreatedBy(attachment.getCreatedBy());
         dto.setCompanyDescription(resolveDescription(companyDescriptions, dto.getCompanyCode()));
+        String paymentCompanyCode = resolvePaymentCompanyCode(attachment);
+        dto.setPaymentCompanyCode(paymentCompanyCode);
+        dto.setPaymentCompanyDescription(resolveDescription(companyDescriptions, paymentCompanyCode));
         dto.setStaffCategoryDescription(resolveDescription(staffCategoryDescriptions, dto.getStaffCategoryCode()));
         return dto;
     }
@@ -641,17 +655,10 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
                 ? dto.getPaymentCompanyDescription()
                 : dto.getPaymentCompanyCode();
         String company = hasText(dto.getCompanyDescription()) ? dto.getCompanyDescription() : dto.getCompanyCode();
-        String staff = hasText(dto.getStaffCategoryDescription()) ? dto.getStaffCategoryDescription() : dto.getStaffCategoryCode();
-        if (hasText(paymentCompany) && hasText(staff)) {
-            return paymentCompany + " - " + staff;
-        }
         if (hasText(paymentCompany)) {
             return paymentCompany;
         }
-        if (hasText(company) && hasText(staff)) {
-            return company + " - " + staff;
-        }
-        return hasText(company) ? company : staff;
+        return hasText(company) ? company : "";
     }
 
     private String buildDescription(PaymentAdviceResponseDTO dto) {
@@ -703,6 +710,62 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
             prefix.append(" ");
         }
         return prefix + "RETURN-" + year + "-" + returnSeq;
+    }
+
+    private String resolveAttachmentCompanyCode(PaymentAttachment paymentAttachment) {
+        if (paymentAttachment == null) {
+            return null;
+        }
+        List<PaymentAttachmentClaim> claims = paymentAttachmentClaimRepository.findAllByPaymentAttachment(paymentAttachment);
+        String company = null;
+        for (PaymentAttachmentClaim claim : claims) {
+            String claimCompany = Optional.ofNullable(claim.getCompanyCode())
+                    .filter(this::hasText)
+                    .orElseGet(() -> Optional.ofNullable(claim.getInsuranceClaimsRequest())
+                            .map(InsuranceClaimsRequest::getEmployee)
+                            .map(ApplicationUser::getUserPersonalDetails)
+                            .map(UserPersonalDetails::getUserCompanyDetails)
+                            .map(UserCompanyDetails::getCompanyTypes)
+                            .map(CompanyTypes::getCode)
+                            .orElse(null));
+
+            if (!hasText(claimCompany)) {
+                continue;
+            }
+            if (company == null) {
+                company = claimCompany;
+            } else if (!company.equalsIgnoreCase(claimCompany)) {
+                return "MULTIPLE";
+            }
+        }
+        return hasText(company) ? company : paymentAttachment.getCompanyCode();
+    }
+
+    private String resolvePaymentCompanyCode(PaymentAttachment paymentAttachment) {
+        if (paymentAttachment == null) {
+            return null;
+        }
+        List<PaymentAttachmentClaim> claims = paymentAttachmentClaimRepository.findAllByPaymentAttachment(paymentAttachment);
+        String paymentCompany = null;
+        for (PaymentAttachmentClaim claim : claims) {
+            String claimPaymentCompany = Optional.ofNullable(claim.getInsuranceClaimsRequest())
+                    .map(InsuranceClaimsRequest::getEmployee)
+                    .map(ApplicationUser::getUserPersonalDetails)
+                    .map(UserPersonalDetails::getUserCompanyDetails)
+                    .map(UserCompanyDetails::getPaymentCompany)
+                    .map(CompanyTypes::getCode)
+                    .orElse(null);
+
+            if (!hasText(claimPaymentCompany)) {
+                continue;
+            }
+            if (paymentCompany == null) {
+                paymentCompany = claimPaymentCompany;
+            } else if (!paymentCompany.equalsIgnoreCase(claimPaymentCompany)) {
+                return null;
+            }
+        }
+        return paymentCompany;
     }
 
     private String resolvePaymentCompanyCode(List<PaymentAdviceAttachment> attachments) {
@@ -793,14 +856,27 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
                 .append("<span class=\"labels\">Details/Description: </span>")
                 .append(escapeHtml(buildDescription(responseDTO)))
                 .append("</td>")
-                .append("<td class=\"labels\">Amount (Rs)</td>")
+                .append("<td>")
+                .append("<table class=\"subtable\">")
+                .append("<tr><td class=\"labels\">Company</td><td class=\"labels amount\">Amount (Rs)</td></tr>")
+                .append("</table>")
+                .append("</td>")
                 .append("</tr>");
 
         List<PaymentAdviceAttachmentResponseDTO> attachments = Optional.ofNullable(responseDTO.getAttachments()).orElse(List.of());
         for (PaymentAdviceAttachmentResponseDTO attachment : attachments) {
             html.append("<tr>")
                     .append("<td>").append(escapeHtml(attachment.getAttachmentNo())).append("</td>")
-                    .append("<td class=\"amount\">").append(formatAmount(attachment.getApprovedAmount())).append("</td>")
+                    .append("<td>")
+                    .append("<table class=\"subtable\">")
+                    .append("<tr><td>")
+                    .append(escapeHtml(hasText(attachment.getCompanyDescription())
+                            ? attachment.getCompanyDescription() : attachment.getCompanyCode()))
+                    .append("</td><td class=\"amount\">")
+                    .append(formatAmount(attachment.getApprovedAmount()))
+                    .append("</td></tr>")
+                    .append("</table>")
+                    .append("</td>")
                     .append("</tr>");
         }
         html.append("</table>");
@@ -917,6 +993,9 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
     private String resolveDescription(Map<String, String> descriptions, String code) {
         if (!hasText(code) || descriptions == null) {
             return null;
+        }
+        if ("MULTIPLE".equalsIgnoreCase(code)) {
+            return "Multiple";
         }
         return descriptions.get(normalizeCode(code));
     }
