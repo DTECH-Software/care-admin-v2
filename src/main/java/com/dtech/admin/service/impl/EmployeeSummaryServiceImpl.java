@@ -65,6 +65,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
 
+    private static final String UNDER_REVIEW_AMOUNT_DISPLAY = "-";
+
     @Autowired
     private final ApplicationUserRepository applicationUserRepository;
 
@@ -316,9 +318,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         if (claim.getInsuranceClaimsDetails() != null && claim.getInsuranceClaimsDetails().getTreatmentCategory() != null) {
             dto.setTreatmentCategory(claim.getInsuranceClaimsDetails().getTreatmentCategory().getDescription());
         }
-        dto.setSubmittedValue(resolveSummaryAmount(claim, claim.getRequestAmount()));
+        dto.setSubmittedValue(resolveSummaryAmountDisplay(claim, claim.getRequestAmount()));
         dto.setAppliedDate(claim.getCreatedDate());
-        dto.setApprovedValue(resolveSummaryAmount(claim, claim.getApprovedAmount()));
+        dto.setApprovedValue(resolveSummaryAmountDisplay(claim, claim.getApprovedAmount()));
         dto.setRemark(resolveClaimRemark(claim));
         return dto;
     }
@@ -334,9 +336,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                 dto.setTreatmentCategory(claim.getInsuranceClaimsDetails().getTreatmentCategory().getDescription());
             }
         }
-        dto.setSubmittedValue(claim.getRequestAmount());
+        dto.setSubmittedValue(resolveSummaryAmountDisplay(claim, claim.getRequestAmount()));
         dto.setAppliedDate(claim.getCreatedDate());
-        dto.setApprovedValue(claim.getApprovedAmount());
+        dto.setApprovedValue(resolveSummaryAmountDisplay(claim, claim.getApprovedAmount()));
         if (claim.getRequestStatus() != null) {
             dto.setStatus(claim.getRequestStatus().name());
             dto.setStatusDescription(claim.getRequestStatus().getDescription());
@@ -514,12 +516,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                 .toList();
     }
 
-    private BigDecimal resolveSummaryAmount(InsuranceClaimsRequest claim, BigDecimal amount) {
-        if (amount == null) {
-            return null;
-        }
+    private Object resolveSummaryAmountDisplay(InsuranceClaimsRequest claim, BigDecimal amount) {
         if (Workflow.UNDER_REVIEW.equals(claim.getRequestStatus())) {
-            return amount.abs().negate();
+            return UNDER_REVIEW_AMOUNT_DISPLAY;
         }
         return amount;
     }

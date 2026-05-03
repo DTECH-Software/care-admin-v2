@@ -2,7 +2,6 @@ package com.dtech.admin.dto.response;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.util.Date;
 
 @Data
@@ -11,8 +10,8 @@ public class EmployeeSummaryClaimRowDTO {
     private String requestId;
     private String treatmentType;
     private String treatmentCategory;
-    private BigDecimal submittedValue;
+    private Object submittedValue;
     private Date appliedDate;
-    private BigDecimal approvedValue;
+    private Object approvedValue;
     private String remark;
 }
