@@ -26,4 +26,8 @@ public interface InsuranceQuarterRepository extends JpaRepository<InsuranceQuart
             "AND e.treatmentCategory.code = :code ")
     Optional<InsuranceQuarter> findByCodeWithLimit(@Param("limit") InsuranceDetailsLimit limit,
                                                                      @Param("code") String code);
+
+    Optional<InsuranceQuarter> findFirstByInsuranceDetailsLimitAndTreatmentCategory_CodeOrderByFromDateAsc(
+            InsuranceDetailsLimit insuranceDetailsLimit,
+            String code);
 }

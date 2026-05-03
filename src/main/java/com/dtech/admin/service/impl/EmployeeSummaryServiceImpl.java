@@ -2,6 +2,7 @@ package com.dtech.admin.service.impl;
 
 import com.dtech.admin.dto.PagingResult;
 import com.dtech.admin.dto.SimpleBaseDTO;
+import com.dtech.admin.dto.AvailableInsuranceLimitDTO;
 import com.dtech.admin.dto.request.ChannelRequestDTO;
 import com.dtech.admin.dto.request.EmployeeSummaryClaimViewRequestDTO;
 import com.dtech.admin.dto.request.EmployeeSummaryRequestDTO;
@@ -30,6 +31,7 @@ import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.InsuranceDetailsLimitRepository;
+import com.dtech.admin.repository.InsuranceQuarterRepository;
 import com.dtech.admin.repository.InsuranceStaffCategoryPeriodRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.EmployeeSummaryService;
@@ -53,11 +55,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -78,6 +83,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
 
     @Autowired
     private final InsuranceDetailsLimitRepository insuranceDetailsLimitRepository;
+
+    @Autowired
+    private final InsuranceQuarterRepository insuranceQuarterRepository;
 
     @Autowired
     private final CompanyTypeRepository companyTypeRepository;
@@ -394,11 +402,21 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                                          com.dtech.admin.model.InsuranceQuarter quarter,
                                                          BigDecimal fundLimit,
                                                          BigDecimal availableLimit) {
+        return buildBalanceRow(limit, quarter != null ? quarter.getTreatmentCategory() : null, fundLimit, availableLimit);
+    }
+
+    private EmployeeSummaryBalanceRowDTO buildBalanceRow(InsuranceDetailsLimit limit,
+                                                         com.dtech.admin.model.TreatmentCategory treatmentCategory,
+                                                         BigDecimal fundLimit,
+                                                         BigDecimal availableLimit) {
+        if (treatmentCategory == null) {
+            return null;
+        }
         EmployeeSummaryBalanceRowDTO dto = new EmployeeSummaryBalanceRowDTO();
         dto.setTreatmentCode(limit.getTreatment().getTreatmentCode());
         dto.setTreatmentDescription(limit.getTreatment().getTreatmentDescription());
-        dto.setTreatmentCategoryCode(quarter.getTreatmentCategory().getCode());
-        dto.setTreatmentCategoryDescription(quarter.getTreatmentCategory().getDescription());
+        dto.setTreatmentCategoryCode(treatmentCategory.getCode());
+        dto.setTreatmentCategoryDescription(treatmentCategory.getDescription());
         dto.setFundLimit(fundLimit);
         dto.setAvailableLimit(availableLimit);
         return dto;
@@ -413,44 +431,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                         period);
 
         java.util.Date permanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(employee);
+        java.util.Date quarterLookupDate = permanentDate != null ? permanentDate : new java.util.Date();
         return limits.stream()
                 .flatMap(limit -> {
-                    List<com.dtech.admin.model.InsuranceQuarter> quarters = limit.getInsuranceQuarters();
-                    if (quarters == null || quarters.isEmpty()) {
-                        return java.util.stream.Stream.empty();
-                    }
-
-                    com.dtech.admin.model.InsuranceQuarter referenceQuarter =
-                            selectQuarterByPermanentDate(quarters, permanentDate);
-                    java.util.Date rangeFrom = referenceQuarter != null ? referenceQuarter.getFromDate() : null;
-                    java.util.Date rangeTo = referenceQuarter != null ? referenceQuarter.getToDate() : null;
-
-                    Map<String, List<com.dtech.admin.model.InsuranceQuarter>> byCategory = quarters.stream()
-                            .filter(q -> q.getTreatmentCategory() != null)
-                            .collect(Collectors.groupingBy(q -> q.getTreatmentCategory().getCode()));
-
-                    Map<String, com.dtech.admin.model.InsuranceQuarter> categoryQuarterMap = byCategory.values().stream()
-                            .map(list -> {
-                                List<com.dtech.admin.model.InsuranceQuarter> sorted = list.stream()
-                                        .sorted(Comparator.comparing(com.dtech.admin.model.InsuranceQuarter::getFromDate,
-                                                Comparator.nullsLast(Comparator.naturalOrder())))
-                                        .toList();
-                                com.dtech.admin.model.InsuranceQuarter categoryQuarter = matchQuarterRange(sorted, rangeFrom, rangeTo);
-                                if (categoryQuarter == null && !sorted.isEmpty()) {
-                                    categoryQuarter = sorted.get(0);
-                                }
-                                return categoryQuarter;
-                            })
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toMap(
-                                    q -> q.getTreatmentCategory().getCode(),
-                                    q -> q,
-                                    (a, b) -> a));
-
-                    if (categoryQuarterMap.isEmpty()) {
-                        return java.util.stream.Stream.empty();
-                    }
-
                     java.util.Date previousPermanentDate = employee.getUserPersonalDetails()
                             .getUserCompanyDetails()
                             .getPreviousPermanentDate();
@@ -468,52 +451,198 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                 .findFirst()
                                 .orElse(null);
                     }
+                    if (prevPeriod == null) {
+                        prevPeriod = resolvePreviousPeriodFromClaimHistory(
+                                employee,
+                                limit.getTreatment().getTreatmentCode(),
+                                period);
+                    }
                     final InsuranceStaffCategoryPeriod finalPrevPeriod = prevPeriod;
-                    BigDecimal treatmentFundLimit = categoryQuarterMap.values().stream()
-                            .map(q -> {
-                                if (limit.getIsQuarter() != null && !limit.getIsQuarter()) {
-                                    return limit.getGlobalLimit();
-                                }
-                                return q.getQuarterLimit() != null ? q.getQuarterLimit() : limit.getGlobalLimit();
-                            })
-                            .filter(Objects::nonNull)
-                            .max(Comparator.naturalOrder())
-                            .orElse(BigDecimal.ZERO);
-
-                    BigDecimal treatmentApprovedAmount = rejoinCarryForwardService.getApprovedAmountByTreatment(
-                            employee,
-                            limit.getTreatment().getTreatmentCode(),
-                            period.getId(),
-                            finalPrevPeriod
-                    );
-                    BigDecimal treatmentRemaining = subtractToZero(treatmentFundLimit, treatmentApprovedAmount);
-                    final BigDecimal finalTreatmentRemaining = treatmentRemaining;
-
-                    return categoryQuarterMap.values().stream()
-                            .map(list -> {
-                                com.dtech.admin.model.InsuranceQuarter categoryQuarter = list;
-                                BigDecimal fundLimit = (limit.getIsQuarter() != null && !limit.getIsQuarter())
-                                        ? limit.getGlobalLimit()
-                                        : (categoryQuarter.getQuarterLimit() != null
-                                        ? categoryQuarter.getQuarterLimit()
-                                        : limit.getGlobalLimit());
-                                if (fundLimit == null) {
-                                    return null;
-                                }
-                                BigDecimal categoryApprovedAmount = rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
-                                        employee,
-                                        limit.getTreatment().getTreatmentCode(),
-                                        categoryQuarter.getTreatmentCategory().getCode(),
-                                        period.getId(),
-                                        finalPrevPeriod
-                                );
-                                BigDecimal categoryRemaining = subtractToZero(fundLimit, categoryApprovedAmount);
-                                BigDecimal availableLimit = finalTreatmentRemaining.min(categoryRemaining);
-                                return buildBalanceRow(limit, categoryQuarter, fundLimit, availableLimit);
-                            })
+                    return buildCategoryAvailableLimitMap(limit, employee, period.getId(), finalPrevPeriod, quarterLookupDate)
+                            .entrySet()
+                            .stream()
+                            .map(entry -> buildBalanceRow(limit, entry.getKey(), entry.getValue().getFundLimit(),
+                                    entry.getValue().getAvailableLimit()))
                             .filter(Objects::nonNull);
                 })
                 .toList();
+    }
+
+    private Map<com.dtech.admin.model.TreatmentCategory, AvailableInsuranceLimitDTO> buildCategoryAvailableLimitMap(
+            InsuranceDetailsLimit insuranceDetailsLimit,
+            ApplicationUser employee,
+            Long insurancePeriodId,
+            InsuranceStaffCategoryPeriod previousPeriod,
+            java.util.Date quarterLookupDate) {
+        List<InsuranceDetailsLimit> matchingLimits = resolveMatchingInsuranceDetailsLimits(insuranceDetailsLimit);
+        Set<String> categoryCodes = collectCategoryCodes(matchingLimits);
+        Map<String, CategoryLimitContext> categoryContextMap = new LinkedHashMap<>();
+        Map<String, com.dtech.admin.model.TreatmentCategory> treatmentCategories = new LinkedHashMap<>();
+        String treatmentCode = insuranceDetailsLimit.getTreatment().getTreatmentCode();
+
+        for (String categoryCode : categoryCodes) {
+            InsuranceDetailsLimit categoryLimitSource = resolveInsuranceDetailsLimitForCategory(
+                    matchingLimits,
+                    categoryCode,
+                    quarterLookupDate);
+            if (categoryLimitSource == null) {
+                continue;
+            }
+
+            com.dtech.admin.model.InsuranceQuarter categoryQuarter = resolveApplicableQuarter(
+                    categoryLimitSource,
+                    categoryCode,
+                    quarterLookupDate);
+            BigDecimal fundLimit = resolveCategoryFundLimit(categoryLimitSource, categoryQuarter);
+            if (fundLimit == null) {
+                continue;
+            }
+
+            BigDecimal approvedAmount = rejoinCarryForwardService.getApprovedAmountByTreatmentCategory(
+                    employee,
+                    treatmentCode,
+                    categoryCode,
+                    insurancePeriodId,
+                    previousPeriod);
+            categoryContextMap.put(categoryCode, new CategoryLimitContext(fundLimit, approvedAmount));
+            if (categoryQuarter != null && categoryQuarter.getTreatmentCategory() != null) {
+                treatmentCategories.put(categoryCode, categoryQuarter.getTreatmentCategory());
+            }
+        }
+
+        if (categoryContextMap.isEmpty()) {
+            return Map.of();
+        }
+
+        BigDecimal treatmentFundLimit = resolveTreatmentFundLimit(insuranceDetailsLimit, categoryContextMap);
+        BigDecimal directTreatmentApprovedAmount = rejoinCarryForwardService.getApprovedAmountByTreatment(
+                employee,
+                treatmentCode,
+                insurancePeriodId,
+                previousPeriod);
+        BigDecimal categoryApprovedTotal = categoryContextMap.values().stream()
+                .map(CategoryLimitContext::approvedAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal treatmentApprovedAmount = directTreatmentApprovedAmount != null
+                ? directTreatmentApprovedAmount.max(categoryApprovedTotal)
+                : categoryApprovedTotal;
+        BigDecimal treatmentRemainingAmount = subtractToZero(treatmentFundLimit, treatmentApprovedAmount);
+
+        Map<com.dtech.admin.model.TreatmentCategory, AvailableInsuranceLimitDTO> availableLimitMap = new LinkedHashMap<>();
+        for (Map.Entry<String, CategoryLimitContext> entry : categoryContextMap.entrySet()) {
+            com.dtech.admin.model.TreatmentCategory treatmentCategory = treatmentCategories.get(entry.getKey());
+            if (treatmentCategory == null) {
+                continue;
+            }
+            BigDecimal categoryRemainingAmount = subtractToZero(
+                    entry.getValue().fundLimit(),
+                    entry.getValue().approvedAmount());
+            BigDecimal availableAmount = treatmentRemainingAmount.min(categoryRemainingAmount);
+            availableLimitMap.put(treatmentCategory, new AvailableInsuranceLimitDTO(
+                    availableAmount,
+                    entry.getValue().fundLimit()));
+        }
+        return availableLimitMap;
+    }
+
+    private List<InsuranceDetailsLimit> resolveMatchingInsuranceDetailsLimits(InsuranceDetailsLimit insuranceDetailsLimit) {
+        List<InsuranceDetailsLimit> matchingLimits = insuranceDetailsLimitRepository
+                .findAllByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment_TreatmentCode(
+                        insuranceDetailsLimit.getInsurancePolicy(),
+                        Status.ACTIVE,
+                        insuranceDetailsLimit.getInsuranceStaffCategoryPeriod(),
+                        insuranceDetailsLimit.getTreatment().getTreatmentCode());
+        if (matchingLimits == null || matchingLimits.isEmpty()) {
+            return List.of(insuranceDetailsLimit);
+        }
+        return matchingLimits;
+    }
+
+    private InsuranceDetailsLimit resolveInsuranceDetailsLimitForCategory(List<InsuranceDetailsLimit> insuranceDetailsLimits,
+                                                                          String categoryCode,
+                                                                          java.util.Date lookupDate) {
+        if (insuranceDetailsLimits == null || insuranceDetailsLimits.isEmpty()) {
+            return null;
+        }
+
+        for (InsuranceDetailsLimit detailsLimit : insuranceDetailsLimits) {
+            if (resolveApplicableQuarter(detailsLimit, categoryCode, lookupDate) != null) {
+                return detailsLimit;
+            }
+        }
+
+        for (InsuranceDetailsLimit detailsLimit : insuranceDetailsLimits) {
+            boolean categoryExists = detailsLimit.getInsuranceQuarters() != null
+                    && detailsLimit.getInsuranceQuarters().stream()
+                    .filter(Objects::nonNull)
+                    .filter(quarter -> quarter.getTreatmentCategory() != null)
+                    .anyMatch(quarter -> categoryCode.equalsIgnoreCase(quarter.getTreatmentCategory().getCode()));
+            if (categoryExists) {
+                return detailsLimit;
+            }
+        }
+        return insuranceDetailsLimits.get(0);
+    }
+
+    private Set<String> collectCategoryCodes(List<InsuranceDetailsLimit> insuranceDetailsLimits) {
+        Set<String> categoryCodes = new LinkedHashSet<>();
+        if (insuranceDetailsLimits == null) {
+            return categoryCodes;
+        }
+        for (InsuranceDetailsLimit detailsLimit : insuranceDetailsLimits) {
+            if (detailsLimit.getInsuranceQuarters() == null) {
+                continue;
+            }
+            for (com.dtech.admin.model.InsuranceQuarter quarter : detailsLimit.getInsuranceQuarters()) {
+                if (quarter != null && quarter.getTreatmentCategory() != null) {
+                    categoryCodes.add(quarter.getTreatmentCategory().getCode());
+                }
+            }
+        }
+        return categoryCodes;
+    }
+
+    private com.dtech.admin.model.InsuranceQuarter resolveApplicableQuarter(InsuranceDetailsLimit insuranceDetailsLimit,
+                                                                           String categoryCode,
+                                                                           java.util.Date lookupDate) {
+        com.dtech.admin.model.InsuranceQuarter matchingQuarter = insuranceQuarterRepository
+                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, categoryCode, lookupDate)
+                .orElse(null);
+        if (matchingQuarter != null) {
+            return matchingQuarter;
+        }
+
+        com.dtech.admin.model.InsuranceQuarter firstQuarter = insuranceQuarterRepository
+                .findFirstByInsuranceDetailsLimitAndTreatmentCategory_CodeOrderByFromDateAsc(
+                        insuranceDetailsLimit,
+                        categoryCode)
+                .orElse(null);
+        if (firstQuarter == null || lookupDate == null || firstQuarter.getFromDate() == null) {
+            return null;
+        }
+        return lookupDate.before(firstQuarter.getFromDate()) ? firstQuarter : null;
+    }
+
+    private BigDecimal resolveCategoryFundLimit(InsuranceDetailsLimit insuranceDetailsLimit,
+                                                com.dtech.admin.model.InsuranceQuarter insuranceQuarter) {
+        if (!Boolean.TRUE.equals(insuranceDetailsLimit.getIsQuarter())) {
+            return insuranceDetailsLimit.getGlobalLimit();
+        }
+        return insuranceQuarter != null ? insuranceQuarter.getQuarterLimit() : null;
+    }
+
+    private BigDecimal resolveTreatmentFundLimit(InsuranceDetailsLimit insuranceDetailsLimit,
+                                                 Map<String, CategoryLimitContext> categoryContextMap) {
+        if (!Boolean.TRUE.equals(insuranceDetailsLimit.getIsQuarter())
+                && insuranceDetailsLimit.getGlobalLimit() != null) {
+            return insuranceDetailsLimit.getGlobalLimit();
+        }
+        return categoryContextMap.values().stream()
+                .map(CategoryLimitContext::fundLimit)
+                .filter(Objects::nonNull)
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
     }
 
     private Object resolveSummaryAmountDisplay(InsuranceClaimsRequest claim, BigDecimal amount) {
@@ -521,6 +650,60 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
             return UNDER_REVIEW_AMOUNT_DISPLAY;
         }
         return amount;
+    }
+
+    private record CategoryLimitContext(BigDecimal fundLimit, BigDecimal approvedAmount) {
+        private CategoryLimitContext {
+            approvedAmount = approvedAmount != null ? approvedAmount : BigDecimal.ZERO;
+        }
+    }
+
+    private InsuranceStaffCategoryPeriod resolvePreviousPeriodFromClaimHistory(ApplicationUser employee,
+                                                                              String treatmentCode,
+                                                                              InsuranceStaffCategoryPeriod currentPeriod) {
+        if (employee == null || currentPeriod == null || currentPeriod.getStaffCategories() == null) {
+            return null;
+        }
+
+        String currentStaffCode = currentPeriod.getStaffCategories().getCode();
+        return insuranceClaimsRequestRepository
+                .findAllByEmployeeAndRequestStatusIn(employee, List.of(Workflow.APPROVED))
+                .stream()
+                .filter(claim -> claim.getInsuranceClaimsDetails() != null)
+                .filter(claim -> claim.getInsuranceClaimsDetails().getTreatment() != null)
+                .filter(claim -> treatmentCode.equalsIgnoreCase(
+                        claim.getInsuranceClaimsDetails().getTreatment().getTreatmentCode()))
+                .map(this::resolveClaimPeriod)
+                .filter(Objects::nonNull)
+                .filter(claimPeriod -> claimPeriod.getId() != null && currentPeriod.getId() != null)
+                .filter(claimPeriod -> !claimPeriod.getId().equals(currentPeriod.getId()))
+                .filter(claimPeriod -> claimPeriod.getStaffCategories() != null)
+                .filter(claimPeriod -> !currentStaffCode.equals(claimPeriod.getStaffCategories().getCode()))
+                .filter(claimPeriod -> isOverlappingPeriod(claimPeriod, currentPeriod))
+                .max(Comparator.comparing(InsuranceStaffCategoryPeriod::getFromDate,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElse(null);
+    }
+
+    private InsuranceStaffCategoryPeriod resolveClaimPeriod(InsuranceClaimsRequest claim) {
+        if (claim.getInsuranceDetailsLimit() != null
+                && claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod() != null) {
+            return claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod();
+        }
+        if (claim.getInsuranceClaimsDetails() != null) {
+            return claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod();
+        }
+        return null;
+    }
+
+    private boolean isOverlappingPeriod(InsuranceStaffCategoryPeriod candidate,
+                                        InsuranceStaffCategoryPeriod currentPeriod) {
+        if (candidate.getFromDate() == null || candidate.getToDate() == null
+                || currentPeriod.getFromDate() == null || currentPeriod.getToDate() == null) {
+            return true;
+        }
+        return !candidate.getToDate().before(currentPeriod.getFromDate())
+                && !candidate.getFromDate().after(currentPeriod.getToDate());
     }
 
     private com.dtech.admin.model.InsuranceQuarter selectQuarterByPermanentDate(
