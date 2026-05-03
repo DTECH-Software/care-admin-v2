@@ -293,6 +293,10 @@ public class ResponseMessageUtil {
     public final static String REJECTED_CLAIM_REPORT_REFERENCE_SUCCESS = "val.rejected.claim.report.reference.success";
     public final static String REJECTED_CLAIM_REPORT_FILTER_LIST_SUCCESS = "val.rejected.claim.report.filter.list.success";
 
+    /*Daily task report*/
+    public final static String DAILY_TASK_REPORT_REFERENCE_SUCCESS = "val.daily.task.report.reference.success";
+    public final static String DAILY_TASK_REPORT_FILTER_LIST_SUCCESS = "val.daily.task.report.filter.list.success";
+
     /*Third party indoor claims import*/
     public final static String THIRD_PARTY_INDOOR_REFERENCE_SUCCESS = "val.third.party.indoor.reference.success";
     public final static String THIRD_PARTY_INDOOR_VALIDATE_SUCCESS = "val.third.party.indoor.validate.success";

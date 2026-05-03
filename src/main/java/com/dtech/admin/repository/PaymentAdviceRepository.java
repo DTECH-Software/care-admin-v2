@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,4 +33,6 @@ public interface PaymentAdviceRepository extends JpaRepository<PaymentAdvice, Lo
     Optional<PaymentAdvice> findTopByTypeOrderByVoucherSequenceDesc(PaymentAdviceType type);
 
     Optional<PaymentAdvice> findTopByTypeOrderByAdviceSequenceDesc(PaymentAdviceType type);
+
+    List<PaymentAdvice> findAllByCreatedDateBetweenAndType(Date fromDate, Date toDate, PaymentAdviceType type);
 }

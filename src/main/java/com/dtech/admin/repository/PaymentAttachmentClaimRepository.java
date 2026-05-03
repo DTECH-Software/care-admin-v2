@@ -8,6 +8,7 @@ import com.dtech.admin.model.PaymentAttachmentClaim;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.List;
 
 @Repository
@@ -21,6 +22,8 @@ public interface PaymentAttachmentClaimRepository extends JpaRepository<PaymentA
 
     List<PaymentAttachmentClaim> findAllByInsuranceClaimsRequestInAndState(List<InsuranceClaimsRequest> claims,
                                                                            PaymentAttachmentClaimState state);
+
+    List<PaymentAttachmentClaim> findAllByCreatedDateBetween(Date fromDate, Date toDate);
 
     boolean existsByInsuranceClaimsRequestAndPaymentAttachment_Status(InsuranceClaimsRequest claim,
                                                                       PaymentAttachmentStatus status);
