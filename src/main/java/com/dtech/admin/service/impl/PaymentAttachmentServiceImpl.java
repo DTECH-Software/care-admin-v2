@@ -1127,7 +1127,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 .append(" (").append(formatDate(responseDTO.getCreatedDate())).append(")</div>")
                 .append("</div>")
                 .append("<div class=\"block\">")
-                .append("<div>Company: ").append(escapeHtml(responseDTO.getCompanyCode())).append("</div>")
+                .append("<div>Original Company: ").append(escapeHtml(responseDTO.getCompanyCode())).append("</div>")
                 .append("<div>Payment Company: ").append(escapeHtml(responseDTO.getPaymentCompanyCode())).append("</div>")
                 .append("<div>Staff Category: ").append(escapeHtml(responseDTO.getStaffCategoryCode())).append("</div>")
                 .append("<div>Treatment Category: ").append(escapeHtml(responseDTO.getTreatmentCategory())).append("</div>")
@@ -1140,7 +1140,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 .append("<th>Claim Request ID</th>")
                 .append("<th>Employee Name</th>")
                 .append("<th>EPF</th>")
-                .append("<th>Company</th>")
+                .append("<th>Original Company</th>")
                 .append("<th>Payment Company</th>")
                 .append("<th>Claim Category</th>")
                 .append("<th>Treatment Category</th>")
@@ -1305,7 +1305,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             createStringCell(row, 4, buildDateRange(responseDTO.getDateFrom(), responseDTO.getDateTo()), null);
 
             row = sheet.createRow(rowIndex++);
-            createStringCell(row, 0, "Company", labelStyle);
+            createStringCell(row, 0, "Original Company", labelStyle);
             createStringCell(row, 1, responseDTO.getCompanyCode(), null);
             createStringCell(row, 3, "Payment Company", labelStyle);
             createStringCell(row, 4, responseDTO.getPaymentCompanyCode(), null);
@@ -1330,7 +1330,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             createStringCell(row, 0, "#", headerStyle);
             createStringCell(row, 1, "Claim ID", headerStyle);
             createStringCell(row, 2, "EPF", headerStyle);
-            createStringCell(row, 3, "Company", headerStyle);
+            createStringCell(row, 3, "Original Company", headerStyle);
             createStringCell(row, 4, "Payment Company", headerStyle);
             createStringCell(row, 5, "Requested", headerStyle);
             createStringCell(row, 6, "Approved", headerStyle);

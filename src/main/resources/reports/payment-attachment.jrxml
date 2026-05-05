@@ -84,11 +84,11 @@
             </textField>
 
             <staticText>
-                <reportElement x="0" y="16" width="90" height="14" style="Label"/>
-                <text><![CDATA[Company:]]></text>
+                <reportElement x="0" y="16" width="120" height="14" style="Label"/>
+                <text><![CDATA[Original Company:]]></text>
             </staticText>
             <textField>
-                <reportElement x="92" y="16" width="250" height="14" style="Base"/>
+                <reportElement x="122" y="16" width="220" height="14" style="Base"/>
                 <textFieldExpression><![CDATA[$P{companyCode}]]></textFieldExpression>
             </textField>
 
@@ -140,7 +140,7 @@
             <staticText>
                 <reportElement x="190" y="0" width="40" height="20" style="TableHeader"/>
                 <textElement verticalAlignment="Middle"/>
-                <text><![CDATA[Company]]></text>
+                <text><![CDATA[Original Company]]></text>
             </staticText>
             <staticText>
                 <reportElement x="230" y="0" width="50" height="20" style="TableHeader"/>
