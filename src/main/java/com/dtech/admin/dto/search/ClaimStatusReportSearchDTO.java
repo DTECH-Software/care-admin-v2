@@ -21,6 +21,7 @@ public class ClaimStatusReportSearchDTO {
     private String dependentName;
     private String dependentCategory;
     private String treatment;
+    @JsonAlias({"treatmentCategoryCode"})
     private String treatmentCategory;
     private String claimStatus;
 }

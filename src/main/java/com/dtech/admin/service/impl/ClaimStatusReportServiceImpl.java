@@ -240,15 +240,29 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
                 .orElse(null))) {
             return false;
         }
-        if (hasText(search.getTreatmentCategory()) && !equalsIgnoreCase(search.getTreatmentCategory(),
-                Optional.ofNullable(claim.getInsuranceClaimsDetails())
-                        .map(details -> details.getTreatmentCategory())
-                        .map(TreatmentCategory::getCode)
-                        .orElse(null))) {
+        if (hasText(search.getTreatmentCategory()) && !matchesTreatmentCategory(claim, search.getTreatmentCategory())) {
             return false;
         }
         return !hasText(search.getClaimStatus()) || equalsIgnoreCase(search.getClaimStatus(),
                 Optional.ofNullable(claim.getRequestStatus()).map(Workflow::name).orElse(null));
+    }
+
+    private boolean matchesTreatmentCategory(InsuranceClaimsRequest claim, String filter) {
+        TreatmentCategory category = Optional.ofNullable(claim.getInsuranceClaimsDetails())
+                .map(details -> details.getTreatmentCategory())
+                .orElse(null);
+        if (category == null || !hasText(filter)) {
+            return false;
+        }
+
+        String normalizedFilter = normalizeFilterValue(filter);
+        String code = normalizeFilterValue(category.getCode());
+        String description = normalizeFilterValue(category.getDescription());
+        String codeDescription = normalizeFilterValue(buildDisplay(category.getCode(), category.getDescription()));
+
+        return normalizedFilter.equals(code)
+                || normalizedFilter.equals(description)
+                || normalizedFilter.equals(codeDescription);
     }
 
     private ClaimStatusReportRowDTO mapRow(InsuranceClaimsRequest claim, Map<String, String> staffCategoryDescriptions) {
@@ -496,6 +510,22 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String buildDisplay(String code, String description) {
+        if (!hasText(code)) {
+            return description != null ? description : "";
+        }
+        if (!hasText(description)) {
+            return code;
+        }
+        return code + " - " + description;
+    }
+
+    private String normalizeFilterValue(String value) {
+        return value == null
+                ? ""
+                : value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     private String normalizeDate(String value) {
