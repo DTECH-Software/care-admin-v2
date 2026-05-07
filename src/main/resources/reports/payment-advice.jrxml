@@ -108,7 +108,13 @@
                     </graphicElement>
                 </line>
                 <line>
-                    <reportElement x="470" y="32" width="1" height="38"/>
+                    <reportElement x="470" y="32" width="1" height="18"/>
+                    <graphicElement>
+                        <pen lineWidth="0.3" lineColor="#C8CCD4"/>
+                    </graphicElement>
+                </line>
+                <line>
+                    <reportElement x="495" y="50" width="1" height="20"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
@@ -140,11 +146,11 @@
                     <textFieldExpression><![CDATA["Details/Description: " + $P{description}]]></textFieldExpression>
                 </textField>
                 <staticText>
-                    <reportElement x="330" y="54" width="140" height="14" style="Label"/>
-                    <text><![CDATA[Company]]></text>
+                    <reportElement x="330" y="54" width="165" height="14" style="Label"/>
+                    <text><![CDATA[Original Company]]></text>
                 </staticText>
                 <staticText>
-                    <reportElement x="475" y="54" width="80" height="14" style="Label"/>
+                    <reportElement x="500" y="54" width="55" height="14" style="Label"/>
                     <text><![CDATA[Amount (Rs)]]></text>
                 </staticText>
             </frame>
@@ -156,52 +162,52 @@
     </columnHeader>
 
     <detail>
-        <band height="18">
+        <band height="36">
             <line>
-                <reportElement x="0" y="0" width="1" height="18"/>
+                <reportElement x="0" y="0" width="1" height="36"/>
                 <graphicElement>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </graphicElement>
             </line>
             <line>
-                <reportElement x="325" y="0" width="1" height="18"/>
+                <reportElement x="325" y="0" width="1" height="36"/>
                 <graphicElement>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </graphicElement>
             </line>
             <line>
-                <reportElement x="470" y="0" width="1" height="18"/>
+                <reportElement x="495" y="0" width="1" height="36"/>
                 <graphicElement>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </graphicElement>
             </line>
             <line>
-                <reportElement x="554" y="0" width="1" height="18"/>
+                <reportElement x="554" y="0" width="1" height="36"/>
                 <graphicElement>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </graphicElement>
             </line>
             <line>
-                <reportElement x="0" y="17" width="555" height="1"/>
+                <reportElement x="0" y="35" width="555" height="1"/>
                 <graphicElement>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </graphicElement>
             </line>
 
             <textField>
-                <reportElement x="6" y="0" width="318" height="18" style="Base"/>
+                <reportElement x="6" y="0" width="318" height="36" style="Base"/>
                 <textElement verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{attachmentNo}]]></textFieldExpression>
             </textField>
 
-            <textField>
-                <reportElement x="331" y="0" width="139" height="18" style="Base"/>
+            <textField textAdjust="StretchHeight">
+                <reportElement x="331" y="0" width="163" height="36" style="Base"/>
                 <textElement verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{companyDescription} == null || $F{companyDescription}.trim().isEmpty() ? $F{companyCode} : $F{companyDescription}]]></textFieldExpression>
             </textField>
 
             <textField pattern="#,##0.00">
-                <reportElement x="475" y="0" width="80" height="18" style="Base"/>
+                <reportElement x="500" y="0" width="55" height="36" style="Base"/>
                 <textElement textAlignment="Right" verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{approvedAmount}]]></textFieldExpression>
             </textField>
@@ -239,7 +245,7 @@
                 </graphicElement>
             </line>
             <line>
-                <reportElement x="470" y="0" width="1" height="18"/>
+                <reportElement x="495" y="0" width="1" height="18"/>
                 <graphicElement>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </graphicElement>
@@ -267,11 +273,11 @@
             </textField>
 
             <staticText>
-                <reportElement x="330" y="2" width="140" height="14" style="Label"/>
+                <reportElement x="330" y="2" width="165" height="14" style="Label"/>
                 <text><![CDATA[TOTAL AMOUNT]]></text>
             </staticText>
             <textField>
-                <reportElement x="475" y="2" width="80" height="14" style="Base"/>
+                <reportElement x="500" y="2" width="55" height="14" style="Base"/>
                 <textElement textAlignment="Right"/>
                 <textFieldExpression><![CDATA[$P{totalApprovedAmount}]]></textFieldExpression>
             </textField>

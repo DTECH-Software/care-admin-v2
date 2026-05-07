@@ -858,7 +858,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
                 .append("</td>")
                 .append("<td>")
                 .append("<table class=\"subtable\">")
-                .append("<tr><td class=\"labels\">Company</td><td class=\"labels amount\">Amount (Rs)</td></tr>")
+                .append("<tr><td class=\"labels\">Original Company</td><td class=\"labels amount\">Amount (Rs)</td></tr>")
                 .append("</table>")
                 .append("</td>")
                 .append("</tr>");
