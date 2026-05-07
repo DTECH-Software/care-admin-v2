@@ -610,7 +610,10 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 }
             }
 
-            InsuranceStaffCategoryPeriod carryForwardPeriod = resolvePreviousPeriodForCarry(user, insuranceStaffCategoryPeriod);
+            InsuranceStaffCategoryPeriod carryForwardPeriod = resolvePreviousPeriodForCarry(
+                    user,
+                    insuranceStaffCategoryPeriod,
+                    insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode());
             BigDecimal sumOfClaims = rejoinCarryForwardService.getApprovedAmountByTreatment(
                     user,
                     insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode(),
@@ -873,7 +876,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             String treatmentCode = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode();
             Long periodId = currentPeriod != null ? currentPeriod.getId() : null;
 
-            InsuranceStaffCategoryPeriod prevPeriod = resolvePreviousPeriodForCarry(applicationUser, currentPeriod);
+            InsuranceStaffCategoryPeriod prevPeriod = resolvePreviousPeriodForCarry(applicationUser, currentPeriod, treatmentCode);
             BigDecimal sum = periodId != null
                     ? rejoinCarryForwardService.getApprovedAmountByTreatment(
                     applicationUser,
@@ -992,27 +995,84 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     }
 
     private InsuranceStaffCategoryPeriod resolvePreviousPeriodForCarry(ApplicationUser applicationUser,
-                                                                       InsuranceStaffCategoryPeriod currentPeriod) {
+                                                                       InsuranceStaffCategoryPeriod currentPeriod,
+                                                                       String treatmentCode) {
         Date previousPermanentDate = applicationUser.getUserPersonalDetails()
                 .getUserCompanyDetails()
                 .getPreviousPermanentDate();
         Date changeDate = previousPermanentDate != null
                 ? applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate()
                 : null;
-        if (changeDate == null
-                || currentPeriod == null
-                || currentPeriod.getStaffCategories() == null) {
+        if (currentPeriod == null || currentPeriod.getStaffCategories() == null) {
             return null;
         }
 
-        return insuranceStaffCategoryPeriodRepository
-                .findByDateWithinRangeAnyStaff(changeDate)
+        InsuranceStaffCategoryPeriod previousPeriod = null;
+        if (changeDate != null) {
+            previousPeriod = insuranceStaffCategoryPeriodRepository
+                    .findByDateWithinRangeAnyStaff(changeDate)
+                    .stream()
+                    .filter(p -> p.getStaffCategories() != null)
+                    .filter(p -> !p.getStaffCategories().getCode()
+                            .equals(currentPeriod.getStaffCategories().getCode()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        return previousPeriod != null
+                ? previousPeriod
+                : resolvePreviousPeriodFromClaimHistory(applicationUser, treatmentCode, currentPeriod);
+    }
+
+    private InsuranceStaffCategoryPeriod resolvePreviousPeriodFromClaimHistory(ApplicationUser applicationUser,
+                                                                              String treatmentCode,
+                                                                              InsuranceStaffCategoryPeriod currentPeriod) {
+        if (applicationUser == null
+                || currentPeriod == null
+                || currentPeriod.getStaffCategories() == null
+                || treatmentCode == null) {
+            return null;
+        }
+
+        String currentStaffCode = currentPeriod.getStaffCategories().getCode();
+        return insuranceClaimsRequestRepository
+                .findAllByEmployeeAndRequestStatusIn(applicationUser, List.of(Workflow.APPROVED))
                 .stream()
-                .filter(p -> p.getStaffCategories() != null)
-                .filter(p -> !p.getStaffCategories().getCode()
-                        .equals(currentPeriod.getStaffCategories().getCode()))
-                .findFirst()
+                .filter(claim -> claim.getInsuranceClaimsDetails() != null)
+                .filter(claim -> claim.getInsuranceClaimsDetails().getTreatment() != null)
+                .filter(claim -> treatmentCode.equalsIgnoreCase(
+                        claim.getInsuranceClaimsDetails().getTreatment().getTreatmentCode()))
+                .map(this::resolveClaimPeriod)
+                .filter(Objects::nonNull)
+                .filter(claimPeriod -> claimPeriod.getId() != null && currentPeriod.getId() != null)
+                .filter(claimPeriod -> !claimPeriod.getId().equals(currentPeriod.getId()))
+                .filter(claimPeriod -> claimPeriod.getStaffCategories() != null)
+                .filter(claimPeriod -> !currentStaffCode.equals(claimPeriod.getStaffCategories().getCode()))
+                .filter(claimPeriod -> isOverlappingPeriod(claimPeriod, currentPeriod))
+                .max(Comparator.comparing(InsuranceStaffCategoryPeriod::getFromDate,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
                 .orElse(null);
+    }
+
+    private InsuranceStaffCategoryPeriod resolveClaimPeriod(InsuranceClaimsRequest claim) {
+        if (claim.getInsuranceDetailsLimit() != null
+                && claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod() != null) {
+            return claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod();
+        }
+        if (claim.getInsuranceClaimsDetails() != null) {
+            return claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod();
+        }
+        return null;
+    }
+
+    private boolean isOverlappingPeriod(InsuranceStaffCategoryPeriod candidate,
+                                        InsuranceStaffCategoryPeriod currentPeriod) {
+        if (candidate.getFromDate() == null || candidate.getToDate() == null
+                || currentPeriod.getFromDate() == null || currentPeriod.getToDate() == null) {
+            return true;
+        }
+        return !candidate.getToDate().before(currentPeriod.getFromDate())
+                && !candidate.getFromDate().after(currentPeriod.getToDate());
     }
 
     private Map<String, InsuranceQuarter> resolveCategoryQuarterMap(List<InsuranceQuarter> quarters,
