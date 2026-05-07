@@ -205,7 +205,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
 
         List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(claim -> matchesFilters(claim, search))
+                .filter(claim -> matchesFilters(claim, search, staffCategoryDescriptions))
                 .filter(claim -> matchesSelectedPeriod(claim, selectedPeriod))
                 .sorted(Comparator
                         .comparing(this::resolvePeriodSortDate, Comparator.nullsLast(Comparator.reverseOrder()))
@@ -262,19 +262,47 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         return dto;
     }
 
-    private boolean matchesFilters(InsuranceClaimsRequest claim, RejectedClaimReportSearchDTO search) {
+    private boolean matchesFilters(InsuranceClaimsRequest claim,
+                                   RejectedClaimReportSearchDTO search,
+                                   Map<String, String> staffCategoryDescriptions) {
         if (search == null) {
             return true;
         }
 
         if (hasText(search.getCompany()) && !isAll(search.getCompany())
-                && !equalsIgnoreCase(search.getCompany(), resolveCompanyCode(claim))) {
+                && !matchesCompanyFilter(claim, search.getCompany())) {
             return false;
         }
 
         return !hasText(search.getStaffCategory()) || isAll(search.getStaffCategory())
-                || equalsIgnoreCase(staffCategoryResolver.normalizeSelectionCode(search.getStaffCategory()),
-                staffCategoryResolver.resolveForClaim(claim));
+                || matchesStaffCategoryFilter(claim, search.getStaffCategory(), staffCategoryDescriptions);
+    }
+
+    private boolean matchesCompanyFilter(InsuranceClaimsRequest claim, String filter) {
+        CompanyInfo company = resolveCompanyInfo(claim);
+        String normalizedFilter = normalizeFilterValue(filter);
+        return normalizedFilter.equals(normalizeFilterValue(company.code()))
+                || normalizedFilter.equals(normalizeFilterValue(company.description()))
+                || normalizedFilter.equals(normalizeFilterValue(buildDisplay(company.code(), company.description())));
+    }
+
+    private boolean matchesStaffCategoryFilter(InsuranceClaimsRequest claim,
+                                               String filter,
+                                               Map<String, String> staffCategoryDescriptions) {
+        String resolvedCode = staffCategoryResolver.resolveForClaim(claim);
+        if (!hasText(resolvedCode)) {
+            return false;
+        }
+
+        String normalizedCode = staffCategoryResolver.normalizeCode(resolvedCode);
+        String description = staffCategoryDescriptions.getOrDefault(normalizedCode, normalizedCode);
+        String normalizedFilter = normalizeFilterValue(filter);
+        String selectedCode = staffCategoryResolver.normalizeSelectionCode(filter);
+
+        return normalizedFilter.equals(normalizeFilterValue(normalizedCode))
+                || normalizedFilter.equals(normalizeFilterValue(description))
+                || normalizedFilter.equals(normalizeFilterValue(buildDisplay(normalizedCode, description)))
+                || equalsIgnoreCase(selectedCode, resolvedCode);
     }
 
     private boolean matchesSelectedPeriod(InsuranceClaimsRequest claim, PeriodSelection selectedPeriod) {
@@ -291,13 +319,21 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         if (search == null || !hasText(search.getPeriodId()) || isAll(search.getPeriodId())) {
             return null;
         }
+        String filter = search.getPeriodId().trim();
         try {
-            Long periodId = Long.valueOf(search.getPeriodId().trim());
+            Long periodId = Long.valueOf(filter);
             InsuranceStaffCategoryPeriod period = insuranceStaffCategoryPeriodRepository.findById(periodId)
                     .orElseThrow(() -> new IllegalArgumentException("Invalid policy period"));
             return new PeriodSelection(period.getId(), period.getFromDate(), period.getToDate(), formatPeriod(period));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid policy period", e);
+            return insuranceStaffCategoryPeriodRepository.findAll().stream()
+                    .filter(period -> period != null && period.getFromDate() != null && period.getToDate() != null)
+                    .filter(period -> normalizeFilterValue(filter).equals(normalizeFilterValue(formatPeriod(period)))
+                            || normalizeFilterValue(filter).equals(normalizeFilterValue(periodKey(period))))
+                    .findFirst()
+                    .map(period -> new PeriodSelection(period.getId(), period.getFromDate(), period.getToDate(),
+                            formatPeriod(period)))
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid policy period", e));
         }
     }
 
@@ -726,6 +762,24 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                 .replace('-', ' ')
                 .replaceAll("\\s+", " ")
                 .toUpperCase(Locale.ROOT);
+    }
+
+    private String buildDisplay(String code, String description) {
+        if (!hasText(code)) {
+            return description != null ? description : "";
+        }
+        if (!hasText(description)) {
+            return code;
+        }
+        return code + " - " + description;
+    }
+
+    private String normalizeFilterValue(String value) {
+        return value == null
+                ? ""
+                : value.trim()
+                .replaceAll("\\s+", " ")
+                .toLowerCase(Locale.ROOT);
     }
 
     private boolean isAll(String value) {

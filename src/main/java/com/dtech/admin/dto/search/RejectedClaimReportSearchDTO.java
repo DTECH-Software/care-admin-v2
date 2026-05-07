@@ -14,9 +14,11 @@ public class RejectedClaimReportSearchDTO {
     @JsonFormat(pattern = "yyyy/MM/dd")
     private String toDate;
 
+    @JsonAlias({"companyCode"})
     private String company;
+    @JsonAlias({"staffCategoryCode"})
     private String staffCategory;
 
-    @JsonAlias({"policyPeriod", "policyPeriodId"})
+    @JsonAlias({"policyPeriod", "policyPeriodId", "period", "periodCode"})
     private String periodId;
 }

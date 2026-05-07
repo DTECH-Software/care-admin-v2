@@ -50,8 +50,7 @@ public class ClaimStatusReportController {
     public ResponseEntity<ApiResponse<Object>> filterList(@RequestBody @Valid PaginationRequest<ClaimStatusReportSearchDTO> paginationRequest,
                                                           Locale locale) {
         log.info("Claim status report filter list request {}", paginationRequest);
-        Type paginationType = new TypeToken<PaginationRequest<ClaimStatusReportSearchDTO>>() {}.getType();
-        return reportService.filterList(gson.fromJson(gson.toJson(paginationRequest), paginationType), locale);
+        return reportService.filterList(paginationRequest, locale);
     }
 
     @PostMapping(path = "/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -59,7 +58,6 @@ public class ClaimStatusReportController {
     public ResponseEntity<byte[]> export(@RequestBody @Valid PaginationRequest<ClaimStatusReportSearchDTO> paginationRequest,
                                          Locale locale) {
         log.info("Claim status report export request {}", paginationRequest);
-        Type paginationType = new TypeToken<PaginationRequest<ClaimStatusReportSearchDTO>>() {}.getType();
-        return reportService.export(gson.fromJson(gson.toJson(paginationRequest), paginationType), locale);
+        return reportService.export(paginationRequest, locale);
     }
 }
