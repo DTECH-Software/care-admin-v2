@@ -1127,11 +1127,10 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 .append(" (").append(formatDate(responseDTO.getCreatedDate())).append(")</div>")
                 .append("</div>")
                 .append("<div class=\"block\">")
-                .append("<div>Original Company: ").append(escapeHtml(responseDTO.getCompanyCode())).append("</div>")
-                .append("<div>Payment Company: ").append(escapeHtml(responseDTO.getPaymentCompanyCode())).append("</div>")
-                .append("<div>Staff Category: ").append(escapeHtml(responseDTO.getStaffCategoryCode())).append("</div>")
-                .append("<div>Treatment Category: ").append(escapeHtml(responseDTO.getTreatmentCategory())).append("</div>")
-                .append("<div>Notes: ").append(escapeHtml(responseDTO.getNotes())).append("</div>")
+                .append("<div>Payment Company: ").append(escapeHtml(displayText(responseDTO.getPaymentCompanyDescription(), responseDTO.getPaymentCompanyCode()))).append("</div>")
+                .append("<div>Staff Category: ").append(escapeHtml(displayText(responseDTO.getStaffCategoryDescription(), responseDTO.getStaffCategoryCode()))).append("</div>")
+                .append("<div>Treatment Category: ").append(escapeHtml(displayText(responseDTO.getTreatmentCategoryDescription(), responseDTO.getTreatmentCategory()))).append("</div>")
+                .append("<div>Details/Description: ").append(escapeHtml(responseDTO.getNotes())).append("</div>")
                 .append("</div>")
                 .append("</div>");
 
@@ -1158,10 +1157,10 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                     .append("<td>").append(escapeHtml(claim.getRequestId())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getEmployeeName())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getEpf())).append("</td>")
-                    .append("<td>").append(escapeHtml(claim.getCompanyCode())).append("</td>")
-                    .append("<td>").append(escapeHtml(claim.getPaymentCompanyCode())).append("</td>")
-                    .append("<td>").append(escapeHtml(claim.getClaimCategory())).append("</td>")
-                    .append("<td>").append(escapeHtml(claim.getTreatmentCategory())).append("</td>")
+                    .append("<td>").append(escapeHtml(displayText(claim.getCompanyDescription(), claim.getCompanyCode()))).append("</td>")
+                    .append("<td>").append(escapeHtml(displayText(claim.getPaymentCompanyDescription(), claim.getPaymentCompanyCode()))).append("</td>")
+                    .append("<td>").append(escapeHtml(displayText(claim.getClaimCategoryDescription(), claim.getClaimCategory()))).append("</td>")
+                    .append("<td>").append(escapeHtml(displayText(claim.getTreatmentCategoryDescription(), claim.getTreatmentCategory()))).append("</td>")
                     .append("<td>").append(formatAmount(claim.getRequestAmount())).append("</td>")
                     .append("<td>").append(formatAmount(claim.getApprovedAmount())).append("</td>")
                     .append("<td>").append(escapeHtml(claim.getClaimStatus())).append("</td>")
@@ -1305,24 +1304,26 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             createStringCell(row, 4, buildDateRange(responseDTO.getDateFrom(), responseDTO.getDateTo()), null);
 
             row = sheet.createRow(rowIndex++);
-            createStringCell(row, 0, "Original Company", labelStyle);
-            createStringCell(row, 1, responseDTO.getCompanyCode(), null);
-            createStringCell(row, 3, "Payment Company", labelStyle);
-            createStringCell(row, 4, responseDTO.getPaymentCompanyCode(), null);
+            createStringCell(row, 0, "Payment Company", labelStyle);
+            createStringCell(row, 1, displayText(responseDTO.getPaymentCompanyDescription(), responseDTO.getPaymentCompanyCode()), dataStyle);
+            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 1, 8));
 
             row = sheet.createRow(rowIndex++);
             createStringCell(row, 0, "Staff Category", labelStyle);
-            createStringCell(row, 1, responseDTO.getStaffCategoryCode(), null);
+            createStringCell(row, 1, displayText(responseDTO.getStaffCategoryDescription(), responseDTO.getStaffCategoryCode()), dataStyle);
+            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 1, 2));
             createStringCell(row, 3, "Treatment Category", labelStyle);
-            createStringCell(row, 4, responseDTO.getTreatmentCategory(), null);
+            createStringCell(row, 4, displayText(responseDTO.getTreatmentCategoryDescription(), responseDTO.getTreatmentCategory()), dataStyle);
+            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 4, 7));
 
             row = sheet.createRow(rowIndex++);
             createStringCell(row, 3, "Created By", labelStyle);
             createStringCell(row, 4, buildCreatedBy(responseDTO.getCreatedBy(), responseDTO.getCreatedDate()), null);
 
             row = sheet.createRow(rowIndex++);
-            createStringCell(row, 0, "Notes", labelStyle);
-            createStringCell(row, 1, responseDTO.getNotes(), null);
+            row.setHeightInPoints(36);
+            createStringCell(row, 0, "Details/Description", labelStyle);
+            createStringCell(row, 1, responseDTO.getNotes(), dataStyle);
             sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 1, 8));
 
             rowIndex++;
@@ -1349,11 +1350,18 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 createStringCell(row, 2, claim.getEpf(), dataStyle);
 
                 String companyCode = hasText(claim.getCompanyCode()) ? claim.getCompanyCode() : responseDTO.getCompanyCode();
-                createStringCell(row, 3, companyCode, dataStyle);
+                String companyDescription = hasText(claim.getCompanyDescription())
+                        ? claim.getCompanyDescription()
+                        : responseDTO.getCompanyDescription();
+                createStringCell(row, 3, displayText(companyDescription, companyCode), dataStyle);
+
                 String paymentCompanyCode = hasText(claim.getPaymentCompanyCode())
                         ? claim.getPaymentCompanyCode()
                         : responseDTO.getPaymentCompanyCode();
-                createStringCell(row, 4, paymentCompanyCode, dataStyle);
+                String paymentCompanyDescription = hasText(claim.getPaymentCompanyDescription())
+                        ? claim.getPaymentCompanyDescription()
+                        : responseDTO.getPaymentCompanyDescription();
+                createStringCell(row, 4, displayText(paymentCompanyDescription, paymentCompanyCode), dataStyle);
 
                 Cell requestCell = row.createCell(5);
                 requestCell.setCellValue(Optional.ofNullable(claim.getRequestAmount()).orElse(BigDecimal.ZERO).doubleValue());
@@ -1417,6 +1425,10 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
         return value.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;");
+    }
+
+    private String displayText(String description, String code) {
+        return hasText(description) ? description : code;
     }
 
     private String formatDate(Date date) {

@@ -147,7 +147,7 @@
                 </textField>
                 <staticText>
                     <reportElement x="330" y="54" width="165" height="14" style="Label"/>
-                    <text><![CDATA[Original Company]]></text>
+                    <text><![CDATA[]]></text>
                 </staticText>
                 <staticText>
                     <reportElement x="500" y="54" width="55" height="14" style="Label"/>
@@ -198,12 +198,6 @@
                 <reportElement x="6" y="0" width="318" height="36" style="Base"/>
                 <textElement verticalAlignment="Middle"/>
                 <textFieldExpression><![CDATA[$F{attachmentNo}]]></textFieldExpression>
-            </textField>
-
-            <textField textAdjust="StretchHeight">
-                <reportElement x="331" y="0" width="163" height="36" style="Base"/>
-                <textElement verticalAlignment="Middle"/>
-                <textFieldExpression><![CDATA[$F{companyDescription} == null || $F{companyDescription}.trim().isEmpty() ? $F{companyCode} : $F{companyDescription}]]></textFieldExpression>
             </textField>
 
             <textField pattern="#,##0.00">
