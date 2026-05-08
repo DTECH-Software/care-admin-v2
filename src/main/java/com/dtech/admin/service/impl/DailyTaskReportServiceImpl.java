@@ -634,14 +634,14 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
             Cell titleCell = titleRow.createCell(0);
             titleCell.setCellValue("DAILY TASK REPORT");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 16));
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 18));
 
             rowIndex++;
             rowIndex = writeMedicalSection(sheet, rowIndex, report.getMedical(), sectionStyle, medicalHeaderStyle, staffStyle, bodyStyle);
             rowIndex += 2;
             writeDdfSection(sheet, rowIndex, report.getDdf(), sectionStyle, ddfHeaderStyle, staffStyle, bodyStyle);
 
-            int[] widths = {12, 16, 12, 14, 42, 18, 34, 42, 16, 18, 16, 28, 14, 14, 16, 16, 26, 16};
+            int[] widths = {12, 16, 12, 14, 42, 18, 34, 42, 16, 18, 16, 28, 14, 14, 16, 16, 26, 16, 26};
             for (int i = 0; i < widths.length; i++) {
                 sheet.setColumnWidth(i, widths[i] * 256);
             }
@@ -717,7 +717,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 "Pending requirement claims", "Have to Handover to authorized person", "Handover to Authorized person",
                 "Have to Handover to final check", "Handover to final check", "Have to complete final check",
                 "Final Check Complete (Claims)", "Have to Prepare Payment", "Have to checked Payment advise & fund transfer",
-                "Payment advise & fund transfer checked", "Returned claims", "Have to Payments Completed", "Payments Completed"
+                "Payment advise & fund transfer checked", "Returned claims", "Have to Payments Completed", "Payments Completed",
+                "Other Works"
         };
         writeHeaders(headerRow, headers, headerStyle);
 
@@ -741,6 +742,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         writeCell(row, 15, formatCount(rowDTO.getReturnedClaims()), bodyStyle);
         writeCell(row, 16, stageText(rowDTO.getHaveToPaymentsCompleted()), bodyStyle);
         writeCell(row, 17, stageText(rowDTO.getPaymentsCompleted()), bodyStyle);
+        writeCell(row, 18, rowDTO.getOtherWorks(), bodyStyle);
         return startRow;
     }
 
