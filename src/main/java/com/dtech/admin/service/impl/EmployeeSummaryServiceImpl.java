@@ -649,6 +649,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         if (Workflow.UNDER_REVIEW.equals(claim.getRequestStatus())) {
             return UNDER_REVIEW_AMOUNT_DISPLAY;
         }
+        if (Workflow.REJECTED.equals(claim.getRequestStatus()) && amount == null) {
+            return BigDecimal.ZERO;
+        }
         return amount;
     }
 
