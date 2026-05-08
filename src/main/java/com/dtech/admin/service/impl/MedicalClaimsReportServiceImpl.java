@@ -348,14 +348,15 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             sheet.setColumnWidth(16, 20 * 256);
             sheet.setColumnWidth(17, 20 * 256);
             sheet.setColumnWidth(18, 18 * 256);
-            sheet.setColumnWidth(19, 14 * 256);
+            sheet.setColumnWidth(19, 22 * 256);
+            sheet.setColumnWidth(20, 14 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Medical Claims Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 19));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 20));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -371,17 +372,19 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             createStringCell(row, 9, "Request Amount", headerStyle);
             createStringCell(row, 10, "Approved Amount", headerStyle);
             createStringCell(row, 11, "Remaining Balance", headerStyle);
-            createStringCell(row, 12, "Status", headerStyle);
+            createStringCell(row, 12, "Claim Status", headerStyle);
             createStringCell(row, 13, "Advice No", headerStyle);
             createStringCell(row, 14, "Voucher No", headerStyle);
             createStringCell(row, 15, "Cheque Created Date", headerStyle);
             createStringCell(row, 16, "Final Remark", headerStyle);
             createStringCell(row, 17, "Final Approve Date", headerStyle);
             createStringCell(row, 18, "Rejection Date", headerStyle);
-            createStringCell(row, 19, "Created Date", headerStyle);
+            createStringCell(row, 19, "Payment Advice Status", headerStyle);
+            createStringCell(row, 20, "Created Date", headerStyle);
 
             int lineNo = 1;
             Map<Long, PaymentAdvice> adviceByClaimId = resolvePaymentAdviceByClaimId(rows);
+            Map<Long, String> paymentAdviceStatusMap = getPaymentAdviceStatusMap(rows);
             for (InsuranceClaimsRequest rowDTO : rows) {
                 row = sheet.createRow(rowIndex++);
                 ClaimsDependents dependent = rowDTO.getClaimsDependents();
@@ -446,7 +449,11 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                 createStringCell(row, 16, resolveFinalRemark(rowDTO), dataStyle);
                 createStringCell(row, 17, finalApproveDate, dataStyle);
                 createStringCell(row, 18, rejectionDate, dataStyle);
-                createStringCell(row, 19, formatDate(rowDTO.getCreatedDate()), dataStyle);
+                String paymentAdviceStatus = rowDTO.getId() != null
+                        ? paymentAdviceStatusMap.getOrDefault(rowDTO.getId(), "NOT_GENERATED")
+                        : "NOT_GENERATED";
+                createStringCell(row, 19, resolvePaymentAdviceStatusDescription(paymentAdviceStatus), dataStyle);
+                createStringCell(row, 20, formatDate(rowDTO.getCreatedDate()), dataStyle);
             }
 
             workbook.write(out);
