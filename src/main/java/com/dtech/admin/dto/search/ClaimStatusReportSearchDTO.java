@@ -17,14 +17,18 @@ public class ClaimStatusReportSearchDTO {
     @JsonFormat(pattern = "yyyy/MM/dd")
     private String toDate;
 
+    @JsonAlias({"companyCode"})
     private String company;
+    @JsonAlias({"staffCategoryCode"})
     private String staffCategory;
     private String epfNo;
     private String employeeName;
     private String dependentName;
     private String dependentCategory;
+    @JsonAlias({"treatmentCode"})
     private String treatment;
     private String treatmentCategory;
+    @JsonAlias({"claimStatusCode", "status"})
     private String claimStatus;
 
     @JsonProperty("treatmentCategory")

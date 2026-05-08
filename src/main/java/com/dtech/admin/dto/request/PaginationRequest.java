@@ -20,6 +20,6 @@ public class PaginationRequest<T> extends ChannelRequestValidatorDTO {
     private Integer size = 10;
     private String sortColumn = "lastModifiedDate";
     private Sort.Direction sortDirection = Sort.Direction.DESC;
-    @JsonAlias({"filters"})
+    @JsonAlias({"filters", "filter"})
     private T search;
 }
