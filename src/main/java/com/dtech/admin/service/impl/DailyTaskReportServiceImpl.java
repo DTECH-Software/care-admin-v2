@@ -214,8 +214,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
 
         DailyTaskReportResponseDTO dto = new DailyTaskReportResponseDTO();
         dto.setPeriod(dateRange.periodText());
-        dto.setMedical(CLAIM_TYPE_DEATH.equals(claimType) ? emptyMedical(dateRange, search) : buildMedicalRow(dateRange, search));
-        dto.setDdf(CLAIM_TYPE_MEDICAL.equals(claimType) ? emptyDdf(dateRange, search) : buildDdfRow(dateRange, search));
+        dto.setMedical(CLAIM_TYPE_DEATH.equals(claimType) ? null : buildMedicalRow(dateRange, search));
+        dto.setDdf(CLAIM_TYPE_MEDICAL.equals(claimType) ? null : buildDdfRow(dateRange, search));
         return dto;
     }
 
@@ -637,9 +637,13 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 18));
 
             rowIndex++;
-            rowIndex = writeMedicalSection(sheet, rowIndex, report.getMedical(), sectionStyle, medicalHeaderStyle, staffStyle, bodyStyle);
-            rowIndex += 2;
-            writeDdfSection(sheet, rowIndex, report.getDdf(), sectionStyle, ddfHeaderStyle, staffStyle, bodyStyle);
+            if (report.getMedical() != null) {
+                rowIndex = writeMedicalSection(sheet, rowIndex, report.getMedical(), sectionStyle, medicalHeaderStyle, staffStyle, bodyStyle);
+                rowIndex += 2;
+            }
+            if (report.getDdf() != null) {
+                writeDdfSection(sheet, rowIndex, report.getDdf(), sectionStyle, ddfHeaderStyle, staffStyle, bodyStyle);
+            }
 
             int[] widths = {12, 16, 12, 14, 42, 18, 34, 42, 16, 18, 16, 28, 14, 14, 16, 16, 26, 16, 26};
             for (int i = 0; i < widths.length; i++) {
