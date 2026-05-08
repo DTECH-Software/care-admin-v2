@@ -326,9 +326,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         if (claim.getInsuranceClaimsDetails() != null && claim.getInsuranceClaimsDetails().getTreatmentCategory() != null) {
             dto.setTreatmentCategory(claim.getInsuranceClaimsDetails().getTreatmentCategory().getDescription());
         }
-        dto.setSubmittedValue(resolveSummaryAmountDisplay(claim, claim.getRequestAmount()));
+        dto.setSubmittedValue(claim.getRequestAmount());
         dto.setAppliedDate(claim.getCreatedDate());
-        dto.setApprovedValue(resolveSummaryAmountDisplay(claim, claim.getApprovedAmount()));
+        dto.setApprovedValue(resolveApprovedAmountDisplay(claim, claim.getApprovedAmount()));
         dto.setRemark(resolveClaimRemark(claim));
         return dto;
     }
@@ -344,9 +344,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                 dto.setTreatmentCategory(claim.getInsuranceClaimsDetails().getTreatmentCategory().getDescription());
             }
         }
-        dto.setSubmittedValue(resolveSummaryAmountDisplay(claim, claim.getRequestAmount()));
+        dto.setSubmittedValue(claim.getRequestAmount());
         dto.setAppliedDate(claim.getCreatedDate());
-        dto.setApprovedValue(resolveSummaryAmountDisplay(claim, claim.getApprovedAmount()));
+        dto.setApprovedValue(resolveApprovedAmountDisplay(claim, claim.getApprovedAmount()));
         if (claim.getRequestStatus() != null) {
             dto.setStatus(claim.getRequestStatus().name());
             dto.setStatusDescription(claim.getRequestStatus().getDescription());
@@ -645,7 +645,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                 .orElse(BigDecimal.ZERO);
     }
 
-    private Object resolveSummaryAmountDisplay(InsuranceClaimsRequest claim, BigDecimal amount) {
+    private Object resolveApprovedAmountDisplay(InsuranceClaimsRequest claim, BigDecimal amount) {
         if (Workflow.UNDER_REVIEW.equals(claim.getRequestStatus())) {
             return UNDER_REVIEW_AMOUNT_DISPLAY;
         }
