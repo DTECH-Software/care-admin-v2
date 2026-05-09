@@ -1,0 +1,15 @@
+services:
+  care-admin:
+    build:
+      context: .
+    image: care/care-admin:uat
+    container_name: care-admin
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: uat
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/caresystem?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
