@@ -7,6 +7,7 @@ on:
       - "src/**"
       - "pom.xml"
       - "Dockerfile"
+      - "docker-compose-uat.yml"
       - ".github/workflows/admin-care-uat.yml"
   workflow_dispatch:
 
@@ -47,6 +48,9 @@ jobs:
     needs: ci
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
@@ -61,7 +65,8 @@ jobs:
           key: ${{ secrets.UAT_SSH_KEY }}
           script: |
             set -e
-            mkdir -p "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
+            rm -rf "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}/target"
+            mkdir -p "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}/target"
 
       - name: Copy jar to UAT
         uses: appleboy/scp-action@v0.1.7
@@ -70,6 +75,17 @@ jobs:
           username: ${{ secrets.UAT_USER }}
           key: ${{ secrets.UAT_SSH_KEY }}
           source: "./artifact/${{ env.SERVICE_DIR }}/*.jar"
+          target: "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}/target"
+          strip_components: 2
+          overwrite: true
+
+      - name: Copy Docker files to UAT
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.UAT_HOST }}
+          username: ${{ secrets.UAT_USER }}
+          key: ${{ secrets.UAT_SSH_KEY }}
+          source: "Dockerfile,docker-compose-uat.yml"
           target: "${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
           overwrite: true
 
@@ -84,30 +100,50 @@ jobs:
             APP_NAME="${{ env.APP_NAME }}"
             SERVICE_DIR="${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
             PID_FILE="$SERVICE_DIR/${APP_NAME}.pid"
-            JAVA_HEAP_OPTS="-Xms256m -Xmx768m"
             cd "$SERVICE_DIR"
 
-            LATEST_JAR_PATH="$(find "$SERVICE_DIR" -type f -name "*.jar" | sort | tail -n 1)"
-            if [ -z "$LATEST_JAR_PATH" ]; then
-              echo "No jar found in $SERVICE_DIR"
+            if [ ! -f "$SERVICE_DIR/docker-compose-uat.yml" ]; then
+              echo "No docker-compose-uat.yml found in $SERVICE_DIR"
+              exit 1
+            fi
+            if [ ! -f "$SERVICE_DIR/Dockerfile" ]; then
+              echo "No Dockerfile found in $SERVICE_DIR"
+              exit 1
+            fi
+            if ! find "$SERVICE_DIR/target" -type f -name "*.jar" | grep -q .; then
+              echo "No jar found in $SERVICE_DIR/target"
               find "$SERVICE_DIR" -maxdepth 5 -type f | head -n 200 || true
               exit 1
             fi
 
             if [ -f "$PID_FILE" ]; then
-              OLD_PID="$(cat "$PID_FILE")"
+              OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
               if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+                echo "Stopping old java process for ${APP_NAME}: $OLD_PID"
                 kill "$OLD_PID" || true
                 sleep 2
               fi
               rm -f "$PID_FILE"
             fi
 
-            if pgrep -f "$LATEST_JAR_PATH" >/dev/null 2>&1; then
-              pkill -f "$LATEST_JAR_PATH" || true
-            fi
+            pkill -f "${SERVICE_DIR}/.*\.jar" || true
+            pkill -f "admin-0.0.1.jar" || true
             sleep 2
 
-            nohup java $JAVA_HEAP_OPTS -jar "$LATEST_JAR_PATH" --spring.profiles.active=uat > "$SERVICE_DIR/${APP_NAME}.log" 2>&1 &
-            echo $! > "$PID_FILE"
-            echo "Started ${APP_NAME} using $LATEST_JAR_PATH with ${JAVA_HEAP_OPTS}, profile=uat (pid $(cat "$PID_FILE"))"
+            docker --version
+            docker compose version
+            docker compose -f "$SERVICE_DIR/docker-compose-uat.yml" up -d --build care-admin
+            docker compose -f "$SERVICE_DIR/docker-compose-uat.yml" ps
+
+            for attempt in $(seq 1 36); do
+              if curl -sS --max-time 3 -o /dev/null "http://127.0.0.1:8090/admin"; then
+                echo "care-admin is responding on port 8090"
+                exit 0
+              fi
+              echo "Waiting for care-admin ($attempt/36)"
+              sleep 5
+            done
+
+            echo "care-admin did not become ready"
+            docker logs care-admin --tail 200 || true
+            exit 1
