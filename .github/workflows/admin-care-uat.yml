@@ -119,15 +119,30 @@ jobs:
             if [ -f "$PID_FILE" ]; then
               OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
               if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-                echo "Stopping old java process for ${APP_NAME}: $OLD_PID"
-                kill "$OLD_PID" || true
-                sleep 2
+                OLD_CMD="$(ps -p "$OLD_PID" -o args= 2>/dev/null || true)"
+                if echo "$OLD_CMD" | grep -Eq "java .*\.jar"; then
+                  echo "Stopping old java process for ${APP_NAME}: $OLD_PID"
+                  kill "$OLD_PID" || true
+                  sleep 2
+                else
+                  echo "Skipping stale pid file for ${APP_NAME}: $OLD_PID is not a java jar process"
+                fi
               fi
               rm -f "$PID_FILE"
             fi
 
-            pkill -f "${SERVICE_DIR}/.*\.jar" || true
-            pkill -f "admin-0.0.1.jar" || true
+            pgrep -f "java .*${SERVICE_DIR}/.*\.jar" | while read -r pid; do
+              if [ "$pid" != "$$" ]; then
+                echo "Stopping matching admin java process: $pid"
+                kill "$pid" || true
+              fi
+            done || true
+            pgrep -f "java .*admin-0.0.1.jar" | while read -r pid; do
+              if [ "$pid" != "$$" ]; then
+                echo "Stopping matching admin jar process: $pid"
+                kill "$pid" || true
+              fi
+            done || true
             sleep 2
 
             docker --version
