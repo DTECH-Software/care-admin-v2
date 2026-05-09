@@ -84,6 +84,7 @@ jobs:
             APP_NAME="${{ env.APP_NAME }}"
             SERVICE_DIR="${{ secrets.UAT_DEPLOY_DIR }}/${{ env.SERVICE_DIR }}"
             PID_FILE="$SERVICE_DIR/${APP_NAME}.pid"
+            JAVA_HEAP_OPTS="-Xms256m -Xmx768m"
             cd "$SERVICE_DIR"
 
             LATEST_JAR_PATH="$(find "$SERVICE_DIR" -type f -name "*.jar" | sort | tail -n 1)"
@@ -102,11 +103,11 @@ jobs:
               rm -f "$PID_FILE"
             fi
 
-            if pgrep -f "java -jar $LATEST_JAR_PATH" >/dev/null 2>&1; then
-              pkill -f "java -jar $LATEST_JAR_PATH" || true
+            if pgrep -f "$LATEST_JAR_PATH" >/dev/null 2>&1; then
+              pkill -f "$LATEST_JAR_PATH" || true
             fi
             sleep 2
 
-            nohup java -jar "$LATEST_JAR_PATH" --spring.profiles.active=uat > "$SERVICE_DIR/${APP_NAME}.log" 2>&1 &
+            nohup java $JAVA_HEAP_OPTS -jar "$LATEST_JAR_PATH" --spring.profiles.active=uat > "$SERVICE_DIR/${APP_NAME}.log" 2>&1 &
             echo $! > "$PID_FILE"
-            echo "Started ${APP_NAME} using $LATEST_JAR_PATH with profile=uat (pid $(cat "$PID_FILE"))"
+            echo "Started ${APP_NAME} using $LATEST_JAR_PATH with ${JAVA_HEAP_OPTS}, profile=uat (pid $(cat "$PID_FILE"))"
