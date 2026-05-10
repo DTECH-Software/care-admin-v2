@@ -4,6 +4,7 @@ services:
       context: .
     image: care/care-admin:uat
     container_name: care-admin
+    mem_limit: 1g
     ports:
       - "8090:8090"
     environment:
