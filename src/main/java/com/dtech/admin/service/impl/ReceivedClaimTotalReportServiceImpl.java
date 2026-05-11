@@ -207,7 +207,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
 
         long received = claims.size();
         long settled = claims.stream()
-                .filter(claim -> Workflow.APPROVED.equals(claim.getRequestStatus()))
+                .filter(claim -> isSettledStatus(claim.getRequestStatus()))
                 .count();
         long rejected = claims.stream()
                 .filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus()))
@@ -245,7 +245,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             }
             ClaimCount count = counts.get(group);
             count.received++;
-            if (claim != null && Workflow.APPROVED.equals(claim.getRequestStatus())) {
+            if (claim != null && isSettledStatus(claim.getRequestStatus())) {
                 count.settled++;
             }
         }
@@ -267,7 +267,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             }
             ClaimCount count = counts.get(group);
             count.received++;
-            if (Workflow.APPROVED.equals(claim.getRequestStatus())) {
+            if (isSettledStatus(claim.getRequestStatus())) {
                 count.settled++;
             }
         }
@@ -280,7 +280,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
 
         long received = claims.size();
         long settled = claims.stream()
-                .filter(claim -> Workflow.APPROVED.equals(claim.getRequestStatus()))
+                .filter(claim -> isSettledStatus(claim.getRequestStatus()))
                 .count();
 
         return List.of(new ReceivedClaimTotalReportRowDTO(
@@ -309,6 +309,10 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                 ""
         )));
         return rows;
+    }
+
+    private boolean isSettledStatus(Workflow status) {
+        return Workflow.APPROVED.equals(status) || Workflow.REJECTED.equals(status);
     }
 
     private String resolveMedicalGroup(InsuranceClaimsRequest claim) {
