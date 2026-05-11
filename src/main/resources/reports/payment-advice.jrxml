@@ -61,7 +61,7 @@
     </title>
 
     <pageHeader>
-        <band height="140">
+        <band height="176">
             <image>
                 <reportElement x="0" y="-25" width="150" height="150"/>
                 <imageExpression><![CDATA[$P{logo}]]></imageExpression>
@@ -84,7 +84,7 @@
             </staticText>
 
             <frame>
-                <reportElement x="0" y="70" width="555" height="70"/>
+                <reportElement x="0" y="70" width="555" height="106"/>
                 <box>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </box>
@@ -102,7 +102,7 @@
                     </graphicElement>
                 </line>
                 <line>
-                    <reportElement x="325" y="0" width="1" height="70"/>
+                    <reportElement x="325" y="0" width="1" height="50"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
@@ -114,7 +114,7 @@
                     </graphicElement>
                 </line>
                 <line>
-                    <reportElement x="495" y="50" width="1" height="20"/>
+                    <reportElement x="495" y="50" width="1" height="56"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
@@ -141,16 +141,17 @@
                     <textFieldExpression><![CDATA["Date: " + $P{adviceDate}]]></textFieldExpression>
                 </textField>
 
-                <textField>
-                    <reportElement x="6" y="54" width="318" height="14" style="Base"/>
+                <textField textAdjust="StretchHeight">
+                    <reportElement x="6" y="54" width="489" height="48" style="Base"/>
+                    <textElement verticalAlignment="Top"/>
                     <textFieldExpression><![CDATA["Details/Description: " + $P{description}]]></textFieldExpression>
                 </textField>
                 <staticText>
-                    <reportElement x="330" y="54" width="165" height="14" style="Label"/>
+                    <reportElement x="330" y="88" width="165" height="14" style="Label"/>
                     <text><![CDATA[]]></text>
                 </staticText>
                 <staticText>
-                    <reportElement x="500" y="54" width="55" height="14" style="Label"/>
+                    <reportElement x="500" y="88" width="55" height="14" style="Label"/>
                     <text><![CDATA[Amount (Rs)]]></text>
                 </staticText>
             </frame>
