@@ -40,7 +40,7 @@ public class LeftEmployeeReportSpecification {
             predicates.add(cb.isNotNull(companyDetailsJoin.get("terminateDate")));
             List<Status> statuses = resolveStatuses(filterDto.getStatus());
             if (statuses.isEmpty()) {
-                statuses = List.of(Status.ACTIVE, Status.INACTIVE);
+                statuses = List.of(Status.INACTIVE);
             }
             predicates.add(root.get("userStatus").in(statuses));
 
@@ -85,7 +85,7 @@ public class LeftEmployeeReportSpecification {
                     root.join("userCompanyDetails", JoinType.LEFT);
             return cb.and(
                     cb.isNotNull(companyDetailsJoin.get("terminateDate")),
-                    root.get("userStatus").in(List.of(Status.ACTIVE, Status.INACTIVE))
+                    cb.equal(root.get("userStatus"), Status.INACTIVE)
             );
         };
     }
