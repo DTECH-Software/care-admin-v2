@@ -240,8 +240,10 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
                     if(claim.getRequestStatus().equals(Workflow.APPROVED)) {
                         messageType = MessageType.DEATH_APPROVAL;
                         otherMark = String.valueOf(claim.getApprovedAmount());
-                        claim.getClaimsDependents().setLiveStatus(false);
-                        claimDependentsRepository.saveAndFlush(claim.getClaimsDependents());
+                        if (claim.getClaimsDependents() != null) {
+                            claim.getClaimsDependents().setLiveStatus(false);
+                            claimDependentsRepository.saveAndFlush(claim.getClaimsDependents());
+                        }
                     }
 
                     notifyMessage(claim.getEmployee().getPrimaryMobile(), claim.getRequestId(),messageType,otherMark);
