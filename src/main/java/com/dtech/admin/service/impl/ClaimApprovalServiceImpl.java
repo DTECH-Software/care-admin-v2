@@ -1011,8 +1011,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             return null;
         }
 
-        InsuranceStaffCategoryPeriod previousPeriod = null;
-        if (changeDate != null) {
+        InsuranceStaffCategoryPeriod previousPeriod = resolvePreviousPeriodFromClaimHistory(
+                applicationUser,
+                treatmentCode,
+                currentPeriod);
+        if (previousPeriod == null && changeDate != null) {
             previousPeriod = insuranceStaffCategoryPeriodRepository
                     .findByDateWithinRangeAnyStaff(changeDate)
                     .stream()
@@ -1023,9 +1026,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     .orElse(null);
         }
 
-        return previousPeriod != null
-                ? previousPeriod
-                : resolvePreviousPeriodFromClaimHistory(applicationUser, treatmentCode, currentPeriod);
+        return previousPeriod;
     }
 
     private InsuranceStaffCategoryPeriod resolvePreviousPeriodFromClaimHistory(ApplicationUser applicationUser,

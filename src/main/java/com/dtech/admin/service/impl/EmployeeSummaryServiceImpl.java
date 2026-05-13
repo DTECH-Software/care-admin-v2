@@ -440,8 +440,11 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                     java.util.Date changeDate = previousPermanentDate != null
                             ? employee.getUserPersonalDetails().getUserCompanyDetails().getPermanentDate()
                             : null;
-                    InsuranceStaffCategoryPeriod prevPeriod = null;
-                    if (changeDate != null && period.getStaffCategories() != null) {
+                    InsuranceStaffCategoryPeriod prevPeriod = resolvePreviousPeriodFromClaimHistory(
+                            employee,
+                            limit.getTreatment().getTreatmentCode(),
+                            period);
+                    if (prevPeriod == null && changeDate != null && period.getStaffCategories() != null) {
                         prevPeriod = insuranceStaffCategoryPeriodRepository
                                 .findByDateWithinRangeAnyStaff(changeDate)
                                 .stream()
@@ -450,12 +453,6 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                         .equals(period.getStaffCategories().getCode()))
                                 .findFirst()
                                 .orElse(null);
-                    }
-                    if (prevPeriod == null) {
-                        prevPeriod = resolvePreviousPeriodFromClaimHistory(
-                                employee,
-                                limit.getTreatment().getTreatmentCode(),
-                                period);
                     }
                     final InsuranceStaffCategoryPeriod finalPrevPeriod = prevPeriod;
                     return buildCategoryAvailableLimitMap(limit, employee, period.getId(), finalPrevPeriod, quarterLookupDate)
