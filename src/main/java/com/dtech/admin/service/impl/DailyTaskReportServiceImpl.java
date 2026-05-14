@@ -501,7 +501,10 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 .forEach(entry -> grouped.computeIfAbsent(entry.user(), ignored -> new ArrayList<>()).add(entry.value()));
 
         String details = grouped.entrySet().stream()
-                .map(entry -> entry.getKey() + " - (" + entry.getValue().stream().distinct().collect(Collectors.joining(", ")) + ")")
+                .map(entry -> {
+                    List<String> values = entry.getValue().stream().distinct().toList();
+                    return entry.getKey() + " - " + values.size() + " (" + String.join(", ", values) + ")";
+                })
                 .collect(Collectors.joining("\n"));
         long count = grouped.values().stream().mapToLong(values -> values.stream().distinct().count()).sum();
         return new DailyTaskReportStageDTO(count, details);
