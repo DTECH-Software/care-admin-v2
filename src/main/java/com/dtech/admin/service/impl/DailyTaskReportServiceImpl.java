@@ -325,8 +325,10 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
 
         List<DeathClaimRequest> approvedClaims = workflowClaimsDeath(allClaims,
                 Set.of(ApprovalLevel.LEVEL02), Set.of(Workflow.APPROVED), dateRange);
-        DailyTaskReportStageDTO haveToHandoverToAuthorizedPerson = stageFromIds(approvedClaims.stream()
+        List<DeathClaimRequest> paymentPendingClaims = approvedClaims.stream()
                 .filter(claim -> !paymentAdviceDeathClaimRepository.existsByDeathClaim(claim))
+                .toList();
+        DailyTaskReportStageDTO haveToHandoverToAuthorizedPerson = stageFromIds(paymentPendingClaims.stream()
                 .map(DeathClaimRequest::getRequestId)
                 .toList());
 
@@ -369,7 +371,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setHandoverToFinalCheck(paymentAdviceChecked);
         row.setHaveToCompleteFinalCheck(haveToCompleteFinalCheck);
         row.setFinalCheckComplete(finalCheckComplete);
-        row.setHaveToPreparePayment(haveToHandoverToAuthorizedPerson);
+        row.setHaveToPreparePayment(stageFromStaffSummaryDeath(paymentPendingClaims));
         row.setHaveToCheckedPaymentAdviceAndFundTransfer(new DailyTaskReportStageDTO(Math.max(0, deathAdvices.size() - ddfChequePayments.size()), ""));
         row.setPaymentAdviceAndFundTransferChecked(paymentAdviceChecked);
         row.setReturnedClaims(receivedClaims.stream().filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus())).count());
