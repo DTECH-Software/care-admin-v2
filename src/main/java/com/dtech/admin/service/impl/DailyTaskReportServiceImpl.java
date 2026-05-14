@@ -316,6 +316,12 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
         long pendingRequirementClaims = workflowClaimsDeath(allClaims, ApprovalLevel.LEVEL01,
                 Set.of(Workflow.REJECTED), dateRange).size();
+        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromStaffSummaryDeath(receivedClaims.stream()
+                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .filter(claim -> ApprovalLevel.LEVEL02.equals(claim.getApprovalLevel()))
+                .toList());
+        DailyTaskReportStageDTO finalCheckComplete = workflowStageDeath(allClaims,
+                Set.of(ApprovalLevel.LEVEL02), Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
 
         List<DeathClaimRequest> approvedClaims = workflowClaimsDeath(allClaims,
                 Set.of(ApprovalLevel.LEVEL02), Set.of(Workflow.APPROVED), dateRange);
@@ -349,16 +355,21 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setStaffType(DDF_STAFF_TYPE);
         row.setDate(dateRange.periodText());
         row.setClaimsReceived(receivedClaims.size());
+        row.setClaimsReceivedDetails(formatStaffSummary(countDeathClaimsByStaff(receivedClaims)));
         row.setNotYetProcessed(countUnderReviewAtLevelDeath(receivedClaims, ApprovalLevel.LEVEL01));
+        row.setNotYetProcessedDetails(formatStaffSummary(countDeathClaimsByStaff(receivedClaims.stream()
+                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .filter(claim -> ApprovalLevel.LEVEL01.equals(claim.getApprovalLevel()))
+                .toList())));
         row.setFirstCheckComplete(firstCheckComplete);
         row.setPendingRequirementClaims(pendingRequirementClaims);
         row.setHaveToHandoverToAuthorizedPerson(haveToHandoverToAuthorizedPerson);
         row.setHandoverToAuthorizedPerson(handoverToAuthorizedPerson);
         row.setHaveToHandoverToFinalCheck(emptyStage());
         row.setHandoverToFinalCheck(paymentAdviceChecked);
-        row.setHaveToCompleteFinalCheck(emptyStage());
-        row.setFinalCheckComplete(paymentAdviceChecked);
-        row.setHaveToPreparePayment(new DailyTaskReportStageDTO(Math.max(0, deathAdvices.size() - ddfChequePayments.size()), ""));
+        row.setHaveToCompleteFinalCheck(haveToCompleteFinalCheck);
+        row.setFinalCheckComplete(finalCheckComplete);
+        row.setHaveToPreparePayment(haveToHandoverToAuthorizedPerson);
         row.setHaveToCheckedPaymentAdviceAndFundTransfer(new DailyTaskReportStageDTO(Math.max(0, deathAdvices.size() - ddfChequePayments.size()), ""));
         row.setPaymentAdviceAndFundTransferChecked(paymentAdviceChecked);
         row.setReturnedClaims(receivedClaims.stream().filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus())).count());
@@ -393,6 +404,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         DailyTaskDdfRowDTO row = new DailyTaskDdfRowDTO();
         row.setStaffType(DDF_STAFF_TYPE);
         row.setDate(dateRange.periodText());
+        row.setClaimsReceivedDetails(formatStaffSummary(emptyStaffCountMap()));
+        row.setNotYetProcessedDetails(formatStaffSummary(emptyStaffCountMap()));
         row.setFirstCheckComplete(emptyStage());
         row.setHaveToHandoverToAuthorizedPerson(emptyStage());
         row.setHandoverToAuthorizedPerson(emptyStage());
@@ -446,8 +459,15 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                                                        ApprovalLevel level,
                                                        Set<Workflow> statuses,
                                                        DateRange dateRange) {
+        return workflowStageDeath(claims, Set.of(level), statuses, dateRange);
+    }
+
+    private DailyTaskReportStageDTO workflowStageDeath(List<DeathClaimRequest> claims,
+                                                       Set<ApprovalLevel> levels,
+                                                       Set<Workflow> statuses,
+                                                       DateRange dateRange) {
         return stageByUser(claims.stream()
-                .flatMap(claim -> matchingWorkflows(claim.getApprovalWorkFlows(), Set.of(level), statuses, dateRange).stream()
+                .flatMap(claim -> matchingWorkflows(claim.getApprovalWorkFlows(), levels, statuses, dateRange).stream()
                         .map(workflow -> new StageEntry(resolveApprovedUser(workflow), claim.getRequestId())))
                 .toList());
     }
@@ -525,9 +545,24 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         return new DailyTaskReportStageDTO(total, formatStaffSummary(counts));
     }
 
+    private DailyTaskReportStageDTO stageFromStaffSummaryDeath(List<DeathClaimRequest> claims) {
+        Map<String, Long> counts = countDeathClaimsByStaff(claims);
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        return new DailyTaskReportStageDTO(total, formatStaffSummary(counts));
+    }
+
     private Map<String, Long> countClaimsByStaff(List<InsuranceClaimsRequest> claims) {
         Map<String, Long> counts = emptyStaffCountMap();
         Objects.requireNonNullElse(claims, List.<InsuranceClaimsRequest>of()).forEach(claim -> {
+            String label = resolveStaffLabel(resolveStaffCategoryCode(claim));
+            counts.computeIfPresent(label, (key, value) -> value + 1);
+        });
+        return counts;
+    }
+
+    private Map<String, Long> countDeathClaimsByStaff(List<DeathClaimRequest> claims) {
+        Map<String, Long> counts = emptyStaffCountMap();
+        Objects.requireNonNullElse(claims, List.<DeathClaimRequest>of()).forEach(claim -> {
             String label = resolveStaffLabel(resolveStaffCategoryCode(claim));
             counts.computeIfPresent(label, (key, value) -> value + 1);
         });
@@ -568,6 +603,17 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
             return claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
         }
         return null;
+    }
+
+    private String resolveStaffCategoryCode(DeathClaimRequest claim) {
+        if (claim == null
+                || claim.getEmployee() == null
+                || claim.getEmployee().getUserPersonalDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories() == null) {
+            return null;
+        }
+        return claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
     }
 
     private String resolveStaffLabel(String staffCategoryCode) {
@@ -825,35 +871,25 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         headerRow.setHeightInPoints(55);
         String[] headers = {
                 "Staff Type", "Date", "Claims Received", "Not Yet Processed", "1st Check Complete",
-                "Pending requirement claims", "Have to Handover to authorized person", "Handover to Authorized person",
-                "Have to Handover to final check", "Handover to final check", "Have to complete final check",
-                "Final Check Complete (Claims)", "Have to Prepare Payment", "Have to checked Payment advise & fund transfer",
-                "Payment advise & fund transfer checked", "Returned claims", "Have to Payments Completed", "Payments Completed",
-                "Other Works"
+                "Have to complete final check", "Final check complete", "Have to Prepare Payment",
+                "Prepare Payment", "Have to Payments Completed", "Payments Completed", "Other Works"
         };
         writeHeaders(headerRow, headers, headerStyle);
 
         Row row = sheet.createRow(startRow++);
-        row.setHeightInPoints(55);
+        row.setHeightInPoints(110);
         writeCell(row, 0, rowDTO.getStaffType(), staffStyle);
         writeCell(row, 1, rowDTO.getDate(), bodyStyle);
-        writeCell(row, 2, formatCount(rowDTO.getClaimsReceived()), bodyStyle);
-        writeCell(row, 3, formatCount(rowDTO.getNotYetProcessed()), bodyStyle);
+        writeCell(row, 2, rowDTO.getClaimsReceivedDetails(), bodyStyle);
+        writeCell(row, 3, rowDTO.getNotYetProcessedDetails(), bodyStyle);
         writeCell(row, 4, stageText(rowDTO.getFirstCheckComplete()), bodyStyle);
-        writeCell(row, 5, formatCount(rowDTO.getPendingRequirementClaims()), bodyStyle);
-        writeCell(row, 6, stageText(rowDTO.getHaveToHandoverToAuthorizedPerson()), bodyStyle);
-        writeCell(row, 7, stageText(rowDTO.getHandoverToAuthorizedPerson()), bodyStyle);
-        writeCell(row, 8, stageText(rowDTO.getHaveToHandoverToFinalCheck()), bodyStyle);
-        writeCell(row, 9, stageText(rowDTO.getHandoverToFinalCheck()), bodyStyle);
-        writeCell(row, 10, stageText(rowDTO.getHaveToCompleteFinalCheck()), bodyStyle);
-        writeCell(row, 11, stageText(rowDTO.getFinalCheckComplete()), bodyStyle);
-        writeCell(row, 12, stageText(rowDTO.getHaveToPreparePayment()), bodyStyle);
-        writeCell(row, 13, stageText(rowDTO.getHaveToCheckedPaymentAdviceAndFundTransfer()), bodyStyle);
-        writeCell(row, 14, stageText(rowDTO.getPaymentAdviceAndFundTransferChecked()), bodyStyle);
-        writeCell(row, 15, formatCount(rowDTO.getReturnedClaims()), bodyStyle);
-        writeCell(row, 16, stageText(rowDTO.getHaveToPaymentsCompleted()), bodyStyle);
-        writeCell(row, 17, stageText(rowDTO.getPaymentsCompleted()), bodyStyle);
-        writeCell(row, 18, rowDTO.getOtherWorks(), bodyStyle);
+        writeCell(row, 5, stageText(rowDTO.getHaveToCompleteFinalCheck()), bodyStyle);
+        writeCell(row, 6, stageText(rowDTO.getFinalCheckComplete()), bodyStyle);
+        writeCell(row, 7, stageText(rowDTO.getHaveToPreparePayment()), bodyStyle);
+        writeCell(row, 8, stageText(rowDTO.getHandoverToAuthorizedPerson()), bodyStyle);
+        writeCell(row, 9, stageText(rowDTO.getHaveToPaymentsCompleted()), bodyStyle);
+        writeCell(row, 10, stageText(rowDTO.getPaymentsCompleted()), bodyStyle);
+        writeCell(row, 11, rowDTO.getOtherWorks(), bodyStyle);
         return startRow;
     }
 
