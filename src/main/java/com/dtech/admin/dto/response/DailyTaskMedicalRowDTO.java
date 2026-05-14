@@ -7,7 +7,9 @@ public class DailyTaskMedicalRowDTO {
     private String staffType;
     private String date;
     private long claimsReceived;
+    private String claimsReceivedDetails;
     private long notYetProcessed;
+    private String notYetProcessedDetails;
     private DailyTaskReportStageDTO firstCheckComplete;
     private long pendingRequirementClaims;
     private DailyTaskReportStageDTO haveToPreparePaymentAttachments;

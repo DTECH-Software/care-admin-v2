@@ -92,6 +92,13 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
     private static final String CLAIM_TYPE_DEATH = "DEATH";
     private static final String MEDICAL_STAFF_TYPE = "All Staff";
     private static final String DDF_STAFF_TYPE = "DDF";
+    private static final List<StaffGroup> MEDICAL_STAFF_GROUPS = List.of(
+            new StaffGroup("NS", "Normal staff"),
+            new StaffGroup("EX-OP1", "Executive Op 01"),
+            new StaffGroup("EX-OP2", "Executive Op 02"),
+            new StaffGroup("MM", "Middle Management"),
+            new StaffGroup("SNR", "Senior staff")
+    );
 
     @Autowired
     private final MessageSource messageSource;
@@ -231,50 +238,24 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
 
         DailyTaskReportStageDTO firstCheckComplete = workflowStage(allClaims, ApprovalLevel.LEVEL01,
                 Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
-        long pendingRequirementClaims = workflowClaims(allClaims, ApprovalLevel.LEVEL01,
-                Set.of(Workflow.REJECTED), dateRange).size();
 
-        List<InsuranceClaimsRequest> finalApprovedClaims = workflowClaims(allClaims,
-                Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03), Set.of(Workflow.APPROVED), dateRange);
-        DailyTaskReportStageDTO haveToPreparePaymentAttachments = stageFromIds(finalApprovedClaims.stream()
+        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromStaffSummary(receivedClaims.stream()
+                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .filter(claim -> Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03).contains(claim.getApprovalLevel()))
+                .toList());
+
+        List<InsuranceClaimsRequest> finalDecisionClaims = workflowClaims(allClaims,
+                Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03), Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
+        DailyTaskReportStageDTO haveToPreparePaymentAttachments = stageFromStaffSummary(finalDecisionClaims.stream()
                 .filter(claim -> !paymentAttachmentClaimRepository.existsByInsuranceClaimsRequestAndState(
                         claim, PaymentAttachmentClaimState.ACTIVE))
-                .map(InsuranceClaimsRequest::getRequestId)
                 .toList());
 
         List<PaymentAttachmentClaim> createdAttachmentClaims = paymentAttachmentClaimRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
                 .filter(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search))
                 .toList();
-        DailyTaskReportStageDTO preparePaymentAttachments = stageByUser(createdAttachmentClaims.stream()
-                .map(claim -> new StageEntry(resolveCreatedUser(claim.getPaymentAttachment()), claim.getRequestId()))
-                .toList());
-
-        List<PaymentAttachment> createdAttachments = paymentAttachmentRepository
-                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(attachment -> attachment.getClaims().stream()
-                        .anyMatch(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search)))
-                .toList();
-        DailyTaskReportStageDTO haveToHandoverForFinalCheck = stageFromIds(createdAttachments.stream()
-                .filter(attachment -> PaymentAttachmentStatus.DRAFT.equals(attachment.getStatus()))
-                .map(PaymentAttachment::getAttachmentNo)
-                .toList());
-
-        List<PaymentAttachment> finalizedAttachments = paymentAttachmentRepository
-                .findAllByLastModifiedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(attachment -> PaymentAttachmentStatus.FINALIZED.equals(attachment.getStatus()))
-                .filter(attachment -> attachment.getClaims().stream()
-                        .anyMatch(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search)))
-                .toList();
-        DailyTaskReportStageDTO handoverForFinalCheck = stageByUser(finalizedAttachments.stream()
-                .map(attachment -> new StageEntry(resolveLastModifiedUser(attachment),
-                        attachment.getAttachmentNo()))
-                .toList());
-
-        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromIds(finalizedAttachments.stream()
-                .filter(attachment -> !paymentAdviceAttachmentRepository.existsByPaymentAttachment(attachment))
-                .map(PaymentAttachment::getAttachmentNo)
-                .toList());
+        DailyTaskReportStageDTO preparePaymentAttachments = stagePaymentAttachments(createdAttachmentClaims);
 
         List<PaymentAdviceAttachment> adviceAttachments = paymentAdviceAttachmentRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
@@ -282,35 +263,40 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 .filter(adviceAttachment -> adviceAttachment.getPaymentAttachment().getClaims().stream()
                         .anyMatch(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search)))
                 .toList();
-        DailyTaskReportStageDTO finalCheckComplete = stageByUser(adviceAttachments.stream()
-                .map(adviceAttachment -> new StageEntry(resolveCreatedUser(adviceAttachment.getPaymentAdvice()),
-                        adviceAttachment.getAttachmentNo()))
-                .toList());
+        DailyTaskReportStageDTO paymentsCompleted = stagePaymentAdvices(adviceAttachments);
 
-        List<PaymentAdvice> medicalAdvices = paymentAdviceRepository
-                .findAllByCreatedDateBetweenAndType(dateRange.startOfDay(), dateRange.endOfDay(), PaymentAdviceType.MEDICAL);
-        List<ChequePayment> chequePayments = chequePaymentRepository
-                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay());
-        DailyTaskReportStageDTO paymentsCompleted = stageByUser(chequePayments.stream()
-                .map(payment -> new StageEntry(resolveCreatedUser(payment), payment.getChequeNo()))
-                .toList());
+        List<PaymentAttachmentClaim> pendingPaymentClaims = paymentAttachmentClaimRepository.findAll().stream()
+                .filter(claim -> PaymentAttachmentClaimState.ACTIVE.equals(claim.getState()))
+                .filter(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search))
+                .filter(claim -> claim.getPaymentAttachment() != null)
+                .filter(claim -> !paymentAdviceAttachmentRepository.existsByPaymentAttachment(claim.getPaymentAttachment()))
+                .toList();
 
         DailyTaskMedicalRowDTO row = new DailyTaskMedicalRowDTO();
         row.setStaffType(MEDICAL_STAFF_TYPE);
         row.setDate(dateRange.periodText());
         row.setClaimsReceived(receivedClaims.size());
+        row.setClaimsReceivedDetails(formatStaffSummary(countClaimsByStaff(receivedClaims)));
         row.setNotYetProcessed(countUnderReviewAtLevel(receivedClaims, ApprovalLevel.LEVEL01));
+        row.setNotYetProcessedDetails(formatStaffSummary(countClaimsByStaff(receivedClaims.stream()
+                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .filter(claim -> ApprovalLevel.LEVEL01.equals(claim.getApprovalLevel()))
+                .toList())));
         row.setFirstCheckComplete(firstCheckComplete);
-        row.setPendingRequirementClaims(pendingRequirementClaims);
+        row.setPendingRequirementClaims(0);
         row.setHaveToPreparePaymentAttachments(haveToPreparePaymentAttachments);
         row.setPreparePaymentAttachments(preparePaymentAttachments);
-        row.setHaveToHandoverForFinalCheck(haveToHandoverForFinalCheck);
-        row.setHandoverForFinalCheck(handoverForFinalCheck);
+        row.setHaveToHandoverForFinalCheck(emptyStage());
+        row.setHandoverForFinalCheck(emptyStage());
         row.setHaveToCompleteFinalCheck(haveToCompleteFinalCheck);
-        row.setFinalCheckComplete(finalCheckComplete);
+        row.setFinalCheckComplete(workflowStage(allClaims,
+                Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03), Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange));
         row.setHaveToInputToCurrentSystem(emptyStage());
         row.setInputToCurrentSystem(emptyStage());
-        row.setHaveToPaymentsComplete(new DailyTaskReportStageDTO(Math.max(0, medicalAdvices.size() - chequePayments.size()), ""));
+        row.setHaveToPaymentsComplete(stageFromStaffSummary(pendingPaymentClaims.stream()
+                .map(PaymentAttachmentClaim::getInsuranceClaimsRequest)
+                .filter(Objects::nonNull)
+                .toList()));
         row.setPaymentsCompleted(paymentsCompleted);
         row.setOtherWorks(search != null ? search.getMedicalOtherWorks() : null);
         return row;
@@ -386,6 +372,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         DailyTaskMedicalRowDTO row = new DailyTaskMedicalRowDTO();
         row.setStaffType(MEDICAL_STAFF_TYPE);
         row.setDate(dateRange.periodText());
+        row.setClaimsReceivedDetails(formatStaffSummary(emptyStaffCountMap()));
+        row.setNotYetProcessedDetails(formatStaffSummary(emptyStaffCountMap()));
         row.setFirstCheckComplete(emptyStage());
         row.setHaveToPreparePaymentAttachments(emptyStage());
         row.setPreparePaymentAttachments(emptyStage());
@@ -425,8 +413,15 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                                                   ApprovalLevel level,
                                                   Set<Workflow> statuses,
                                                   DateRange dateRange) {
+        return workflowStage(claims, Set.of(level), statuses, dateRange);
+    }
+
+    private DailyTaskReportStageDTO workflowStage(List<InsuranceClaimsRequest> claims,
+                                                  Set<ApprovalLevel> levels,
+                                                  Set<Workflow> statuses,
+                                                  DateRange dateRange) {
         return stageByUser(claims.stream()
-                .flatMap(claim -> matchingWorkflows(claim.getApprovalWorkFlows(), Set.of(level), statuses, dateRange).stream()
+                .flatMap(claim -> matchingWorkflows(claim.getApprovalWorkFlows(), levels, statuses, dateRange).stream()
                         .map(workflow -> new StageEntry(resolveApprovedUser(workflow), claim.getRequestId())))
                 .toList());
     }
@@ -519,6 +514,122 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 .sorted()
                 .toList();
         return new DailyTaskReportStageDTO(distinct.size(), distinct.isEmpty() ? "" : "(" + String.join(", ", distinct) + ")");
+    }
+
+    private DailyTaskReportStageDTO stageFromStaffSummary(List<InsuranceClaimsRequest> claims) {
+        Map<String, Long> counts = countClaimsByStaff(claims);
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        return new DailyTaskReportStageDTO(total, formatStaffSummary(counts));
+    }
+
+    private Map<String, Long> countClaimsByStaff(List<InsuranceClaimsRequest> claims) {
+        Map<String, Long> counts = emptyStaffCountMap();
+        Objects.requireNonNullElse(claims, List.<InsuranceClaimsRequest>of()).forEach(claim -> {
+            String label = resolveStaffLabel(resolveStaffCategoryCode(claim));
+            counts.computeIfPresent(label, (key, value) -> value + 1);
+        });
+        return counts;
+    }
+
+    private Map<String, Long> emptyStaffCountMap() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        MEDICAL_STAFF_GROUPS.forEach(group -> counts.put(group.label(), 0L));
+        return counts;
+    }
+
+    private String formatStaffSummary(Map<String, Long> counts) {
+        Map<String, Long> safeCounts = counts != null ? counts : emptyStaffCountMap();
+        return MEDICAL_STAFF_GROUPS.stream()
+                .map(group -> group.label() + ": " + safeCounts.getOrDefault(group.label(), 0L))
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String resolveStaffCategoryCode(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return null;
+        }
+        if (claim.getInsuranceDetailsLimit() != null
+                && claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod() != null
+                && claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod().getStaffCategories() != null) {
+            return claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod().getStaffCategories().getCode();
+        }
+        if (claim.getInsuranceClaimsDetails() != null
+                && claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod() != null
+                && claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod().getStaffCategories() != null) {
+            return claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod().getStaffCategories().getCode();
+        }
+        if (claim.getEmployee() != null
+                && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories() != null) {
+            return claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
+        }
+        return null;
+    }
+
+    private String resolveStaffLabel(String staffCategoryCode) {
+        if (!hasText(staffCategoryCode)) {
+            return MEDICAL_STAFF_GROUPS.get(0).label();
+        }
+        String normalized = staffCategoryCode.trim().toUpperCase(Locale.ROOT);
+        return MEDICAL_STAFF_GROUPS.stream()
+                .filter(group -> group.code().equalsIgnoreCase(normalized))
+                .map(StaffGroup::label)
+                .findFirst()
+                .orElse(MEDICAL_STAFF_GROUPS.get(0).label());
+    }
+
+    private DailyTaskReportStageDTO stagePaymentAttachments(List<PaymentAttachmentClaim> claims) {
+        Map<String, Map<String, Long>> grouped = new LinkedHashMap<>();
+        Objects.requireNonNullElse(claims, List.<PaymentAttachmentClaim>of()).stream()
+                .filter(claim -> claim.getPaymentAttachment() != null)
+                .forEach(claim -> {
+                    String user = resolveCreatedUser(claim.getPaymentAttachment());
+                    String attachmentNo = claim.getPaymentAttachment().getAttachmentNo();
+                    if (!hasText(attachmentNo)) {
+                        attachmentNo = claim.getRequestId();
+                    }
+                    if (!hasText(attachmentNo)) {
+                        return;
+                    }
+                    grouped.computeIfAbsent(user, ignored -> new LinkedHashMap<>())
+                            .merge(attachmentNo, 1L, Long::sum);
+                });
+        return stageFromGroupedReferenceCounts(grouped);
+    }
+
+    private DailyTaskReportStageDTO stagePaymentAdvices(List<PaymentAdviceAttachment> adviceAttachments) {
+        Map<String, Map<String, Long>> grouped = new LinkedHashMap<>();
+        Objects.requireNonNullElse(adviceAttachments, List.<PaymentAdviceAttachment>of()).stream()
+                .filter(adviceAttachment -> adviceAttachment.getPaymentAdvice() != null)
+                .filter(adviceAttachment -> adviceAttachment.getPaymentAttachment() != null)
+                .forEach(adviceAttachment -> {
+                    String user = resolveCreatedUser(adviceAttachment.getPaymentAdvice());
+                    String adviceNo = adviceAttachment.getPaymentAdvice().getAdviceNo();
+                    if (!hasText(adviceNo)) {
+                        adviceNo = adviceAttachment.getAttachmentNo();
+                    }
+                    long claimCount = adviceAttachment.getPaymentAttachment().getClaims() != null
+                            ? adviceAttachment.getPaymentAttachment().getClaims().stream()
+                            .filter(claim -> PaymentAttachmentClaimState.ACTIVE.equals(claim.getState()))
+                            .count()
+                            : 1L;
+                    grouped.computeIfAbsent(user, ignored -> new LinkedHashMap<>())
+                            .merge(adviceNo, Math.max(1L, claimCount), Long::sum);
+                });
+        return stageFromGroupedReferenceCounts(grouped);
+    }
+
+    private DailyTaskReportStageDTO stageFromGroupedReferenceCounts(Map<String, Map<String, Long>> grouped) {
+        long total = grouped.values().stream()
+                .flatMap(referenceCounts -> referenceCounts.values().stream())
+                .mapToLong(Long::longValue)
+                .sum();
+        String details = grouped.entrySet().stream()
+                .map(entry -> entry.getKey() + " - " + entry.getValue().values().stream().mapToLong(Long::longValue).sum()
+                        + " (" + String.join(", ", entry.getValue().keySet()) + ")")
+                .collect(Collectors.joining("\n"));
+        return new DailyTaskReportStageDTO(total, details);
     }
 
     private DailyTaskReportStageDTO emptyStage() {
@@ -673,10 +784,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         headerRow.setHeightInPoints(55);
         String[] headers = {
                 "Staff Type", "Date", "Claims Received", "Not Yet Processed", "1st Check Complete",
-                "Pending requirement claims", "Have to Prepare Payment attachments", "Prepare Payment attachments",
-                "Have to handover for final check", "Handover for final check", "Have to complete final check",
-                "Final check complete", "Have to Input to the current system", "Input to the current system",
-                "Have to payments complete", "Payments Completed", "Other Works"
+                "Have to complete final check", "Final check complete", "Have to Prepare Payment attachments",
+                "Prepare Payment attachments", "Have to Payments Completed", "Payments Completed", "Other Works"
         };
         writeHeaders(headerRow, headers, headerStyle);
 
@@ -684,21 +793,16 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setHeightInPoints(110);
         writeCell(row, 0, rowDTO.getStaffType(), staffStyle);
         writeCell(row, 1, rowDTO.getDate(), bodyStyle);
-        writeCell(row, 2, formatCount(rowDTO.getClaimsReceived()), bodyStyle);
-        writeCell(row, 3, formatCount(rowDTO.getNotYetProcessed()), bodyStyle);
+        writeCell(row, 2, rowDTO.getClaimsReceivedDetails(), bodyStyle);
+        writeCell(row, 3, rowDTO.getNotYetProcessedDetails(), bodyStyle);
         writeCell(row, 4, stageText(rowDTO.getFirstCheckComplete()), bodyStyle);
-        writeCell(row, 5, formatCount(rowDTO.getPendingRequirementClaims()), bodyStyle);
-        writeCell(row, 6, stageText(rowDTO.getHaveToPreparePaymentAttachments()), bodyStyle);
-        writeCell(row, 7, stageText(rowDTO.getPreparePaymentAttachments()), bodyStyle);
-        writeCell(row, 8, stageText(rowDTO.getHaveToHandoverForFinalCheck()), bodyStyle);
-        writeCell(row, 9, stageText(rowDTO.getHandoverForFinalCheck()), bodyStyle);
-        writeCell(row, 10, stageText(rowDTO.getHaveToCompleteFinalCheck()), bodyStyle);
-        writeCell(row, 11, stageText(rowDTO.getFinalCheckComplete()), bodyStyle);
-        writeCell(row, 12, stageText(rowDTO.getHaveToInputToCurrentSystem()), bodyStyle);
-        writeCell(row, 13, stageText(rowDTO.getInputToCurrentSystem()), bodyStyle);
-        writeCell(row, 14, stageText(rowDTO.getHaveToPaymentsComplete()), bodyStyle);
-        writeCell(row, 15, stageText(rowDTO.getPaymentsCompleted()), bodyStyle);
-        writeCell(row, 16, rowDTO.getOtherWorks(), bodyStyle);
+        writeCell(row, 5, stageText(rowDTO.getHaveToCompleteFinalCheck()), bodyStyle);
+        writeCell(row, 6, stageText(rowDTO.getFinalCheckComplete()), bodyStyle);
+        writeCell(row, 7, stageText(rowDTO.getHaveToPreparePaymentAttachments()), bodyStyle);
+        writeCell(row, 8, stageText(rowDTO.getPreparePaymentAttachments()), bodyStyle);
+        writeCell(row, 9, stageText(rowDTO.getHaveToPaymentsComplete()), bodyStyle);
+        writeCell(row, 10, stageText(rowDTO.getPaymentsCompleted()), bodyStyle);
+        writeCell(row, 11, rowDTO.getOtherWorks(), bodyStyle);
         return startRow;
     }
 
@@ -836,6 +940,9 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         private StageEntry {
             user = user != null && !user.isBlank() ? user : "Unknown";
         }
+    }
+
+    private record StaffGroup(String code, String label) {
     }
 
     private record DateRange(Date startOfDay, Date endOfDay) {
