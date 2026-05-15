@@ -225,7 +225,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             bucket.receivedClaims++;
             periodBucket.totalReceivedClaims++;
 
-            if (Workflow.REJECTED.equals(claim.getRequestStatus())) {
+            if (isRejectedOrPartiallyRejected(claim)) {
                 bucket.rejectedClaims++;
                 periodBucket.totalRejectedClaims++;
                 String reason = resolveReturnReason(ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim), remarkDictionary);
@@ -260,6 +260,19 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         dto.setCompanies(companyRows);
         dto.setPolicyPeriods(periodRows);
         return dto;
+    }
+
+    private boolean isRejectedOrPartiallyRejected(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return false;
+        }
+        if (Workflow.REJECTED.equals(claim.getRequestStatus())) {
+            return true;
+        }
+        return Workflow.APPROVED.equals(claim.getRequestStatus())
+                && claim.getRequestAmount() != null
+                && claim.getApprovedAmount() != null
+                && claim.getRequestAmount().compareTo(claim.getApprovedAmount()) != 0;
     }
 
     private boolean matchesFilters(InsuranceClaimsRequest claim,
