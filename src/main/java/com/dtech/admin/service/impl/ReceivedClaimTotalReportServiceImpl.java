@@ -119,7 +119,6 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             responseMap.put("privileges", privileges);
             responseMap.put("reportGroups", List.of(
                     new SimpleBaseDTO("NORMAL_STAFF", "Normal Staff Claims Received & Settlement Details"),
-                    new SimpleBaseDTO("THIRD_PARTY", "Medical Claims Received & Settlement Details"),
                     new SimpleBaseDTO("WECARE", "Wecare System Received Medical Claims Details"),
                     new SimpleBaseDTO("DDF", "DDF Claims Received & Settlement Details")
             ));
@@ -189,7 +188,6 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         dto.setPeriod(dateRange.periodText());
         dto.setMonthTitle(dateRange.monthTitle());
         dto.setNormalStaffClaims(buildNormalStaffRows(dateRange, search));
-        dto.setThirdPartyClaims(buildThirdPartyRows(dateRange));
         dto.setWecareClaims(buildWecareRows(dateRange));
         dto.setDdfClaims(buildDdfRows(dateRange));
         return dto;
@@ -210,7 +208,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                 .filter(claim -> isSettledStatus(claim.getRequestStatus()))
                 .count();
         long rejected = claims.stream()
-                .filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus()))
+                .filter(this::isRejectedOrPartiallyRejected)
                 .count();
         long underReview = claims.stream()
                 .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
@@ -315,6 +313,19 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         return Workflow.APPROVED.equals(status) || Workflow.REJECTED.equals(status);
     }
 
+    private boolean isRejectedOrPartiallyRejected(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return false;
+        }
+        if (Workflow.REJECTED.equals(claim.getRequestStatus())) {
+            return true;
+        }
+        return Workflow.APPROVED.equals(claim.getRequestStatus())
+                && claim.getRequestAmount() != null
+                && claim.getApprovedAmount() != null
+                && claim.getRequestAmount().compareTo(claim.getApprovedAmount()) != 0;
+    }
+
     private String resolveMedicalGroup(InsuranceClaimsRequest claim) {
         if (claim == null) {
             return null;
@@ -361,11 +372,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             int rowIndex = 2;
             rowIndex = writeNormalStaffSection(sheet, rowIndex,
                     "MEDICAL CLAIMS RECEIVED & SETTLEMENT DETAILS - " + report.getMonthTitle(),
-                    report.getNormalStaffClaims(), titleStyle, headerStyle, remarkHeaderStyle, bodyStyle);
-            rowIndex += 2;
-            rowIndex = writeSection(sheet, rowIndex,
-                    "MEDICAL CLAIMS RECEIVED & SETTLEMENT DETAILS - " + report.getMonthTitle(),
-                    report.getThirdPartyClaims(), titleStyle, headerStyle, remarkHeaderStyle, bodyStyle, remarkBodyStyle);
+                    report.getNormalStaffClaims(), titleStyle, headerStyle, bodyStyle);
             rowIndex += 2;
             rowIndex = writeSection(sheet, rowIndex,
                     "WECARE SYSTEM RECEIVED MEDICAL CLAIMS DETAILS - " + report.getMonthTitle(),
@@ -375,7 +382,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                     "DDF CLAIMS RECEIVED & SETTLEMENT DETAILS - " + report.getMonthTitle(),
                     report.getDdfClaims(), titleStyle, headerStyle, remarkHeaderStyle, bodyStyle, remarkBodyStyle);
 
-            int[] widths = {45, 28, 24, 28, 28, 24, 24, 22, 24};
+            int[] widths = {45, 28, 24, 28, 28, 24, 22, 24};
             for (int i = 0; i < widths.length; i++) {
                 sheet.setColumnWidth(i, widths[i] * 256);
             }
@@ -393,14 +400,13 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                                         ReceivedClaimTotalReportNormalStaffDTO rowDTO,
                                         CellStyle titleStyle,
                                         CellStyle headerStyle,
-                                        CellStyle yellowHeaderStyle,
                                         CellStyle bodyStyle) {
         Row titleRow = sheet.createRow(startRow);
         titleRow.setHeightInPoints(28);
         Cell titleCell = titleRow.createCell(0);
         titleCell.setCellValue(title);
         titleCell.setCellStyle(titleStyle);
-        sheet.addMergedRegion(new CellRangeAddress(startRow, startRow, 0, 8));
+        sheet.addMergedRegion(new CellRangeAddress(startRow, startRow, 0, 7));
 
         Row headerRow = sheet.createRow(startRow + 2);
         headerRow.setHeightInPoints(52);
@@ -411,14 +417,13 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                 "STILL PROCESSING CLAIMS",
                 "NO OF SETTLED CLAIMS",
                 "NO OF REJECTED CLAIMS",
-                "ASSUMING NO OF REJECT CLAIMS",
                 "NOT YET PROCESSED",
                 "NO OF SETTLED CLAIMS - WECARE"
         };
         for (int i = 0; i < headers.length; i++) {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
-            cell.setCellStyle(i == 6 ? yellowHeaderStyle : headerStyle);
+            cell.setCellStyle(headerStyle);
         }
 
         int rowIndex = startRow + 3;
@@ -431,9 +436,8 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
             writeCell(row, 3, rowDTO.getStillProcessingClaims(), bodyStyle);
             writeCell(row, 4, rowDTO.getSettledClaims(), bodyStyle);
             writeCell(row, 5, rowDTO.getRejectedClaims(), bodyStyle);
-            writeCell(row, 6, rowDTO.getAssumeRejectClaims(), bodyStyle);
-            writeCell(row, 7, rowDTO.getNotYetProcessedClaims(), bodyStyle);
-            writeCell(row, 8, rowDTO.getWecareSettledClaims(), bodyStyle);
+            writeCell(row, 6, rowDTO.getNotYetProcessedClaims(), bodyStyle);
+            writeCell(row, 7, rowDTO.getWecareSettledClaims(), bodyStyle);
         }
         return rowIndex;
     }

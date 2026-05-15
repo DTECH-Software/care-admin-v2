@@ -1,5 +1,6 @@
 package com.dtech.admin.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.util.List;
@@ -9,6 +10,7 @@ public class ReceivedClaimTotalReportResponseDTO {
     private String period;
     private String monthTitle;
     private ReceivedClaimTotalReportNormalStaffDTO normalStaffClaims;
+    @JsonIgnore
     private List<ReceivedClaimTotalReportRowDTO> thirdPartyClaims;
     private List<ReceivedClaimTotalReportRowDTO> wecareClaims;
     private List<ReceivedClaimTotalReportRowDTO> ddfClaims;
