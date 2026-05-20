@@ -62,7 +62,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "Policy Period To",
             "intimatedDate",
             "paidDate",
-            "nonPayableAmount",
             "nonPayableItem",
             "claimAmount",
             "Paid Amount",
@@ -77,7 +76,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "policyPeriodTo",
             "intimatedDate",
             "paidDate",
-            "nonPayableAmount",
             "claimAmount",
             "paidAmount"
     );
@@ -159,7 +157,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "companyCode and epfNo are used to identify the employee.",
                     "Policy Period From and Policy Period To are used to map the insurance period.",
                     "Paid Amount is entered manually.",
-                    "nonPayableItem is required when nonPayableAmount is greater than zero."
+                    "nonPayableAmount is calculated by the system as paidAmount - claimAmount.",
+                    "nonPayableItem is required when calculated nonPayableAmount is greater than zero."
             ));
 
             auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.REF_DATA.name(), AuditTask.GETTING_ALL_REFERENCE_DATA.getDescription(),
@@ -389,9 +388,9 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         Date toDate = getDate(row, headerIndex, "policyPeriodTo", formatter, errors);
         Date intimatedDate = getDate(row, headerIndex, "intimatedDate", formatter, errors);
         Date paidDate = getDate(row, headerIndex, "paidDate", formatter, errors);
-        BigDecimal nonPayableAmount = getBigDecimal(row, headerIndex, "nonPayableAmount", formatter, errors);
         BigDecimal claimAmount = getBigDecimal(row, headerIndex, "claimAmount", formatter, errors);
         BigDecimal approvedAmount = getBigDecimal(row, headerIndex, "paidAmount", formatter, errors);
+        BigDecimal nonPayableAmount = calculateNonPayableAmount(approvedAmount, claimAmount);
         Integer policyYear = null;
 
         if (!hasText(externalReferenceNo)) {
@@ -429,10 +428,6 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
 
         if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) < 0) {
             errors.add("paidAmount cannot be negative");
-        }
-
-        if (nonPayableAmount != null && nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
-            errors.add("nonPayableAmount cannot be negative");
         }
 
         if (nonPayableAmount != null
@@ -513,6 +508,13 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 nonPayableAmount, trimToNull(nonPayableItem), claimAmount, approvedAmount,
                 trimToNull(remark), status, errors, employee, insurancePeriod, insuranceDetailsLimit,
                 insuranceQuarter, treatment, treatmentCategory);
+    }
+
+    private BigDecimal calculateNonPayableAmount(BigDecimal paidAmount, BigDecimal claimAmount) {
+        if (paidAmount == null || claimAmount == null) {
+            return null;
+        }
+        return paidAmount.subtract(claimAmount);
     }
 
     private InsuranceClaimsRequest createImportedClaim(RowValidation rowValidation, String username) {
