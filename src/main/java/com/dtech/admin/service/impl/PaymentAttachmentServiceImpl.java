@@ -1127,6 +1127,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
                 .append(" (").append(formatDate(responseDTO.getCreatedDate())).append(")</div>")
                 .append("</div>")
                 .append("<div class=\"block\">")
+                .append("<div>Original Company: ").append(escapeHtml(displayText(responseDTO.getCompanyDescription(), responseDTO.getCompanyCode()))).append("</div>")
                 .append("<div>Payment Company: ").append(escapeHtml(displayText(responseDTO.getPaymentCompanyDescription(), responseDTO.getPaymentCompanyCode()))).append("</div>")
                 .append("<div>Staff Category: ").append(escapeHtml(displayText(responseDTO.getStaffCategoryDescription(), responseDTO.getStaffCategoryCode()))).append("</div>")
                 .append("<div>Treatment Category: ").append(escapeHtml(displayText(responseDTO.getTreatmentCategoryDescription(), responseDTO.getTreatmentCategory()))).append("</div>")
@@ -1302,6 +1303,11 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             createStringCell(row, 1, responseDTO.getAttachmentNo(), null);
             createStringCell(row, 3, "Date Range", labelStyle);
             createStringCell(row, 4, buildDateRange(responseDTO.getDateFrom(), responseDTO.getDateTo()), null);
+
+            row = sheet.createRow(rowIndex++);
+            createStringCell(row, 0, "Original Company", labelStyle);
+            createStringCell(row, 1, displayText(responseDTO.getCompanyDescription(), responseDTO.getCompanyCode()), dataStyle);
+            sheet.addMergedRegion(new CellRangeAddress(rowIndex - 1, rowIndex - 1, 1, 8));
 
             row = sheet.createRow(rowIndex++);
             createStringCell(row, 0, "Payment Company", labelStyle);
