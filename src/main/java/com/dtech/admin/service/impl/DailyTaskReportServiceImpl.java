@@ -357,12 +357,9 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setStaffType(DDF_STAFF_TYPE);
         row.setDate(dateRange.periodText());
         row.setClaimsReceived(receivedClaims.size());
-        row.setClaimsReceivedDetails(formatStaffSummary(countDeathClaimsByStaff(receivedClaims)));
+        row.setClaimsReceivedDetails(formatCount(receivedClaims.size()));
         row.setNotYetProcessed(countUnderReviewAtLevelDeath(receivedClaims, ApprovalLevel.LEVEL01));
-        row.setNotYetProcessedDetails(formatStaffSummary(countDeathClaimsByStaff(receivedClaims.stream()
-                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
-                .filter(claim -> ApprovalLevel.LEVEL01.equals(claim.getApprovalLevel()))
-                .toList())));
+        row.setNotYetProcessedDetails(formatCount(row.getNotYetProcessed()));
         row.setFirstCheckComplete(firstCheckComplete);
         row.setPendingRequirementClaims(pendingRequirementClaims);
         row.setHaveToHandoverToAuthorizedPerson(haveToHandoverToAuthorizedPerson);
@@ -406,8 +403,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         DailyTaskDdfRowDTO row = new DailyTaskDdfRowDTO();
         row.setStaffType(DDF_STAFF_TYPE);
         row.setDate(dateRange.periodText());
-        row.setClaimsReceivedDetails(formatStaffSummary(emptyStaffCountMap()));
-        row.setNotYetProcessedDetails(formatStaffSummary(emptyStaffCountMap()));
+        row.setClaimsReceivedDetails(formatCount(0));
+        row.setNotYetProcessedDetails(formatCount(0));
         row.setFirstCheckComplete(emptyStage());
         row.setHaveToHandoverToAuthorizedPerson(emptyStage());
         row.setHandoverToAuthorizedPerson(emptyStage());

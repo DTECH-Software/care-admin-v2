@@ -1,5 +1,6 @@
 package com.dtech.admin.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.util.Date;
@@ -19,6 +20,7 @@ public class ApplicationUserResponseDTO {
     private Date opLastLoggedDate;
     private boolean expectingFirstTimeLogging;
     private boolean expectingDependentsRegister;
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "Asia/Colombo")
     private Date passwordExpiredDate;
     private int attemptCount;
     private int otpAttemptCount;

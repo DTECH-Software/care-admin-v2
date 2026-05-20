@@ -63,8 +63,10 @@ public class DateTimeUtil {
     }
 
     public static Date get30FutureDate() {
-        log.info("get 30 future DateTime");
-        LocalDateTime futureDate = LocalDateTime.now().plusDays(28);
+        log.info("get 6 months future password expiry date");
+        LocalDateTime futureDate = LocalDate.now()
+                .plusMonths(6)
+                .atTime(LocalTime.MAX);
         return Date.from(futureDate.atZone(ZoneId.systemDefault()).toInstant());
     }
 
