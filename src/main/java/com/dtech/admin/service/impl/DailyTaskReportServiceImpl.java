@@ -239,13 +239,13 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         DailyTaskReportStageDTO firstCheckComplete = workflowStage(allClaims, ApprovalLevel.LEVEL01,
                 Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
 
-        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromStaffSummary(receivedClaims.stream()
+        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromStaffSummary(allClaims.stream()
                 .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
                 .filter(claim -> Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03).contains(claim.getApprovalLevel()))
                 .toList());
 
         List<InsuranceClaimsRequest> finalDecisionClaims = workflowClaims(allClaims,
-                Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03), Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
+                Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03), Set.of(Workflow.APPROVED, Workflow.REJECTED), null);
         DailyTaskReportStageDTO haveToPreparePaymentAttachments = stageFromStaffSummary(finalDecisionClaims.stream()
                 .filter(claim -> !paymentAttachmentClaimRepository.existsByInsuranceClaimsRequestAndState(
                         claim, PaymentAttachmentClaimState.ACTIVE))
@@ -277,8 +277,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setDate(dateRange.periodText());
         row.setClaimsReceived(receivedClaims.size());
         row.setClaimsReceivedDetails(formatStaffSummary(countClaimsByStaff(receivedClaims)));
-        row.setNotYetProcessed(countUnderReviewAtLevel(receivedClaims, ApprovalLevel.LEVEL01));
-        row.setNotYetProcessedDetails(formatStaffSummary(countClaimsByStaff(receivedClaims.stream()
+        row.setNotYetProcessed(countUnderReviewAtLevel(allClaims, ApprovalLevel.LEVEL01));
+        row.setNotYetProcessedDetails(formatStaffSummary(countClaimsByStaff(allClaims.stream()
                 .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
                 .filter(claim -> ApprovalLevel.LEVEL01.equals(claim.getApprovalLevel()))
                 .toList())));
@@ -316,7 +316,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
         long pendingRequirementClaims = workflowClaimsDeath(allClaims, ApprovalLevel.LEVEL01,
                 Set.of(Workflow.REJECTED), dateRange).size();
-        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromStaffSummaryDeath(receivedClaims.stream()
+        DailyTaskReportStageDTO haveToCompleteFinalCheck = stageFromDeathClaims(receivedClaims.stream()
                 .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
                 .filter(claim -> ApprovalLevel.LEVEL02.equals(claim.getApprovalLevel()))
                 .toList());
@@ -324,7 +324,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 Set.of(ApprovalLevel.LEVEL02), Set.of(Workflow.APPROVED, Workflow.REJECTED), dateRange);
 
         List<DeathClaimRequest> approvedClaims = workflowClaimsDeath(allClaims,
-                Set.of(ApprovalLevel.LEVEL02), Set.of(Workflow.APPROVED), dateRange);
+                Set.of(ApprovalLevel.LEVEL02), Set.of(Workflow.APPROVED), null);
         List<DeathClaimRequest> paymentPendingClaims = approvedClaims.stream()
                 .filter(claim -> !paymentAdviceDeathClaimRepository.existsByDeathClaim(claim))
                 .toList();
@@ -358,7 +358,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setDate(dateRange.periodText());
         row.setClaimsReceived(receivedClaims.size());
         row.setClaimsReceivedDetails(formatCount(receivedClaims.size()));
-        row.setNotYetProcessed(countUnderReviewAtLevelDeath(receivedClaims, ApprovalLevel.LEVEL01));
+        row.setNotYetProcessed(countUnderReviewAtLevelDeath(allClaims, ApprovalLevel.LEVEL01));
         row.setNotYetProcessedDetails(formatCount(row.getNotYetProcessed()));
         row.setFirstCheckComplete(firstCheckComplete);
         row.setPendingRequirementClaims(pendingRequirementClaims);
@@ -368,7 +368,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setHandoverToFinalCheck(paymentAdviceChecked);
         row.setHaveToCompleteFinalCheck(haveToCompleteFinalCheck);
         row.setFinalCheckComplete(finalCheckComplete);
-        row.setHaveToPreparePayment(stageFromStaffSummaryDeath(paymentPendingClaims));
+        row.setHaveToPreparePayment(stageFromDeathClaims(paymentPendingClaims));
         row.setHaveToCheckedPaymentAdviceAndFundTransfer(new DailyTaskReportStageDTO(Math.max(0, deathAdvices.size() - ddfChequePayments.size()), ""));
         row.setPaymentAdviceAndFundTransferChecked(paymentAdviceChecked);
         row.setReturnedClaims(receivedClaims.stream().filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus())).count());
@@ -494,7 +494,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         return Objects.requireNonNullElse(workflows, List.<ApprovalWorkFlow>of()).stream()
                 .filter(workflow -> levels.contains(workflow.getApprovalLevel()))
                 .filter(workflow -> statuses.contains(workflow.getStatus()))
-                .filter(workflow -> isBetween(workflow.getApprovedDate(), dateRange))
+                .filter(workflow -> dateRange == null || isBetween(workflow.getApprovedDate(), dateRange))
                 .toList();
     }
 
@@ -548,6 +548,11 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         Map<String, Long> counts = countDeathClaimsByStaff(claims);
         long total = counts.values().stream().mapToLong(Long::longValue).sum();
         return new DailyTaskReportStageDTO(total, formatStaffSummary(counts));
+    }
+
+    private DailyTaskReportStageDTO stageFromDeathClaims(List<DeathClaimRequest> claims) {
+        long count = Objects.requireNonNullElse(claims, List.<DeathClaimRequest>of()).size();
+        return new DailyTaskReportStageDTO(count, "");
     }
 
     private Map<String, Long> countClaimsByStaff(List<InsuranceClaimsRequest> claims) {
