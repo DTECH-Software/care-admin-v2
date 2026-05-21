@@ -10,6 +10,7 @@ import com.dtech.admin.dto.response.ReceivedClaimTotalReportResponseDTO;
 import com.dtech.admin.dto.response.ReceivedClaimTotalReportRowDTO;
 import com.dtech.admin.dto.search.ReceivedClaimTotalReportSearchDTO;
 import com.dtech.admin.enums.AuditTask;
+import com.dtech.admin.enums.ApprovalLevel;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
@@ -210,7 +211,11 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         long rejected = claims.stream()
                 .filter(this::isRejectedOrPartiallyRejected)
                 .count();
-        long underReview = claims.stream()
+        long stillProcessing = claims.stream()
+                .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .filter(claim -> Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03).contains(claim.getApprovalLevel()))
+                .count();
+        long notYetProcessed = claims.stream()
                 .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
                 .count();
         long assumeRejectClaims = search != null && search.getNormalStaffAssumeRejectClaims() != null
@@ -221,11 +226,11 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                 NORMAL_STAFF_LABEL,
                 dateRange.periodText(),
                 received,
-                underReview,
+                stillProcessing,
                 settled,
                 rejected,
                 assumeRejectClaims,
-                underReview,
+                notYetProcessed,
                 settled
         );
     }
