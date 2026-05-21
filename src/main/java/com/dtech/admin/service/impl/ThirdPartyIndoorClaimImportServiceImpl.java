@@ -62,8 +62,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "Policy Period To",
             "intimatedDate",
             "paidDate",
+            "nonPayableAmount",
             "nonPayableItem",
-            "claimAmount",
             "Paid Amount",
             "remark"
     );
@@ -76,12 +76,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "policyPeriodTo",
             "intimatedDate",
             "paidDate",
-            "claimAmount",
             "paidAmount"
     );
     private static final Map<String, List<String>> HEADER_ALIASES = Map.of(
             "policyPeriodFrom", List.of("policyPeriodFrom", "fromDate"),
             "policyPeriodTo", List.of("policyPeriodTo", "toDate"),
+            "nonPayableAmount", List.of("nonPayableAmount", "nonPayable"),
             "paidAmount", List.of("paidAmount", "approvedAmount")
     );
     private static final List<Facility> INSURANCE_FACILITIES = List.of(Facility.INSURANCE, Facility.BOTH);
@@ -157,8 +157,9 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "companyCode and epfNo are used to identify the employee.",
                     "Policy Period From and Policy Period To are used to map the insurance period.",
                     "Paid Amount is entered manually.",
-                    "nonPayableAmount is calculated by the system as paidAmount - claimAmount.",
-                    "nonPayableItem is required when calculated nonPayableAmount is greater than zero."
+                    "claimAmount is calculated by the system as nonPayableAmount + paidAmount.",
+                    "Blank nonPayableAmount is considered as 0.",
+                    "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
 
             auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.REF_DATA.name(), AuditTask.GETTING_ALL_REFERENCE_DATA.getDescription(),
@@ -388,9 +389,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         Date toDate = getDate(row, headerIndex, "policyPeriodTo", formatter, errors);
         Date intimatedDate = getDate(row, headerIndex, "intimatedDate", formatter, errors);
         Date paidDate = getDate(row, headerIndex, "paidDate", formatter, errors);
-        BigDecimal claimAmount = getBigDecimal(row, headerIndex, "claimAmount", formatter, errors);
         BigDecimal approvedAmount = getBigDecimal(row, headerIndex, "paidAmount", formatter, errors);
-        BigDecimal nonPayableAmount = calculateNonPayableAmount(approvedAmount, claimAmount);
+        BigDecimal nonPayableAmount = getOptionalBigDecimal(row, headerIndex, "nonPayableAmount", formatter, errors);
+        if (nonPayableAmount == null) {
+            nonPayableAmount = BigDecimal.ZERO;
+        }
+        BigDecimal claimAmount = calculateClaimAmount(nonPayableAmount, approvedAmount);
         Integer policyYear = null;
 
         if (!hasText(externalReferenceNo)) {
@@ -422,16 +426,15 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             errors.add("intimatedDate cannot be after paidDate");
         }
 
-        if (claimAmount != null && claimAmount.compareTo(BigDecimal.ZERO) < 0) {
-            errors.add("claimAmount cannot be negative");
+        if (nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("nonPayableAmount cannot be negative");
         }
 
         if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) < 0) {
             errors.add("paidAmount cannot be negative");
         }
 
-        if (nonPayableAmount != null
-                && nonPayableAmount.compareTo(BigDecimal.ZERO) > 0
+        if (nonPayableAmount.compareTo(BigDecimal.ZERO) > 0
                 && !hasText(nonPayableItem)) {
             errors.add("nonPayableItem is required when nonPayableAmount is greater than zero");
         }
@@ -510,11 +513,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 insuranceQuarter, treatment, treatmentCategory);
     }
 
-    private BigDecimal calculateNonPayableAmount(BigDecimal paidAmount, BigDecimal claimAmount) {
-        if (paidAmount == null || claimAmount == null) {
+    private BigDecimal calculateClaimAmount(BigDecimal nonPayableAmount, BigDecimal paidAmount) {
+        if (paidAmount == null) {
             return null;
         }
-        return paidAmount.subtract(claimAmount);
+        BigDecimal nonPayable = nonPayableAmount != null ? nonPayableAmount : BigDecimal.ZERO;
+        return nonPayable.add(paidAmount);
     }
 
     private InsuranceClaimsRequest createImportedClaim(RowValidation rowValidation, String username) {
@@ -754,6 +758,19 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         String textValue = getString(row, headerIndex, header, formatter);
         if (!hasText(textValue)) {
             errors.add(header + " is required");
+            return null;
+        }
+        try {
+            return new BigDecimal(textValue.replace(",", "").trim());
+        } catch (NumberFormatException ex) {
+            errors.add(header + " must be a valid number");
+            return null;
+        }
+    }
+
+    private BigDecimal getOptionalBigDecimal(Row row, Map<String, Integer> headerIndex, String header, DataFormatter formatter, List<String> errors) {
+        String textValue = getString(row, headerIndex, header, formatter);
+        if (!hasText(textValue)) {
             return null;
         }
         try {
