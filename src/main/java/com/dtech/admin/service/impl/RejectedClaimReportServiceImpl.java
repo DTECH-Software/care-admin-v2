@@ -451,7 +451,9 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         if (!hasText(finalRemark)) {
             return OTHER_REASON;
         }
-        return remarkDictionary.aliases().getOrDefault(normalizeReason(finalRemark), OTHER_REASON);
+        String trimmedRemark = finalRemark.trim();
+        String configuredReason = remarkDictionary.aliases().get(normalizeReason(trimmedRemark));
+        return configuredReason != null ? configuredReason : trimmedRemark;
     }
 
     private List<SimpleBaseDTO> buildCompanyReference() {
