@@ -288,8 +288,12 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
             return Optional.empty();
         }
         return applicationUserRepository
-                .findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_Code(
-                        epfNo, company);
+                .findAllByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_Code(
+                        epfNo, company)
+                .stream()
+                .max(Comparator
+                        .comparing((ApplicationUser user) -> Status.ACTIVE.equals(user.getUserPersonalDetails().getUserStatus()))
+                        .thenComparing(ApplicationUser::getId, Comparator.nullsFirst(Comparator.naturalOrder())));
     }
 
     private List<EmployeeSummaryBalanceRowDTO> resolveBalances(EmployeeSummarySearchDTO search) {
