@@ -64,6 +64,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "paidDate",
             "nonPayableAmount",
             "nonPayableItem",
+            "claimAmount",
             "Paid Amount",
             "remark"
     );
@@ -82,6 +83,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "policyPeriodFrom", List.of("policyPeriodFrom", "fromDate"),
             "policyPeriodTo", List.of("policyPeriodTo", "toDate"),
             "nonPayableAmount", List.of("nonPayableAmount", "nonPayable"),
+            "claimAmount", List.of("claimAmount"),
             "paidAmount", List.of("paidAmount", "approvedAmount")
     );
     private static final List<Facility> INSURANCE_FACILITIES = List.of(Facility.INSURANCE, Facility.BOTH);
@@ -157,7 +159,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "companyCode and epfNo are used to identify the employee.",
                     "Policy Period From and Policy Period To are used to map the insurance period.",
                     "Paid Amount is entered manually.",
-                    "claimAmount is calculated by the system as nonPayableAmount + paidAmount.",
+                    "claimAmount can be entered manually.",
+                    "If claimAmount is blank or 0, it is calculated by the system as nonPayableAmount + paidAmount.",
                     "Blank nonPayableAmount is considered as 0.",
                     "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
@@ -394,7 +397,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         if (nonPayableAmount == null) {
             nonPayableAmount = BigDecimal.ZERO;
         }
-        BigDecimal claimAmount = calculateClaimAmount(nonPayableAmount, approvedAmount);
+        BigDecimal uploadedClaimAmount = getOptionalBigDecimal(row, headerIndex, "claimAmount", formatter, errors);
+        BigDecimal claimAmount = resolveClaimAmount(uploadedClaimAmount, nonPayableAmount, approvedAmount);
         Integer policyYear = null;
 
         if (!hasText(externalReferenceNo)) {
@@ -428,6 +432,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
 
         if (nonPayableAmount.compareTo(BigDecimal.ZERO) < 0) {
             errors.add("nonPayableAmount cannot be negative");
+        }
+
+        if (claimAmount != null && claimAmount.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("claimAmount cannot be negative");
         }
 
         if (approvedAmount != null && approvedAmount.compareTo(BigDecimal.ZERO) < 0) {
@@ -513,7 +521,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 insuranceQuarter, treatment, treatmentCategory);
     }
 
-    private BigDecimal calculateClaimAmount(BigDecimal nonPayableAmount, BigDecimal paidAmount) {
+    private BigDecimal resolveClaimAmount(BigDecimal uploadedClaimAmount, BigDecimal nonPayableAmount, BigDecimal paidAmount) {
+        if (uploadedClaimAmount != null && uploadedClaimAmount.compareTo(BigDecimal.ZERO) != 0) {
+            return uploadedClaimAmount;
+        }
         if (paidAmount == null) {
             return null;
         }
