@@ -27,4 +27,7 @@ public interface PaymentAttachmentClaimRepository extends JpaRepository<PaymentA
 
     boolean existsByInsuranceClaimsRequestAndPaymentAttachment_Status(InsuranceClaimsRequest claim,
                                                                       PaymentAttachmentStatus status);
+
+    boolean existsByInsuranceClaimsRequestAndPaymentAttachment_StatusIn(InsuranceClaimsRequest claim,
+                                                                        List<PaymentAttachmentStatus> statuses);
 }

@@ -247,8 +247,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         List<InsuranceClaimsRequest> finalDecisionClaims = workflowClaims(allClaims,
                 Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03), Set.of(Workflow.APPROVED, Workflow.REJECTED), null);
         DailyTaskReportStageDTO haveToPreparePaymentAttachments = stageFromStaffSummary(finalDecisionClaims.stream()
-                .filter(claim -> !paymentAttachmentClaimRepository.existsByInsuranceClaimsRequestAndState(
-                        claim, PaymentAttachmentClaimState.ACTIVE))
+                .filter(claim -> !paymentAttachmentClaimRepository.existsByInsuranceClaimsRequestAndPaymentAttachment_Status(
+                        claim, PaymentAttachmentStatus.FINALIZED))
                 .toList());
 
         List<PaymentAttachmentClaim> createdAttachmentClaims = paymentAttachmentClaimRepository
