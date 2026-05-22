@@ -14,6 +14,7 @@ import com.dtech.admin.enums.ApprovalLevel;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
+import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.DeathClaimRequest;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.ThirdPartyIndoorClaimImportRow;
@@ -217,6 +218,11 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                 .count();
         long notYetProcessed = claims.stream()
                 .filter(claim -> Workflow.UNDER_REVIEW.equals(claim.getRequestStatus()))
+                .filter(claim -> ApprovalLevel.LEVEL01.equals(claim.getApprovalLevel()))
+                .count();
+        long wecareSettled = claims.stream()
+                .filter(claim -> isSettledStatus(claim.getRequestStatus()))
+                .filter(this::hasLevelTwoOrThreeFinalDecision)
                 .count();
         long assumeRejectClaims = search != null && search.getNormalStaffAssumeRejectClaims() != null
                 ? Math.max(0, search.getNormalStaffAssumeRejectClaims())
@@ -231,7 +237,7 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                 rejected,
                 assumeRejectClaims,
                 notYetProcessed,
-                settled
+                wecareSettled
         );
     }
 
@@ -316,6 +322,16 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
 
     private boolean isSettledStatus(Workflow status) {
         return Workflow.APPROVED.equals(status) || Workflow.REJECTED.equals(status);
+    }
+
+    private boolean hasLevelTwoOrThreeFinalDecision(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return false;
+        }
+        return Objects.requireNonNullElse(claim.getApprovalWorkFlows(), List.<ApprovalWorkFlow>of()).stream()
+                .filter(workflow -> workflow != null)
+                .filter(workflow -> Set.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03).contains(workflow.getApprovalLevel()))
+                .anyMatch(workflow -> isSettledStatus(workflow.getStatus()));
     }
 
     private boolean isRejectedOrPartiallyRejected(InsuranceClaimsRequest claim) {
