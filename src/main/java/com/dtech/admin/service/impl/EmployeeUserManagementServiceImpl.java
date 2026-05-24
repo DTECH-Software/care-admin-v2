@@ -495,7 +495,11 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                             permentDateTime = DateTimeUtil.getCurrentDateTime();
                         }
 
-                        InsuranceQuarter treatmentQuarter = insuranceQuarterRepository.findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, TreatmentCategory.OTHER.name(), permentDateTime).orElse(null);
+                        InsuranceQuarter treatmentQuarter = insuranceQuarterRepository
+                                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, TreatmentCategory.OTHER.name(), permentDateTime)
+                                .stream()
+                                .findFirst()
+                                .orElse(null);
 
                         BigDecimal maxLimit = BigDecimal.valueOf(0.00);
 

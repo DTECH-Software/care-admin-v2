@@ -609,6 +609,8 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                                                            java.util.Date lookupDate) {
         com.dtech.admin.model.InsuranceQuarter matchingQuarter = insuranceQuarterRepository
                 .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, categoryCode, lookupDate)
+                .stream()
+                .findFirst()
                 .orElse(null);
         if (matchingQuarter != null) {
             return matchingQuarter;

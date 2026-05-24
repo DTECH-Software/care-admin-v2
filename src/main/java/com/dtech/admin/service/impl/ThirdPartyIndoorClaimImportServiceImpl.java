@@ -498,7 +498,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                             errors.add("Indoor insurance limit is not configured for the employee policy");
                         } else if (Boolean.TRUE.equals(insuranceDetailsLimit.getIsQuarter())) {
                             insuranceQuarter = insuranceQuarterRepository.findByDateWithinRangeAndCodeWithLimit(
-                                    insuranceDetailsLimit, FIXED_TREATMENT_CATEGORY_CODE, toDate).orElse(null);
+                                            insuranceDetailsLimit, FIXED_TREATMENT_CATEGORY_CODE, toDate)
+                                    .stream()
+                                    .findFirst()
+                                    .orElse(null);
                         }
                     }
                 }
