@@ -288,8 +288,8 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
             return Optional.empty();
         }
         return applicationUserRepository
-                .findAllByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_Code(
-                        epfNo, company)
+                .findAllByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_CodeAndUserPersonalDetails_UserStatusNot(
+                        epfNo, company, Status.DELETE)
                 .stream()
                 .max(Comparator
                         .comparing((ApplicationUser user) -> Status.ACTIVE.equals(user.getUserPersonalDetails().getUserStatus()))

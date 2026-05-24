@@ -19,10 +19,16 @@ public interface ApplicationUserRepository extends JpaRepository<ApplicationUser
     List<ApplicationUser> findAllByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_Code(
             String epfNo, String companyCode);
 
+    List<ApplicationUser> findAllByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_CodeAndUserPersonalDetails_UserStatusNot(
+            String epfNo, String companyCode, Status status);
+
     Optional<ApplicationUser> findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_CodeAndUserPersonalDetails_UserStatus(
             String epfNo, String companyCode, Status status);
 
     Optional<ApplicationUser> findTopByUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatusAndIdNotOrderByIdDesc(
+            String nic, Status status, Long id);
+
+    List<ApplicationUser> findAllByUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatusNotAndIdNotOrderByIdDesc(
             String nic, Status status, Long id);
 
     Optional<ApplicationUser> findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatus(

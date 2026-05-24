@@ -1,6 +1,7 @@
 package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.EmployeeSummarySearchDTO;
+import com.dtech.admin.enums.Status;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
@@ -26,17 +27,17 @@ public class EmployeeSummarySpecification {
                 return cb.and(predicates.toArray(new Predicate[0]));
             }
 
+            Join<Object, Object> employee = root.join("employee");
+            Join<Object, Object> personal = employee.join("userPersonalDetails");
+            predicates.add(cb.notEqual(personal.get("userStatus"), Status.DELETE));
+
             if (hasText(searchDTO.getCompany())) {
-                Join<Object, Object> employee = root.join("employee");
-                Join<Object, Object> personal = employee.join("userPersonalDetails");
                 Join<Object, Object> companyDetails = personal.join("userCompanyDetails");
                 Join<Object, Object> company = companyDetails.join("companyTypes");
                 predicates.add(cb.equal(company.get("code"), searchDTO.getCompany()));
             }
 
             if (hasText(searchDTO.getEpfNo())) {
-                Join<Object, Object> employee = root.join("employee");
-                Join<Object, Object> personal = employee.join("userPersonalDetails");
                 predicates.add(cb.equal(cb.lower(personal.get("epfNo")), searchDTO.getEpfNo().toLowerCase()));
             }
 

@@ -108,11 +108,15 @@ public class RejoinCarryForwardService {
         }
 
         return applicationUserRepository
-                .findTopByUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatusAndIdNotOrderByIdDesc(
+                .findAllByUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatusNotAndIdNotOrderByIdDesc(
                         nic,
-                        Status.INACTIVE,
+                        Status.DELETE,
                         currentUser.getId()
-                );
+                )
+                .stream()
+                .filter(user -> user.getUserPersonalDetails() != null)
+                .filter(user -> Status.INACTIVE.equals(user.getUserPersonalDetails().getUserStatus()))
+                .findFirst();
     }
 
     private boolean isEligibleForCarryForward(ApplicationUser currentUser, ApplicationUser previousUser) {
