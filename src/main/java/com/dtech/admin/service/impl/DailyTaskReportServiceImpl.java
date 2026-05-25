@@ -329,6 +329,12 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         List<DeathClaimRequest> paymentPendingClaims = finalDecisionClaims.stream()
                 .filter(claim -> !paymentAdviceDeathClaimRepository.existsByDeathClaim(claim))
                 .toList();
+        List<DeathClaimRequest> approvedPaymentPendingClaims = paymentPendingClaims.stream()
+                .filter(claim -> Workflow.APPROVED.equals(claim.getRequestStatus()))
+                .toList();
+        long rejectedPaymentPendingTotal = paymentPendingClaims.stream()
+                .filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus()))
+                .count();
         DailyTaskReportStageDTO haveToHandoverToAuthorizedPerson = stageFromIds(paymentPendingClaims.stream()
                 .map(DeathClaimRequest::getRequestId)
                 .toList());
@@ -350,7 +356,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
 
         List<ChequePaymentDdf> ddfChequePayments = chequePaymentDdfRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay());
-        DailyTaskReportStageDTO paymentsCompleted = stageDdfPaymentsCompleted(adviceClaims);
+        DailyTaskReportStageDTO paymentsCompleted = stageDdfPaymentsCompleted(adviceClaims, rejectedPaymentPendingTotal);
 
         DailyTaskDdfRowDTO row = new DailyTaskDdfRowDTO();
         row.setStaffType(DDF_STAFF_TYPE);
@@ -367,7 +373,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         row.setHandoverToFinalCheck(paymentAdviceChecked);
         row.setHaveToCompleteFinalCheck(haveToCompleteFinalCheck);
         row.setFinalCheckComplete(finalCheckComplete);
-        row.setHaveToPreparePayment(stageDeathPaymentByStatus(paymentPendingClaims));
+        row.setHaveToPreparePayment(stageApprovedDeathPayment(approvedPaymentPendingClaims));
         row.setHaveToCheckedPaymentAdviceAndFundTransfer(new DailyTaskReportStageDTO(Math.max(0, deathAdvices.size() - ddfChequePayments.size()), ""));
         row.setPaymentAdviceAndFundTransferChecked(paymentAdviceChecked);
         row.setReturnedClaims(receivedClaims.stream().filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus())).count());
@@ -554,27 +560,15 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         return new DailyTaskReportStageDTO(count, "");
     }
 
-    private DailyTaskReportStageDTO stageDeathPaymentByStatus(List<DeathClaimRequest> claims) {
-        Map<String, Long> counts = new LinkedHashMap<>();
-        counts.put("Approved", 0L);
-        counts.put("Rejected", 0L);
-
-        Objects.requireNonNullElse(claims, List.<DeathClaimRequest>of()).forEach(claim -> {
-            if (Workflow.APPROVED.equals(claim.getRequestStatus())) {
-                counts.merge("Approved", 1L, Long::sum);
-            } else if (Workflow.REJECTED.equals(claim.getRequestStatus())) {
-                counts.merge("Rejected", 1L, Long::sum);
-            }
-        });
-
-        long total = counts.values().stream().mapToLong(Long::longValue).sum();
-        String details = counts.entrySet().stream()
-                .map(entry -> entry.getKey() + ": " + entry.getValue())
-                .collect(Collectors.joining("\n"));
-        return new DailyTaskReportStageDTO(total, details);
+    private DailyTaskReportStageDTO stageApprovedDeathPayment(List<DeathClaimRequest> claims) {
+        long approvedTotal = Objects.requireNonNullElse(claims, List.<DeathClaimRequest>of()).stream()
+                .filter(claim -> Workflow.APPROVED.equals(claim.getRequestStatus()))
+                .count();
+        return new DailyTaskReportStageDTO(approvedTotal, "Approved: " + approvedTotal);
     }
 
-    private DailyTaskReportStageDTO stageDdfPaymentsCompleted(List<PaymentAdviceDeathClaim> adviceClaims) {
+    private DailyTaskReportStageDTO stageDdfPaymentsCompleted(List<PaymentAdviceDeathClaim> adviceClaims,
+                                                              long rejectedPaymentPendingTotal) {
         List<PaymentAdviceDeathClaim> safeAdviceClaims = Objects.requireNonNullElse(
                 adviceClaims, List.<PaymentAdviceDeathClaim>of());
         long paymentAdviceTotal = safeAdviceClaims.stream()
@@ -589,6 +583,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 .filter(Objects::nonNull)
                 .filter(claim -> Workflow.REJECTED.equals(claim.getRequestStatus()))
                 .count();
+        rejectedClaimTotal += rejectedPaymentPendingTotal;
         String details = "Payment Advice Total: " + paymentAdviceTotal
                 + "\nReject Claim Total: " + rejectedClaimTotal;
         return new DailyTaskReportStageDTO(paymentAdviceTotal + rejectedClaimTotal, details);
