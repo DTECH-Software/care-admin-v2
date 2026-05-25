@@ -484,6 +484,14 @@ public class PaymentAdviceDeathServiceImpl implements PaymentAdviceDeathService 
         Map<String, String> companyDescriptions = loadCompanyDescriptions();
         Map<String, String> staffDescriptions = loadStaffCategoryDescriptions();
         dto.setPaymentCompanyDescription(companyDescriptions.get(advice.getCompanyCode()));
+        resolveOriginalCompanyCode(dto.getClaims()).ifPresent(originalCompanyCode -> {
+            dto.setOriginalCompanyCode(originalCompanyCode);
+            dto.setOriginalCompanyDescription(companyDescriptions.get(originalCompanyCode));
+        });
+        if (!hasText(dto.getOriginalCompanyCode())) {
+            dto.setOriginalCompanyCode(advice.getCompanyCode());
+            dto.setOriginalCompanyDescription(companyDescriptions.get(advice.getCompanyCode()));
+        }
         dto.setStaffCategoryDescription(staffDescriptions.get(advice.getStaffCategoryCode()));
         return dto;
     }
@@ -550,6 +558,31 @@ public class PaymentAdviceDeathServiceImpl implements PaymentAdviceDeathService 
                 .orElse(null);
     }
 
+    private Optional<String> resolveOriginalCompanyCode(List<PaymentAdviceDeathClaimResponseDTO> claims) {
+        if (claims == null || claims.isEmpty()) {
+            return Optional.empty();
+        }
+        return paymentAdviceDeathClaimRepository.findAllById(claims.stream()
+                        .map(PaymentAdviceDeathClaimResponseDTO::getId)
+                        .filter(Objects::nonNull)
+                        .toList())
+                .stream()
+                .map(PaymentAdviceDeathClaim::getDeathClaim)
+                .filter(Objects::nonNull)
+                .map(this::resolveOriginalCompanyCode)
+                .filter(this::hasText)
+                .findFirst();
+    }
+
+    private String resolveOriginalCompanyCode(DeathClaimRequest claim) {
+        return Optional.ofNullable(claim.getEmployee())
+                .map(ApplicationUser::getUserPersonalDetails)
+                .map(UserPersonalDetails::getUserCompanyDetails)
+                .map(userCompanyDetails -> userCompanyDetails.getCompanyTypes())
+                .map(CompanyTypes::getCode)
+                .orElse(null);
+    }
+
     private String resolveStaffCategoryCode(List<DeathClaimRequest> claims) {
         String code = null;
         for (DeathClaimRequest claim : claims) {
@@ -603,7 +636,7 @@ public class PaymentAdviceDeathServiceImpl implements PaymentAdviceDeathService 
 
     private String buildDescription(PaymentAdviceDeathResponseDTO dto) {
         String staff = hasText(dto.getStaffCategoryDescription()) ? dto.getStaffCategoryDescription() : dto.getStaffCategoryCode();
-        String company = hasText(dto.getPaymentCompanyDescription()) ? dto.getPaymentCompanyDescription() : dto.getPaymentCompanyCode();
+        String company = hasText(dto.getOriginalCompanyDescription()) ? dto.getOriginalCompanyDescription() : dto.getOriginalCompanyCode();
         if (hasText(staff) && hasText(company)) {
             return staff + " Death Claims for " + company;
         }
@@ -788,6 +821,8 @@ public class PaymentAdviceDeathServiceImpl implements PaymentAdviceDeathService 
             params.put("voucherNo", responseDTO.getVoucherNo());
             params.put("chequeNo", responseDTO.getChequeNo());
             params.put("adviceDate", formatDate(responseDTO.getCreatedDate()));
+            params.put("originalCompany", hasText(responseDTO.getOriginalCompanyDescription())
+                    ? responseDTO.getOriginalCompanyDescription() : responseDTO.getOriginalCompanyCode());
             params.put("paymentCompany", hasText(responseDTO.getPaymentCompanyDescription())
                     ? responseDTO.getPaymentCompanyDescription() : responseDTO.getPaymentCompanyCode());
             params.put("description", buildDescription(responseDTO));

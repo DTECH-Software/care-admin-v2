@@ -33,6 +33,7 @@
     <parameter name="voucherNo" class="java.lang.String"/>
     <parameter name="chequeNo" class="java.lang.String"/>
     <parameter name="adviceDate" class="java.lang.String"/>
+    <parameter name="originalCompany" class="java.lang.String"/>
     <parameter name="paymentCompany" class="java.lang.String"/>
     <parameter name="description" class="java.lang.String"/>
     <parameter name="department" class="java.lang.String"/>
@@ -118,7 +119,7 @@
                 <textField textAdjust="StretchHeight">
                     <reportElement x="6" y="4" width="318" height="28" style="Base"/>
                     <textElement textAlignment="Center" verticalAlignment="Middle"/>
-                    <textFieldExpression><![CDATA["Default Company: " + $P{paymentCompany} + "\nPayment Company: " + $P{paymentCompany}]]></textFieldExpression>
+                    <textFieldExpression><![CDATA["Default Company: " + $P{originalCompany} + "\nPayment Company: " + $P{paymentCompany}]]></textFieldExpression>
                 </textField>
 
                 <textField textAdjust="StretchHeight">

@@ -16,6 +16,8 @@ public class PaymentAdviceDeathResponseDTO {
     private String voucherNo;
     private Integer voucherSequence;
     private String chequeNo;
+    private String originalCompanyCode;
+    private String originalCompanyDescription;
     private String paymentCompanyCode;
     private String paymentCompanyDescription;
     private String staffCategoryCode;
