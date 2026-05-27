@@ -537,6 +537,10 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         return amountText;
     }
 
+    private boolean isParentClaimBlockedStaff(String staffCategoryCode) {
+        return Set.of("EX-OP1", "EX-OP2", "MM", "SNR").contains(staffCategoryCode);
+    }
+
     private ResponseEntity<ApiResponse<Object>> claimsApprovalValidation(ApplicationUser user,
                                                                          ClaimRequestDTO claimRequestDTO,
                                                                          InsuranceClaimsRequest insuranceClaimsRequest,
@@ -589,6 +593,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         messageSource.getMessage(ResponseMessageUtil.INSURANCE_POLICY_NOT_FOUND, null, locale)));
             }
 
+            String staffCategoryCode = user.getUserPersonalDetails()
+                    .getUserCompanyDetails()
+                    .getStaffCategories()
+                    .getCode();
+
             Optional<ClaimsDependents> claimsDependentsOpt = Optional.empty();
             if (insuranceClaimsRequest.getClaimsDependents() != null) {
                 claimsDependentsOpt = claimDependentsRepository.findByIdAndApplicationUserAndStatusAndEligibleFacilityIn(
@@ -599,6 +608,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     log.info("Claim dependent not found or not eligible for insurance");
                     return ResponseEntity.ok().body(responseUtil.error(null, 1034,
                             messageSource.getMessage(ResponseMessageUtil.CLAIM_DEPENDENT_NOT_FOUND_OR_FACILITY_NOT_ELIGIBLE, null, locale)));
+                }
+
+                if (isParentClaimBlockedStaff(staffCategoryCode)
+                        && claimsDependentsOpt.get().getDependentCategory().equals(DependentCategory.PARENTS)) {
+                    log.info("Parent dependent claim is not allowed for staff category {}", staffCategoryCode);
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1049,
+                            messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
                 }
 
                 boolean isDeathClaimExists = deathClaimRequestRepository.existsByClaimsDependentsAndEmployeeAndRequestStatusIn(
@@ -620,11 +636,6 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     insuranceStaffCategoryPeriod.getId(),
                     carryForwardPeriod
             );
-
-            String staffCategoryCode = user.getUserPersonalDetails()
-                    .getUserCompanyDetails()
-                    .getStaffCategories()
-                    .getCode();
 
             boolean isCRIC = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode().equals(TreatmentType.CRIC.name());
 
