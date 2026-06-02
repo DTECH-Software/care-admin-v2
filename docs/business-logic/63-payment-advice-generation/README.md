@@ -1,33 +1,37 @@
-# 63. Payment Advice Generation
+﻿# 63. Payment Advice Generation
 
 Status: Current business baseline for BA / QA / client review
 
 ## Purpose
-Explain the current business understanding of payment advice generation so BA, QA, and client-side reviewers can validate the rule in the same language.
+Explain how medical payment advice is generated from finalized payment attachment data.
 
 ## Business Summary
-Explains how payment advice generation rule affects payment and reporting outputs.
+Payment advice is the payment-facing document generated from finalized medical payment attachment data. It carries company, staff category, amount, and claim identifiers used by finance users.
 
 ## Main Business Rules
-- Only intended claim statuses should be included in payment and report outputs.
-- Totals and detail rows should come from the same approved data.
-- Identifiers, remarks, and company context should stay readable.
-- Outputs should remain aligned with approval and payment statuses.
+- Medical payment advice is generated from finalized payment attachment data.
+- Payment advice status must be finalized before PNL treats it as paid.
+- Payment advice totals use total approved amount; if that value is null, fallback logic may use total requested amount.
+- A zero approved amount is a valid value and is not treated as null.
+- Voucher number wording is used in Excel where cheque number was previously shown for medical claim report output.
+- Original company and payment company can be different and must be displayed where required.
+- Payment advice generated status is shown in medical claim report outputs.
 
 ## BA Review Points
-- Confirm which statuses are eligible for payment or reporting.
-- Confirm output layout and exported values.
-- Confirm which fields are mandatory in client-facing outputs.
+- Confirm whether PNL should use payment advice created date or finalized date.
+- Confirm whether total approved amount should always be recalculated from attached claim rows before finalization.
+- Confirm display wording for voucher number and payment company.
 
 ## QA Checkpoints
-- Test on-screen and exported outputs.
-- Verify totals and row-level values match the claim data.
-- Verify repeated generation stays correct.
+- Generate advice from finalized attachment and verify totals.
+- Verify advice with approved amount 0.00 remains 0.00 and does not fallback to requested amount.
+- Verify PNL includes only finalized advice.
+- Verify medical claim report shows generated/not generated status.
 
 ## Client View
-- Payment and report outputs should be easy for business users to read.
-- Client-facing outputs should match approved claim records.
+- Finance users should see final payment advice values that match finalized claim payment decisions.
 
 ## Related Topics
-- 62. Payment Attachment Status Changes
-- 64. Payment Advice Death Generation
+- 61. Payment Attachment Creation
+- 68. Profit and Loss Calculation
+- 88. Payment Company and Original Company Rules

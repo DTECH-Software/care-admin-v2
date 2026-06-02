@@ -1,33 +1,35 @@
-# 64. Payment Advice Death Generation
+﻿# 64. Payment Advice Death Generation
 
 Status: Current business baseline for BA / QA / client review
 
 ## Purpose
-Explain the current business understanding of payment advice death generation so BA, QA, and client-side reviewers can validate the rule in the same language.
+Explain how DDF payment advice is generated and displayed.
 
 ## Business Summary
-Explains how payment advice death generation rule affects payment and reporting outputs.
+DDF payment advice is generated for finalized death donation claim payment processing and uses DDF-specific company and description rules.
 
 ## Main Business Rules
-- Only intended claim statuses should be included in payment and report outputs.
-- Totals and detail rows should come from the same approved data.
-- Identifiers, remarks, and company context should stay readable.
-- Outputs should remain aligned with approval and payment statuses.
+- DDF payment advice uses death claim payment data, not medical claim treatment data.
+- Default company in the DDF advice output should use original company context.
+- Payment company should show the configured death payment company where available.
+- Description should use original company context so the business reason is clear.
+- Long details and descriptions must wrap to additional rows rather than being truncated.
+- Rejected DDF claims are tracked separately in daily task payment-completed counts where required.
 
 ## BA Review Points
-- Confirm which statuses are eligible for payment or reporting.
-- Confirm output layout and exported values.
-- Confirm which fields are mandatory in client-facing outputs.
+- Confirm exact wording for Default Company, Payment Company, and Details/Description.
+- Confirm rejected DDF claim handling in payment-related reporting.
+- Confirm whether original company or payment company drives finance grouping.
 
 ## QA Checkpoints
-- Test on-screen and exported outputs.
-- Verify totals and row-level values match the claim data.
-- Verify repeated generation stays correct.
+- Generate DDF advice with different original and payment companies.
+- Verify long description wraps and remains readable.
+- Verify DDF advice totals are not mixed with medical advice totals unless report type includes both.
 
 ## Client View
-- Payment and report outputs should be easy for business users to read.
-- Client-facing outputs should match approved claim records.
+- DDF payment advice should clearly show the original company and payment company without cutting off text.
 
 ## Related Topics
-- 63. Payment Advice Generation
 - 65. DDF Payment Advice Rules
+- 85. Daily Task Report Rules
+- 88. Payment Company and Original Company Rules

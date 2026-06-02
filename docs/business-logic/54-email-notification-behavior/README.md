@@ -3,31 +3,35 @@
 Status: Current business baseline for BA / QA / client review
 
 ## Purpose
-Explain the current business understanding of email notification behavior so BA, QA, and client-side reviewers can validate the rule in the same language.
+Explain when system emails are sent and who receives them.
 
 ## Business Summary
-Explains how email notification behavior rule appears in approval, summary, or claim review flows.
+Email notifications are used for approval visibility and operational alerts. Recipients are selected from business context such as company, role, and configured recipient lists.
 
 ## Main Business Rules
-- The rule should support a correct and traceable decision.
-- View, summary, and workflow data should stay consistent.
-- Statuses, amounts, and remarks should remain aligned.
-- Final outputs should match the actual workflow outcome.
+- Dependent pending approval emails are sent when an employee adds dependent records from the app.
+- Civil status pending approval emails are sent when marriage-related data needs approval.
+- Dependent and civil status emails are sent to active web users assigned to the employee company.
+- Current dependent/civil status recipient role codes are HRADMIN, DevTest, SUPERADMIN, APPROVER, ADMIN, CLAIMS_APPROVER, W_CSA, and HR_ADMIN.
+- Current dependent/civil status email selection checks role code and company assignment; it does not check DPNM page privilege.
+- Claim approval and rejection emails should show only L2 or L3 final remarks where final approval or rejection has passed L1.
+- Monitoring emails from Uptime Kuma are operational alerts and are outside application claim workflow.
 
 ## BA Review Points
-- Confirm the business meaning of the result on each screen.
-- Confirm which workflow step updates or displays the result.
-- Confirm how the same result should appear to admins, employees, and auditors.
+- Confirm final recipient roles for dependent and civil status approval emails.
+- Confirm whether page privilege should replace or supplement role-code based routing.
+- Confirm final remark visibility for approval emails.
 
 ## QA Checkpoints
-- Test workflow, view, and filter scenarios that depend on this rule.
-- Verify detail and summary outputs stay aligned.
-- Verify amounts, statuses, and remarks remain consistent.
+- Add dependent and verify only same-company HR/admin recipients receive email.
+- Verify inactive web users and empty emails are ignored.
+- Verify duplicate recipient email addresses are not mailed twice.
+- Verify L1 remarks do not appear where only L2 or L3 final remarks are required.
 
 ## Client View
-- Approvers should see reliable information for decision making.
-- Employees should see final outcomes that match the real workflow result.
+- Approval users for the correct company should receive actionable emails without exposing unrelated company data.
 
 ## Related Topics
-- 53. SMS Notification Behavior
-- 55. Claim History Logic
+- 23. Dependent Approval/Rejection
+- 45. Insurance Claim Approval Workflow
+- 77. Email Service Integration

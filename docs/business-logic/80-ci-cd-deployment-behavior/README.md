@@ -1,32 +1,36 @@
-# 80. CI/CD Deployment Behavior
+﻿# 80. CI/CD Deployment Behavior
 
 Status: Current business baseline for BA / QA / client review
 
 ## Purpose
-Explain the current business understanding of ci/cd deployment behavior so BA, QA, and client-side reviewers can validate the rule in the same language.
+Explain deployment and runtime operations for the Care services.
 
 ## Business Summary
-Explains how ci/cd deployment behavior supporting area enables the wider business process.
+Services are built as Spring Boot jars and can run directly with Java or inside Docker containers. Monitoring is handled outside the application using Uptime Kuma.
 
 ## Main Business Rules
-- Configuration should control environment-specific behavior where appropriate.
-- Failures should be visible and diagnosable.
-- Supporting services should not silently change business meaning.
-- The behavior should remain stable across environments.
+- Services can be deployed with Docker using service-specific Dockerfiles and docker-compose files.
+- Containers should use restart policy so they come back after service failure or server reboot.
+- Java memory limits should be configured with container memory limits and JVM options where required.
+- Health checks should use /actuator/health where exposed and allowed by security configuration.
+- Uptime Kuma monitors service health and sends down/recovery emails to configured recipients.
+- During planned deployment, monitors can be placed in maintenance to avoid false down alerts.
+- GitHub Actions deployment should stop old Java processes or containers before starting the new containerized service.
 
 ## BA Review Points
-- Confirm environment or dependency assumptions.
-- Confirm expected failure handling from a business perspective.
-- Confirm which parts are configurable and which are fixed rules.
+- Confirm required monitoring recipients and escalation path.
+- Confirm acceptable downtime window during deployment.
+- Confirm which environments require Docker deployment.
 
 ## QA Checkpoints
-- Test success and failure paths.
-- Verify failures are visible in logs and do not silently corrupt output.
-- Verify environment-specific settings behave as expected.
+- Verify all service containers restart after reboot.
+- Verify /actuator/health returns HTTP 200 for monitored services.
+- Verify Uptime Kuma sends down and recovery emails.
+- Verify memory limits are applied using docker inspect.
 
 ## Client View
-- Supporting services should help the business flow without hidden inconsistencies.
-- Operational issues should be visible and manageable.
+- The system should restart predictably, expose health status, and notify responsible users when a service fails or recovers.
 
 ## Related Topics
 - 79. Environment/Profile Based Behavior
+- 89. Docker and Uptime Monitoring Rules

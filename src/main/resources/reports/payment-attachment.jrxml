@@ -233,6 +233,16 @@
         </band>
     </detail>
 
+    <pageFooter>
+        <band height="16">
+            <staticText>
+                <reportElement x="0" y="2" width="555" height="12" style="Footer"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
+            </staticText>
+        </band>
+    </pageFooter>
+
     <summary>
         <band height="78">
             <textField>

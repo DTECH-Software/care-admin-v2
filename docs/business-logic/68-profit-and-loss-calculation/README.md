@@ -3,31 +3,40 @@
 Status: Current business baseline for BA / QA / client review
 
 ## Purpose
-Explain the current business understanding of profit and loss calculation so BA, QA, and client-side reviewers can validate the rule in the same language.
+Explain how the Profit and Loss report calculates total received, total paid, difference, and result.
 
 ## Business Summary
-Explains how profit and loss calculation rule affects payment and reporting outputs.
+PNL compares money received through cheque payments against money paid through finalized payment advice. It does not calculate directly from claim created date or claim final decision date.
 
 ## Main Business Rules
-- Only intended claim statuses should be included in payment and report outputs.
-- Totals and detail rows should come from the same approved data.
-- Identifiers, remarks, and company context should stay readable.
-- Outputs should remain aligned with approval and payment statuses.
+- Total Paid is calculated from finalized payment advice records.
+- Total Paid uses payment advice created date for year/month filtering.
+- Total Paid uses total approved amount when present.
+- If total approved amount is null, total requested amount is used as fallback.
+- A total approved amount of 0.00 is treated as a real value and is not replaced by requested amount.
+- Medical PNL includes MEDICAL payment advice records and legacy records where type is null where the schema supports type.
+- Older schemas without payment advice type can mix DDF and medical unless report logic separates them by advice rules.
+- DDF PNL uses DEATH payment advice records where type is available.
+- Total Received is calculated from cheque payment records and allocated across selected months.
+- Difference is Total Received minus Total Paid.
+- Positive difference is Profit, negative difference is Loss, zero is Breakeven.
 
 ## BA Review Points
-- Confirm which statuses are eligible for payment or reporting.
-- Confirm output layout and exported values.
-- Confirm which fields are mandatory in client-facing outputs.
+- Confirm whether month filtering should use advice created date or finalized date.
+- Confirm whether paid amount should always be recalculated from attached claim rows.
+- Confirm medical vs DDF separation for older schemas without advice type.
+- Confirm whether company grouping should use payment company or original company.
 
 ## QA Checkpoints
-- Test on-screen and exported outputs.
-- Verify totals and row-level values match the claim data.
-- Verify repeated generation stays correct.
+- Compare PNL Total Paid against finalized payment advice totals for the selected month.
+- Verify DDF advice is not included in medical-only totals.
+- Verify 0.00 approved advice remains 0.00.
+- Verify cheque payment month allocation for Total Received.
 
 ## Client View
-- Payment and report outputs should be easy for business users to read.
-- Client-facing outputs should match approved claim records.
+- PNL shows finance movement by payment advice and cheque receipt timing, not claim decision timing.
 
 ## Related Topics
-- 67. DDF Report Rules
-- 69. Notification Template Usage
+- 63. Payment Advice Generation
+- 64. Payment Advice Death Generation
+- 88. Payment Company and Original Company Rules
