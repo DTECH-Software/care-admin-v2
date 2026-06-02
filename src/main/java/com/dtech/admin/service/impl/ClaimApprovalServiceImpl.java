@@ -537,8 +537,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         return amountText;
     }
 
-    private boolean isParentClaimBlockedStaff(String staffCategoryCode) {
-        return Set.of("EX-OP1", "EX-OP2", "MM", "SNR").contains(staffCategoryCode);
+    private boolean isParentClaimBlockedForMedical(String staffCategoryCode, com.dtech.admin.enums.MaritalStatus maritalStatus) {
+        return Set.of("EX-OP1", "EX-OP2", "MM", "SNR").contains(staffCategoryCode)
+                || ("NS".equals(staffCategoryCode) && com.dtech.admin.enums.MaritalStatus.MARRIED.equals(maritalStatus));
     }
 
     private ResponseEntity<ApiResponse<Object>> claimsApprovalValidation(ApplicationUser user,
@@ -610,7 +611,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                             messageSource.getMessage(ResponseMessageUtil.CLAIM_DEPENDENT_NOT_FOUND_OR_FACILITY_NOT_ELIGIBLE, null, locale)));
                 }
 
-                if (isParentClaimBlockedStaff(staffCategoryCode)
+                if (isParentClaimBlockedForMedical(staffCategoryCode, user.getUserPersonalDetails().getMaritalStatus())
                         && claimsDependentsOpt.get().getDependentCategory().equals(DependentCategory.PARENTS)) {
                     log.info("Parent dependent claim is not allowed for staff category {}", staffCategoryCode);
                     return ResponseEntity.ok().body(responseUtil.error(null, 1049,
