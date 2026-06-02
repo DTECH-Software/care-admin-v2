@@ -34,6 +34,9 @@ public class MaritalSpecification {
                     .join("userPersonalDetails",JoinType.LEFT).join("userCompanyDetails", JoinType.LEFT)
                     .join("companyTypes",JoinType.LEFT);
 
+            Join<MaritalStatus, UserPersonalDetails> userPersonalDetailsJoin = root.join("applicationUser", JoinType.LEFT)
+                    .join("userPersonalDetails", JoinType.LEFT);
+
             if (eligibleCompanies != null && !eligibleCompanies.isEmpty()) {
                 predicates.add(criteriaBuilder.lower(comapnayJoin.get("code")).in(
                         eligibleCompanies.stream()
@@ -48,6 +51,13 @@ public class MaritalSpecification {
 
             if (filterDto.getCompany() != null && !filterDto.getCompany().isEmpty()) {
                 predicates.add(criteriaBuilder.equal(comapnayJoin.get("code"),filterDto.getCompany()));
+            }
+
+            if (filterDto.getEpfNo() != null && !filterDto.getEpfNo().isEmpty()) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(userPersonalDetailsJoin.get("epfNo")),
+                        "%" + filterDto.getEpfNo().toLowerCase(Locale.ROOT) + "%"
+                ));
             }
 
             if (filterDto.getCivilStatus() != null && !filterDto.getCivilStatus().isEmpty()) {
