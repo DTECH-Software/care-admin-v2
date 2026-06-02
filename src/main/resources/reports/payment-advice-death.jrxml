@@ -222,14 +222,14 @@
     </detail>
 
     <pageFooter>
-        <band height="28">
+        <band height="24">
             <staticText>
-                <reportElement x="0" y="2" width="575" height="12" style="Footer"/>
+                <reportElement x="0" y="0" width="575" height="12" style="Footer"/>
                 <textElement textAlignment="Center" verticalAlignment="Middle"/>
                 <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
             </staticText>
             <staticText>
-                <reportElement x="0" y="16" width="575" height="12" style="Footer"/>
+                <reportElement x="0" y="12" width="575" height="12" style="Footer"/>
                 <textElement textAlignment="Center" verticalAlignment="Middle"/>
                 <text><![CDATA[@ Powered by DTech (PVT) LTD 2026. | +94 (0) 11 204 5240.]]></text>
             </staticText>
