@@ -8,7 +8,6 @@ import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
 import com.dtech.admin.dto.response.DependentDetailsResponseDTO;
-import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.dto.search.ClaimDependentSearchDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.mapper.audit.DependentDetailsAuditMapper;
@@ -28,7 +27,6 @@ import com.google.gson.Gson;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cglib.core.Local;
 import org.springframework.context.ApplicationContext;
@@ -74,9 +72,6 @@ public class DependentServiceImpl implements DependentService {
 
     @Autowired
     private final DependentDetailsAuditMapper dependentDetailsAuditMapperEntityToDto;
-
-    @Autowired
-    private final ModelMapper modelMapper;
 
     @Autowired
     private final CompanyTypeRepository companyTypeRepository;
@@ -259,7 +254,8 @@ public class DependentServiceImpl implements DependentService {
 
                         List<String> newAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(de));
                         auditLogService.log(WebPage.DPNM.name(), WebTask.UPDATE.name(), AuditTask.UPDATE_DATA.getDescription(), dependentRequestDTO.getIp(), dependentRequestDTO.getUserAgent(), gson.toJson(newAuditList), gson.toJson(oldAuditList), dependentRequestDTO.getUsername());
-                        return ResponseEntity.ok().body(responseUtil.success(null, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_DETAILS_UPDATE_SUCCESSFULLY, null, locale)));
+                        DependentDetailsResponseDTO responseDTO = dependentDetailsMapperEntityToDto.mapDependentDetails(de);
+                        return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_DETAILS_UPDATE_SUCCESSFULLY, null, locale)));
 
                     }).orElseGet(() -> {
                         log.info("Dependent not found {}", dependentRequestDTO.getId());
@@ -497,10 +493,6 @@ public class DependentServiceImpl implements DependentService {
                     .findById(dependentRequestDTO.getId()).map(de -> {
 
                         DependentDetailsResponseDTO dependentDetailsResponseDTO = dependentDetailsMapperEntityToDto.mapDependentDetails(de);
-                        if (!de.getDocuments().isEmpty()) {
-                            List<DocumentDownloadResponseDTO> list = de.getDocuments().stream().map(d -> modelMapper.map(d, DocumentDownloadResponseDTO.class)).toList();
-                            dependentDetailsResponseDTO.setAttachment(list);
-                        }
                         List<String> newAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(de));
                         auditLogService.log(WebPage.DPNM.name(), WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(), dependentRequestDTO.getIp(), dependentRequestDTO.getUserAgent(), gson.toJson(newAuditList), null, dependentRequestDTO.getUsername());
                         return ResponseEntity.ok().body(responseUtil.success((Object) dependentDetailsResponseDTO, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_DETAILS_RETRIEVE_SUCCESSFULLY, null, locale)));

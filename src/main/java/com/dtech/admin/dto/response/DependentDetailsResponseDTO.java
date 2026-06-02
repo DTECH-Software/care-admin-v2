@@ -32,4 +32,5 @@ public class DependentDetailsResponseDTO extends CommonAuditResponseDTO {
     private List<DocumentDownloadResponseDTO> attachment;
     private Date approvedDate;
     private String approvedUser;
+    private String remark;
 }
