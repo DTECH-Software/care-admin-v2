@@ -13,6 +13,7 @@ import com.dtech.admin.enums.Status;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.StaffCategories;
@@ -220,6 +221,9 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                 dto.setRequestTotalAmount(BigDecimal.ZERO);
                 dto.setApprovedTotalAmount(BigDecimal.ZERO);
                 dto.setRemainingBalance(BigDecimal.ZERO);
+                dto.setL1Remark("");
+                dto.setL2Remark("");
+                dto.setL3Remark("");
                 return dto;
             });
 
@@ -231,6 +235,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                     row.getRequestTotalAmount(),
                     row.getApprovedTotalAmount()
             ));
+            appendWorkflowRemarks(row, claim);
         }
 
         return new ArrayList<>(summary.values());
@@ -258,6 +263,12 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                     Comparator.nullsLast(BigDecimal::compareTo));
             case "remainingBalance" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getRemainingBalance,
                     Comparator.nullsLast(BigDecimal::compareTo));
+            case "l1Remark" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getL1Remark,
+                    Comparator.nullsLast(String::compareToIgnoreCase));
+            case "l2Remark" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getL2Remark,
+                    Comparator.nullsLast(String::compareToIgnoreCase));
+            case "l3Remark" -> Comparator.comparing(TreatmentCategoryCompanyReportRowDTO::getL3Remark,
+                    Comparator.nullsLast(String::compareToIgnoreCase));
             default -> null;
         };
 
@@ -286,6 +297,9 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             case "requestTotalAmount" -> "requestTotalAmount";
             case "approvedTotalAmount" -> "approvedTotalAmount";
             case "remainingBalance" -> "remainingBalance";
+            case "l1Remark" -> "l1Remark";
+            case "l2Remark" -> "l2Remark";
+            case "l3Remark" -> "l3Remark";
             default -> null;
         };
     }
@@ -331,13 +345,16 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             sheet.setColumnWidth(5, 18 * 256);
             sheet.setColumnWidth(6, 18 * 256);
             sheet.setColumnWidth(7, 18 * 256);
+            sheet.setColumnWidth(8, 35 * 256);
+            sheet.setColumnWidth(9, 35 * 256);
+            sheet.setColumnWidth(10, 35 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Treatment Category Company Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 7));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 10));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -349,18 +366,24 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             createStringCell(row, 5, "Request Total Amount", headerStyle);
             createStringCell(row, 6, "Approved Total Amount", headerStyle);
             createStringCell(row, 7, "Remaining Balance", headerStyle);
+            createStringCell(row, 8, "L1 Remark", headerStyle);
+            createStringCell(row, 9, "L2 Remark", headerStyle);
+            createStringCell(row, 10, "L3 Remark", headerStyle);
 
             int lineNo = 1;
             for (TreatmentCategoryCompanyReportRowDTO rowDTO : rows) {
                 row = sheet.createRow(rowIndex++);
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, buildDisplay(rowDTO.getCompanyCode(), rowDTO.getCompanyDescription()), dataStyle);
-                createStringCell(row, 2, buildDisplay(rowDTO.getStaffCategoryCode(), rowDTO.getStaffCategoryDescription()), dataStyle);
-                createStringCell(row, 3, buildDisplay(rowDTO.getTreatmentCode(), rowDTO.getTreatmentDescription()), dataStyle);
-                createStringCell(row, 4, buildDisplay(rowDTO.getTreatmentCategoryCode(), rowDTO.getTreatmentCategoryDescription()), dataStyle);
+                createStringCell(row, 2, descriptionOnly(rowDTO.getStaffCategoryCode(), rowDTO.getStaffCategoryDescription()), dataStyle);
+                createStringCell(row, 3, descriptionOnly(rowDTO.getTreatmentCode(), rowDTO.getTreatmentDescription()), dataStyle);
+                createStringCell(row, 4, descriptionOnly(rowDTO.getTreatmentCategoryCode(), rowDTO.getTreatmentCategoryDescription()), dataStyle);
                 createStringCell(row, 5, toAmountString(rowDTO.getRequestTotalAmount()), dataStyle);
                 createStringCell(row, 6, toAmountString(rowDTO.getApprovedTotalAmount()), dataStyle);
                 createStringCell(row, 7, toAmountString(rowDTO.getRemainingBalance()), dataStyle);
+                createStringCell(row, 8, rowDTO.getL1Remark(), dataStyle);
+                createStringCell(row, 9, rowDTO.getL2Remark(), dataStyle);
+                createStringCell(row, 10, rowDTO.getL3Remark(), dataStyle);
             }
 
             workbook.write(out);
@@ -393,6 +416,43 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             return code;
         }
         return code + " - " + description;
+    }
+
+    private String descriptionOnly(String code, String description) {
+        if (description != null && !description.isBlank()) {
+            return description;
+        }
+        return code != null ? code : "";
+    }
+
+    private void appendWorkflowRemarks(TreatmentCategoryCompanyReportRowDTO row, InsuranceClaimsRequest claim) {
+        if (claim.getApprovalWorkFlows() == null || claim.getApprovalWorkFlows().isEmpty()) {
+            return;
+        }
+
+        for (ApprovalWorkFlow workflow : claim.getApprovalWorkFlows()) {
+            if (workflow.getRejectedRemark() == null || workflow.getRejectedRemark().isBlank()
+                    || workflow.getApprovalLevel() == null) {
+                continue;
+            }
+
+            String remark = claim.getRequestId() + " - " + workflow.getRejectedRemark().trim();
+            switch (workflow.getApprovalLevel()) {
+                case LEVEL01 -> row.setL1Remark(appendRemark(row.getL1Remark(), remark));
+                case LEVEL02 -> row.setL2Remark(appendRemark(row.getL2Remark(), remark));
+                case LEVEL03 -> row.setL3Remark(appendRemark(row.getL3Remark(), remark));
+            }
+        }
+    }
+
+    private String appendRemark(String existing, String remark) {
+        if (existing == null || existing.isBlank()) {
+            return remark;
+        }
+        if (existing.contains(remark)) {
+            return existing;
+        }
+        return existing + "; " + remark;
     }
 
     private String toAmountString(BigDecimal amount) {

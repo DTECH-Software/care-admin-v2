@@ -17,4 +17,7 @@ public class TreatmentCategoryCompanyReportRowDTO {
     private BigDecimal requestTotalAmount;
     private BigDecimal approvedTotalAmount;
     private BigDecimal remainingBalance;
+    private String l1Remark;
+    private String l2Remark;
+    private String l3Remark;
 }
