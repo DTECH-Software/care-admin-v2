@@ -4,6 +4,7 @@ public enum MaritalStatus implements DescribableEnum {
 
     MARRIED("Married"),
     UNMARRIED("Unmarried"),
+    SINGLE("Unmarried"),
     DIVORCE("Divorce");
 
     private final String description;
