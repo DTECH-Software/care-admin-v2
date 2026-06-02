@@ -7,18 +7,28 @@
 
 package com.dtech.admin.mapper.entityToDto;
 
+import com.dtech.admin.dto.SimpleBaseDTO;
 import com.dtech.admin.dto.response.ApprovalWorkFlowResponseDTO;
 import com.dtech.admin.dto.response.ClaimsRequestResponseDTO;
 import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
+import com.dtech.admin.dto.response.EmployeeRejoinDetailsResponseDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.model.ApprovalWorkFlow;
+import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsRequest;
+import com.dtech.admin.model.UserCompanyDetails;
+import com.dtech.admin.model.UserPersonalDetails;
+import com.dtech.admin.repository.UserPersonalDetailsRepository;
 import com.dtech.admin.util.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,6 +38,7 @@ import java.util.stream.Collectors;
 public class ClaimsApprovalEntityToDto {
 
     private final ModelMapper modelMapper;
+    private final UserPersonalDetailsRepository userPersonalDetailsRepository;
 
     public ClaimsRequestResponseDTO mapClaimsApproval(InsuranceClaimsRequest insuranceClaimsRequest, boolean isDocument) {
         try {
@@ -51,6 +62,7 @@ public class ClaimsApprovalEntityToDto {
                 );
             }
             dto.setCreatedDate(insuranceClaimsRequest.getCreatedDate());
+            populateEmployeeDatesAndRejoinDetails(dto, insuranceClaimsRequest.getEmployee().getUserPersonalDetails());
             if (insuranceClaimsRequest.getClaimsDependents() != null) {
                 log.info("get Age fro insurance depende");
                 dto.getClaimsDependents().setAge(DateTimeUtil.getAge(String.valueOf(insuranceClaimsRequest.getClaimsDependents().getDob())));
@@ -108,5 +120,77 @@ public class ClaimsApprovalEntityToDto {
             log.error(e);
             throw e;
         }
+    }
+
+    private void populateEmployeeDatesAndRejoinDetails(ClaimsRequestResponseDTO dto, UserPersonalDetails personalDetails) {
+        if (dto == null || personalDetails == null) {
+            return;
+        }
+
+        UserCompanyDetails companyDetails = personalDetails.getUserCompanyDetails();
+        if (companyDetails != null) {
+            if (companyDetails.getPreviousPermanentDate() != null) {
+                dto.setPermanentDate(companyDetails.getPreviousPermanentDate());
+                dto.setPromotionDate(companyDetails.getPermanentDate());
+            } else {
+                dto.setPermanentDate(companyDetails.getPermanentDate());
+                dto.setPromotionDate(null);
+            }
+            dto.setTerminateDate(companyDetails.getTerminateDate());
+        }
+
+        EmployeeRejoinDetailsResponseDTO rejoinDetails = buildRejoinDetails(personalDetails);
+        if (rejoinDetails != null) {
+            dto.setPreviousCompanies(rejoinDetails.getPreviousCompanies());
+            dto.setPreviousEpfs(rejoinDetails.getPreviousEpfs());
+            if (dto.getEmployee() != null) {
+                dto.getEmployee().setRejoinDetails(rejoinDetails);
+            }
+        }
+    }
+
+    private EmployeeRejoinDetailsResponseDTO buildRejoinDetails(UserPersonalDetails currentUser) {
+        if (currentUser == null || !StringUtils.hasText(currentUser.getNic()) || currentUser.getId() == null) {
+            return null;
+        }
+
+        List<UserPersonalDetails> previousProfiles = userPersonalDetailsRepository
+                .findAllByNicIgnoreCaseAndUserStatusAndIdNotOrderByIdDesc(currentUser.getNic(), Status.INACTIVE, currentUser.getId());
+
+        if (previousProfiles.isEmpty()) {
+            return null;
+        }
+
+        String currentEpf = normalizeValue(currentUser.getEpfNo());
+        LinkedHashMap<String, SimpleBaseDTO> previousCompanies = new LinkedHashMap<>();
+        LinkedHashSet<String> previousEpfs = new LinkedHashSet<>();
+
+        previousProfiles.forEach(previousProfile -> {
+            String previousEpf = normalizeValue(previousProfile.getEpfNo());
+            if (previousEpf != null && !previousEpf.equalsIgnoreCase(currentEpf)) {
+                previousEpfs.add(previousEpf);
+            }
+
+            CompanyTypes companyTypes = previousProfile.getUserCompanyDetails() != null
+                    ? previousProfile.getUserCompanyDetails().getCompanyTypes()
+                    : null;
+            if (companyTypes != null && StringUtils.hasText(companyTypes.getCode())) {
+                previousCompanies.putIfAbsent(companyTypes.getCode(),
+                        new SimpleBaseDTO(companyTypes.getCode(), companyTypes.getDescription()));
+            }
+        });
+
+        if (previousCompanies.isEmpty() && previousEpfs.isEmpty()) {
+            return null;
+        }
+
+        EmployeeRejoinDetailsResponseDTO rejoinDetails = new EmployeeRejoinDetailsResponseDTO();
+        rejoinDetails.setPreviousCompanies(new ArrayList<>(previousCompanies.values()));
+        rejoinDetails.setPreviousEpfs(new ArrayList<>(previousEpfs));
+        return rejoinDetails;
+    }
+
+    private String normalizeValue(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

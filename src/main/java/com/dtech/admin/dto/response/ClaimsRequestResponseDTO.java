@@ -31,4 +31,9 @@ public class ClaimsRequestResponseDTO {
     private Map<String,Object> limits;
     private List<SimpleBaseDTO> policyList;
     private Date createdDate;
+    private Date permanentDate;
+    private Date promotionDate;
+    private Date terminateDate;
+    private List<SimpleBaseDTO> previousCompanies;
+    private List<String> previousEpfs;
 }
