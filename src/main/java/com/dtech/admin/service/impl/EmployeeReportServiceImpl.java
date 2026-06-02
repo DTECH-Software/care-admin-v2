@@ -272,13 +272,14 @@ public class EmployeeReportServiceImpl implements EmployeeReportService {
             sheet.setColumnWidth(24, 14 * 256);
             sheet.setColumnWidth(25, 14 * 256);
             sheet.setColumnWidth(26, 12 * 256);
+            sheet.setColumnWidth(27, 14 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Employee List Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 26));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 27));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
@@ -309,6 +310,7 @@ public class EmployeeReportServiceImpl implements EmployeeReportService {
             createStringCell(row, 24, "Permanent Date", headerStyle);
             createStringCell(row, 25, "Terminate Date", headerStyle);
             createStringCell(row, 26, "Status", headerStyle);
+            createStringCell(row, 27, "Created Date", headerStyle);
 
             int lineNo = 1;
             for (UserPersonalDetails rowDTO : rows) {
@@ -380,6 +382,7 @@ public class EmployeeReportServiceImpl implements EmployeeReportService {
                 createStringCell(row, 24, formatDate(companyDetails != null ? companyDetails.getPermanentDate() : null), dataStyle);
                 createStringCell(row, 25, formatDate(companyDetails != null ? companyDetails.getTerminateDate() : null), dataStyle);
                 createStringCell(row, 26, buildDisplay(statusCode, statusDescription), dataStyle);
+                createStringCell(row, 27, formatDate(rowDTO.getCreatedDate()), dataStyle);
             }
 
             workbook.write(out);
