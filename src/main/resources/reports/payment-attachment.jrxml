@@ -30,7 +30,8 @@
 
     <parameter name="logo" class="java.io.InputStream"/>
     <parameter name="attachmentNo" class="java.lang.String"/>
-    <parameter name="createdDate" class="java.lang.String"/>
+    <parameter name="dateFrom" class="java.lang.String"/>
+    <parameter name="dateTo" class="java.lang.String"/>
     <parameter name="companyCode" class="java.lang.String"/>
     <parameter name="paymentCompanyCode" class="java.lang.String"/>
     <parameter name="staffCategoryCode" class="java.lang.String"/>
@@ -78,12 +79,16 @@
             </textField>
 
             <staticText>
-                <reportElement x="360" y="0" width="40" height="14" style="Label"/>
-                <text><![CDATA[Date:]]></text>
+                <reportElement x="330" y="0" width="75" height="14" style="Label"/>
+                <text><![CDATA[Date Range:]]></text>
             </staticText>
             <textField>
-                <reportElement x="405" y="0" width="150" height="14" style="Base"/>
-                <textFieldExpression><![CDATA[$P{createdDate}]]></textFieldExpression>
+                <reportElement x="407" y="0" width="148" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[
+                    ($P{dateFrom} == null ? "" : $P{dateFrom})
+                    + " / "
+                    + ($P{dateTo} == null ? "" : $P{dateTo})
+                ]]></textFieldExpression>
             </textField>
 
             <staticText>

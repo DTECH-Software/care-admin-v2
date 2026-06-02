@@ -1196,7 +1196,6 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             params.put("dateTo", formatDate(responseDTO.getDateTo()));
             params.put("status", responseDTO.getStatus());
             params.put("createdBy", responseDTO.getCreatedBy());
-            params.put("createdDate", formatDate(responseDTO.getCreatedDate()));
             params.put("companyCode", hasText(responseDTO.getCompanyDescription())
                     ? responseDTO.getCompanyDescription()
                     : responseDTO.getCompanyCode());
