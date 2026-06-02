@@ -128,11 +128,11 @@ public class DependentDetailsMapperEntityToDto {
         dto.setStaffCategories(simple(companyDetails.getStaffCategories()));
         dto.setStaffTypes(simple(companyDetails.getStaffTypes()));
         dto.setDesignation(companyDetails.getDesignation());
+        dto.setPermanentDate(companyDetails.getPermanentDate());
         if (companyDetails.getPreviousPermanentDate() == null) {
             dto.setPreviousPermanentDate(companyDetails.getPermanentDate());
         } else {
             dto.setPreviousPermanentDate(companyDetails.getPreviousPermanentDate());
-            dto.setPermanentDate(companyDetails.getPermanentDate());
         }
         dto.setTerminateDate(companyDetails.getTerminateDate());
         dto.setInsurancePolicy(simple(companyDetails.getInsurancePolicy()));
