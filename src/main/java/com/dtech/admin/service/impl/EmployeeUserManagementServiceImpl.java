@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 public class EmployeeUserManagementServiceImpl implements EmployeeUserManagementService {
 
     private static final Set<String> STAFF_CATEGORY_TRANSFER_ADMIN_ROLE_CODES = Set.of(
-            "DevTest", "SUPERADMIN", "APPROVER", "ADMIN", "CLAIMS_APPROVER", "W_CSA"
+            "SUPERADMIN1", "SUPERADMIN", "ADMIN"
     );
 
     @Autowired

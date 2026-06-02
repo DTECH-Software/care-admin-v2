@@ -45,6 +45,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class EmailNotificationService {
 
+    private static final Set<String> ADMIN_NOTIFICATION_ROLE_CODES = Set.of(
+            "SUPERADMIN1", "SUPERADMIN", "ADMIN"
+    );
+
     @Autowired
     private final JavaMailSender mailSender;
 
@@ -215,8 +219,14 @@ public class EmailNotificationService {
                 .formatted(safeValue(employee.getEpfNo()));
         String body = buildEmployeeAddedPendingApprovalBody(employee, hrUsername);
 
+        List<WebUser> adminRecipients = filterAdminNotificationRecipients(recipients);
+        if (CollectionUtils.isEmpty(adminRecipients)) {
+            log.info("No admin recipients available for employee inclusion notification");
+            return;
+        }
+
         Set<String> processedEmails = new HashSet<>();
-        for (WebUser recipient : recipients) {
+        for (WebUser recipient : adminRecipients) {
             sendHtmlMail(recipient, subject, body, "employee inclusion pending approval", processedEmails);
         }
     }
@@ -232,8 +242,14 @@ public class EmailNotificationService {
         String subject = "[%s] Employee Deactivated".formatted(safeValue(employee.getEpfNo()));
         String body = buildEmployeeDeactivatedBody(employee, hrUsername);
 
+        List<WebUser> adminRecipients = filterAdminNotificationRecipients(recipients);
+        if (CollectionUtils.isEmpty(adminRecipients)) {
+            log.info("No admin recipients available for employee deactivation notification");
+            return;
+        }
+
         Set<String> processedEmails = new HashSet<>();
-        for (WebUser recipient : recipients) {
+        for (WebUser recipient : adminRecipients) {
             sendHtmlMail(recipient, subject, body, "employee deactivated", processedEmails);
         }
     }
@@ -249,8 +265,14 @@ public class EmailNotificationService {
         String subject = "Dependent Approved By HR";
         String body = buildDependentApprovedByHrBody(dependent, hrUsername);
 
+        List<WebUser> adminRecipients = filterAdminNotificationRecipients(recipients);
+        if (CollectionUtils.isEmpty(adminRecipients)) {
+            log.info("No admin recipients available for dependent approval notification");
+            return;
+        }
+
         Set<String> processedEmails = new HashSet<>();
-        for (WebUser recipient : recipients) {
+        for (WebUser recipient : adminRecipients) {
             sendHtmlMail(recipient, subject, body, "dependent approved by hr", processedEmails);
         }
     }
@@ -266,8 +288,14 @@ public class EmailNotificationService {
         String subject = "Civil Status Approved by HR";
         String body = buildCivilStatusApprovedByHrBody(civilStatusUpdate, hrUsername);
 
+        List<WebUser> adminRecipients = filterAdminNotificationRecipients(recipients);
+        if (CollectionUtils.isEmpty(adminRecipients)) {
+            log.info("No admin recipients available for civil status approval notification");
+            return;
+        }
+
         Set<String> processedEmails = new HashSet<>();
-        for (WebUser recipient : recipients) {
+        for (WebUser recipient : adminRecipients) {
             sendHtmlMail(recipient, subject, body, "civil status approved by hr", processedEmails);
         }
     }
@@ -290,10 +318,28 @@ public class EmailNotificationService {
                 );
         String body = buildStaffCategoryTransferredBody(employee, previousStaffCategory, newStaffCategory, effectiveDate, hrUsername);
 
+        List<WebUser> adminRecipients = filterAdminNotificationRecipients(recipients);
+        if (CollectionUtils.isEmpty(adminRecipients)) {
+            log.info("No admin recipients available for staff category transfer notification");
+            return;
+        }
+
         Set<String> processedEmails = new HashSet<>();
-        for (WebUser recipient : recipients) {
+        for (WebUser recipient : adminRecipients) {
             sendHtmlMail(recipient, subject, body, "staff category transferred", processedEmails);
         }
+    }
+
+    private List<WebUser> filterAdminNotificationRecipients(List<WebUser> recipients) {
+        if (CollectionUtils.isEmpty(recipients)) {
+            return List.of();
+        }
+        return recipients.stream()
+                .filter(Objects::nonNull)
+                .filter(user -> user.getUserRole() != null && StringUtils.hasText(user.getUserRole().getCode()))
+                .filter(user -> ADMIN_NOTIFICATION_ROLE_CODES.stream()
+                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
+                .toList();
     }
 
     private void sendMail(WebUser recipient, String subject, String body, String logContext, Set<String> processedEmails) {
