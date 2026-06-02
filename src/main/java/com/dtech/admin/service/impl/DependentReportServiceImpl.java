@@ -405,18 +405,18 @@ public class DependentReportServiceImpl implements DependentReportService {
                 row = sheet.createRow(rowIndex++);
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, rowDTO.getDependentId() != null ? rowDTO.getDependentId().toString() : "", dataStyle);
-                createStringCell(row, 2, buildDisplay(rowDTO.getDependentCategory(), rowDTO.getDependentCategoryDescription()), dataStyle);
-                createStringCell(row, 3, buildDisplay(rowDTO.getRelationCategory(), rowDTO.getRelationCategoryDescription()), dataStyle);
+                createStringCell(row, 2, descriptionOnly(rowDTO.getDependentCategory(), rowDTO.getDependentCategoryDescription()), dataStyle);
+                createStringCell(row, 3, descriptionOnly(rowDTO.getRelationCategory(), rowDTO.getRelationCategoryDescription()), dataStyle);
                 createStringCell(row, 4, rowDTO.getInitials(), dataStyle);
                 createStringCell(row, 5, rowDTO.getFirstName(), dataStyle);
                 createStringCell(row, 6, rowDTO.getLastName(), dataStyle);
-                createStringCell(row, 7, buildDisplay(rowDTO.getGender(), rowDTO.getGenderDescription()), dataStyle);
+                createStringCell(row, 7, descriptionOnly(rowDTO.getGender(), rowDTO.getGenderDescription()), dataStyle);
                 createStringCell(row, 8, formatDate(rowDTO.getDob()), dataStyle);
                 createStringCell(row, 9, String.valueOf(rowDTO.getAge()), dataStyle);
                 createStringCell(row, 10, rowDTO.getNic(), dataStyle);
                 createStringCell(row, 11, rowDTO.getJobTitle(), dataStyle);
-                createStringCell(row, 12, buildDisplay(rowDTO.getEligibleFacility(), rowDTO.getEligibleFacilityDescription()), dataStyle);
-                createStringCell(row, 13, buildDisplay(rowDTO.getStatus(), rowDTO.getStatusDescription()), dataStyle);
+                createStringCell(row, 12, descriptionOnly(rowDTO.getEligibleFacility(), rowDTO.getEligibleFacilityDescription()), dataStyle);
+                createStringCell(row, 13, descriptionOnly(rowDTO.getStatus(), rowDTO.getStatusDescription()), dataStyle);
                 createStringCell(row, 14, rowDTO.getLiveStatus() != null ? rowDTO.getLiveStatus().toString() : "", dataStyle);
                 createStringCell(row, 15, formatDate(rowDTO.getApprovedDate()), dataStyle);
                 createStringCell(row, 16, rowDTO.getApprovedUser(), dataStyle);
@@ -458,6 +458,13 @@ public class DependentReportServiceImpl implements DependentReportService {
             return code;
         }
         return code + " - " + description;
+    }
+
+    private String descriptionOnly(String code, String description) {
+        if (description != null && !description.isBlank()) {
+            return description;
+        }
+        return code != null ? code : "";
     }
 
     private String formatDate(Date date) {
