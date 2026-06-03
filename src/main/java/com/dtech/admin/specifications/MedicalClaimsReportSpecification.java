@@ -1,15 +1,16 @@
 package com.dtech.admin.specifications;
 
 import com.dtech.admin.dto.search.ClaimRequestSearchDTO;
-import com.dtech.admin.enums.ApprovalLevel;
 import com.dtech.admin.enums.PaymentAttachmentStatus;
+import com.dtech.admin.enums.PaymentAdviceStatus;
+import com.dtech.admin.enums.PaymentAdviceType;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApplicationUser;
-import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
+import com.dtech.admin.model.PaymentAdvice;
 import com.dtech.admin.model.PaymentAdviceAttachment;
 import com.dtech.admin.model.PaymentAttachment;
 import com.dtech.admin.model.PaymentAttachmentClaim;
@@ -62,7 +63,7 @@ public class MedicalClaimsReportSpecification {
                     root.join("insuranceClaimsDetails", JoinType.LEFT)
                             .join("insuranceStaffCategoryPeriod", JoinType.LEFT);
 
-            applyFinalDecisionDateFilter(filterDto, root, query, criteriaBuilder, predicates);
+            applyPaymentAdviceCreatedDateFilter(filterDto, root, query, criteriaBuilder, predicates);
 
             if (filterDto != null && hasText(filterDto.getRequestId())) {
                 String requestId = filterDto.getRequestId().trim().toLowerCase();
@@ -116,12 +117,19 @@ public class MedicalClaimsReportSpecification {
                 if (paymentAdviceStatus.equals("GENERATED") || paymentAdviceStatus.equals("NOT_GENERATED")) {
                     Subquery<Long> adviceSubquery = query.subquery(Long.class);
                     Root<PaymentAdviceAttachment> adviceRoot = adviceSubquery.from(PaymentAdviceAttachment.class);
+                    Join<PaymentAdviceAttachment, PaymentAdvice> paymentAdviceJoin =
+                            adviceRoot.join("paymentAdvice", JoinType.LEFT);
                     Join<PaymentAdviceAttachment, PaymentAttachment> adviceAttachmentJoin =
                             adviceRoot.join("paymentAttachment", JoinType.LEFT);
                     Join<PaymentAttachment, PaymentAttachmentClaim> adviceClaimJoin =
                             adviceAttachmentJoin.join("claims", JoinType.LEFT);
                     adviceSubquery.select(adviceRoot.get("id"))
-                            .where(criteriaBuilder.equal(adviceClaimJoin.get("insuranceClaimsRequest"), root));
+                            .where(criteriaBuilder.equal(adviceClaimJoin.get("insuranceClaimsRequest"), root),
+                                    criteriaBuilder.equal(paymentAdviceJoin.get("status"), PaymentAdviceStatus.FINALIZED),
+                                    criteriaBuilder.or(
+                                            criteriaBuilder.isNull(paymentAdviceJoin.get("type")),
+                                            criteriaBuilder.equal(paymentAdviceJoin.get("type"), PaymentAdviceType.MEDICAL)
+                                    ));
                     if (paymentAdviceStatus.equals("GENERATED")) {
                         predicates.add(criteriaBuilder.exists(adviceSubquery));
                     } else {
@@ -149,37 +157,44 @@ public class MedicalClaimsReportSpecification {
         };
     }
 
-    private static void applyFinalDecisionDateFilter(ClaimRequestSearchDTO filterDto,
-                                                     Root<InsuranceClaimsRequest> root,
-                                                     CriteriaQuery<?> query,
-                                                     CriteriaBuilder criteriaBuilder,
-                                                     List<Predicate> predicates) {
+    private static void applyPaymentAdviceCreatedDateFilter(ClaimRequestSearchDTO filterDto,
+                                                            Root<InsuranceClaimsRequest> root,
+                                                            CriteriaQuery<?> query,
+                                                            CriteriaBuilder criteriaBuilder,
+                                                            List<Predicate> predicates) {
         if (filterDto == null || (!hasText(filterDto.getFromDate()) && !hasText(filterDto.getToDate()))) {
             return;
         }
 
-        Subquery<Date> decisionDateSubquery = query.subquery(Date.class);
-        Root<InsuranceClaimsRequest> decisionRoot = decisionDateSubquery.from(InsuranceClaimsRequest.class);
-        Join<InsuranceClaimsRequest, ApprovalWorkFlow> decisionWorkflowJoin =
-                decisionRoot.join("approvalWorkFlows", JoinType.LEFT);
+        Subquery<Date> paymentAdviceDateSubquery = query.subquery(Date.class);
+        Root<PaymentAdviceAttachment> adviceRoot = paymentAdviceDateSubquery.from(PaymentAdviceAttachment.class);
+        Join<PaymentAdviceAttachment, PaymentAdvice> paymentAdviceJoin =
+                adviceRoot.join("paymentAdvice", JoinType.LEFT);
+        Join<PaymentAdviceAttachment, PaymentAttachment> paymentAttachmentJoin =
+                adviceRoot.join("paymentAttachment", JoinType.LEFT);
+        Join<PaymentAttachment, PaymentAttachmentClaim> paymentAttachmentClaimJoin =
+                paymentAttachmentJoin.join("claims", JoinType.LEFT);
 
-        decisionDateSubquery.select(criteriaBuilder.greatest(decisionWorkflowJoin.<Date>get("approvedDate")))
+        paymentAdviceDateSubquery.select(criteriaBuilder.greatest(paymentAdviceJoin.<Date>get("createdDate")))
                 .where(
-                        criteriaBuilder.equal(decisionRoot.get("id"), root.get("id")),
-                        criteriaBuilder.equal(decisionWorkflowJoin.get("status"), root.get("requestStatus")),
-                        decisionWorkflowJoin.get("approvalLevel").in(List.of(ApprovalLevel.LEVEL02, ApprovalLevel.LEVEL03)),
-                        criteriaBuilder.isNotNull(decisionWorkflowJoin.get("approvedDate"))
+                        criteriaBuilder.equal(paymentAttachmentClaimJoin.get("insuranceClaimsRequest"), root),
+                        criteriaBuilder.equal(paymentAdviceJoin.get("status"), PaymentAdviceStatus.FINALIZED),
+                        criteriaBuilder.or(
+                                criteriaBuilder.isNull(paymentAdviceJoin.get("type")),
+                                criteriaBuilder.equal(paymentAdviceJoin.get("type"), PaymentAdviceType.MEDICAL)
+                        ),
+                        criteriaBuilder.isNotNull(paymentAdviceJoin.get("createdDate"))
                 );
 
         try {
             if (hasText(filterDto.getFromDate())) {
                 Date fromDate = DateTimeUtil.getStartOfDay(normalizeDate(filterDto.getFromDate()));
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(decisionDateSubquery, fromDate));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(paymentAdviceDateSubquery, fromDate));
             }
 
             if (hasText(filterDto.getToDate())) {
                 Date toDate = DateTimeUtil.getEndOfDay(normalizeDate(filterDto.getToDate()));
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(decisionDateSubquery, toDate));
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(paymentAdviceDateSubquery, toDate));
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

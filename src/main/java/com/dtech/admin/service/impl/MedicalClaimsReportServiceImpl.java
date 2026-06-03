@@ -288,7 +288,6 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             List<InsuranceClaimsRequest> claims = Objects.nonNull(search)
                     ? insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification(search))
                     : insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification());
-            claims = filterByFinalDecisionDate(claims, search);
 
             byte[] excelBytes = buildExcel(claims);
 
