@@ -15,13 +15,18 @@ import com.dtech.admin.enums.PaymentAdviceType;
 import com.dtech.admin.enums.Status;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
+import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ChequePayment;
 import com.dtech.admin.model.ChequePaymentDdf;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.PaymentAdvice;
+import com.dtech.admin.model.PaymentAdviceAttachment;
+import com.dtech.admin.model.PaymentAttachmentClaim;
 import com.dtech.admin.repository.ChequePaymentDdfRepository;
 import com.dtech.admin.repository.ChequePaymentRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
+import com.dtech.admin.repository.PaymentAdviceAttachmentRepository;
 import com.dtech.admin.repository.PaymentAdviceRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ProfitLossReportService;
@@ -106,6 +111,9 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
 
     @Autowired
     private final PaymentAdviceRepository paymentAdviceRepository;
+
+    @Autowired
+    private final PaymentAdviceAttachmentRepository paymentAdviceAttachmentRepository;
 
     @Autowired
     private final ChequePaymentRepository chequePaymentRepository;
@@ -256,6 +264,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
                                 List<PaymentAdvice> advices,
                                 Set<String> monthFilter,
                                 Map<String, String> companyDescriptions) {
+        Map<Long, List<PaymentAdviceAttachment>> attachmentsByAdviceId = loadAdviceAttachmentsByAdviceId(advices);
         for (PaymentAdvice advice : advices) {
             if (advice == null) {
                 continue;
@@ -274,7 +283,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             String key = companyCode + "|" + year;
             ProfitLossReportRowDTO row = summary.computeIfAbsent(key, code ->
                     buildRow(companyCode, companyDescriptions.get(companyCode), year));
-            BigDecimal amount = resolvePaidAmount(advice);
+            BigDecimal amount = resolvePaidAmount(advice, attachmentsByAdviceId.get(advice.getId()));
             row.setTotalPaid(safeAmount(row.getTotalPaid()).add(amount));
         }
     }
@@ -443,13 +452,70 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
         return row;
     }
 
-    private BigDecimal resolvePaidAmount(PaymentAdvice advice) {
+    private Map<Long, List<PaymentAdviceAttachment>> loadAdviceAttachmentsByAdviceId(List<PaymentAdvice> advices) {
+        if (advices == null || advices.isEmpty()) {
+            return Map.of();
+        }
+        List<PaymentAdvice> persistedAdvices = advices.stream()
+                .filter(Objects::nonNull)
+                .filter(advice -> advice.getId() != null)
+                .toList();
+        if (persistedAdvices.isEmpty()) {
+            return Map.of();
+        }
+        return paymentAdviceAttachmentRepository.findAllByPaymentAdviceIn(persistedAdvices)
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(attachment -> attachment.getPaymentAdvice() != null)
+                .filter(attachment -> attachment.getPaymentAdvice().getId() != null)
+                .collect(Collectors.groupingBy(attachment -> attachment.getPaymentAdvice().getId()));
+    }
+
+    private BigDecimal resolvePaidAmount(PaymentAdvice advice, List<PaymentAdviceAttachment> adviceAttachments) {
+        if (isMedicalAdvice(advice)) {
+            return resolveMedicalPaidAmountFromClaims(adviceAttachments);
+        }
         BigDecimal approved = advice.getTotalApprovedAmount();
         if (approved != null) {
             return approved;
         }
         BigDecimal requested = advice.getTotalRequestedAmount();
         return requested != null ? requested : BigDecimal.ZERO;
+    }
+
+    private BigDecimal resolveMedicalPaidAmountFromClaims(List<PaymentAdviceAttachment> adviceAttachments) {
+        if (adviceAttachments == null || adviceAttachments.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        Set<Long> claimIds = new HashSet<>();
+        for (PaymentAdviceAttachment adviceAttachment : adviceAttachments) {
+            if (adviceAttachment == null || adviceAttachment.getPaymentAttachment() == null
+                    || adviceAttachment.getPaymentAttachment().getClaims() == null) {
+                continue;
+            }
+            for (PaymentAttachmentClaim attachmentClaim : adviceAttachment.getPaymentAttachment().getClaims()) {
+                if (attachmentClaim == null) {
+                    continue;
+                }
+                InsuranceClaimsRequest claim = attachmentClaim.getInsuranceClaimsRequest();
+                if (claim == null || claim.getId() == null || !claimIds.add(claim.getId())) {
+                    continue;
+                }
+                if (!Workflow.APPROVED.equals(claim.getRequestStatus())) {
+                    continue;
+                }
+                BigDecimal approvedAmount = claim.getApprovedAmount() != null
+                        ? claim.getApprovedAmount()
+                        : attachmentClaim.getApprovedAmount();
+                total = total.add(safeAmount(approvedAmount));
+            }
+        }
+        return total;
+    }
+
+    private boolean isMedicalAdvice(PaymentAdvice advice) {
+        return advice != null && (advice.getType() == null || PaymentAdviceType.MEDICAL.equals(advice.getType()));
     }
 
     private String resolveResult(BigDecimal difference) {

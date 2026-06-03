@@ -15,5 +15,7 @@ public interface PaymentAdviceAttachmentRepository extends JpaRepository<Payment
 
     List<PaymentAdviceAttachment> findAllByPaymentAdvice(PaymentAdvice paymentAdvice);
 
+    List<PaymentAdviceAttachment> findAllByPaymentAdviceIn(List<PaymentAdvice> paymentAdvices);
+
     List<PaymentAdviceAttachment> findAllByCreatedDateBetween(Date fromDate, Date toDate);
 }
