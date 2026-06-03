@@ -226,7 +226,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
         if (reportType.includesMedical()) {
             List<PaymentAdvice> advices = loadPaymentAdvice(PaymentAdviceType.MEDICAL, true, companyFilter,
                     storedStaffCategoryCodes, yearFilter);
-            addPaidAmounts(summary, advices, monthFilter, companyDescriptions);
+            addPaidAmounts(summary, advices, monthFilter, companyDescriptions, storedStaffCategoryCodes);
 
             List<ChequePayment> cheques = loadChequePayments(companyFilter, storedStaffCategoryCodes, monthFilter, yearFilter);
             addReceivedAmounts(summary, cheques, monthFilter, companyDescriptions);
@@ -235,7 +235,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
         if (reportType.includesDdf()) {
             List<PaymentAdvice> advices = loadPaymentAdvice(PaymentAdviceType.DEATH, false, companyFilter,
                     null, yearFilter);
-            addPaidAmounts(summary, advices, monthFilter, companyDescriptions);
+            addPaidAmounts(summary, advices, monthFilter, companyDescriptions, null);
 
             List<ChequePaymentDdf> cheques = loadChequePaymentsDdf(companyFilter, monthFilter, yearFilter);
             addReceivedAmountsDdf(summary, cheques, monthFilter, companyDescriptions);
@@ -263,7 +263,8 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     private void addPaidAmounts(Map<String, ProfitLossReportRowDTO> summary,
                                 List<PaymentAdvice> advices,
                                 Set<String> monthFilter,
-                                Map<String, String> companyDescriptions) {
+                                Map<String, String> companyDescriptions,
+                                List<String> staffCategoryCodes) {
         Map<Long, List<PaymentAdviceAttachment>> attachmentsByAdviceId = loadAdviceAttachmentsByAdviceId(advices);
         for (PaymentAdvice advice : advices) {
             if (advice == null) {
@@ -283,7 +284,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             String key = companyCode + "|" + year;
             ProfitLossReportRowDTO row = summary.computeIfAbsent(key, code ->
                     buildRow(companyCode, companyDescriptions.get(companyCode), year));
-            BigDecimal amount = resolvePaidAmount(advice, attachmentsByAdviceId.get(advice.getId()));
+            BigDecimal amount = resolvePaidAmount(advice, attachmentsByAdviceId.get(advice.getId()), staffCategoryCodes);
             row.setTotalPaid(safeAmount(row.getTotalPaid()).add(amount));
         }
     }
@@ -471,9 +472,11 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
                 .collect(Collectors.groupingBy(attachment -> attachment.getPaymentAdvice().getId()));
     }
 
-    private BigDecimal resolvePaidAmount(PaymentAdvice advice, List<PaymentAdviceAttachment> adviceAttachments) {
+    private BigDecimal resolvePaidAmount(PaymentAdvice advice,
+                                         List<PaymentAdviceAttachment> adviceAttachments,
+                                         List<String> staffCategoryCodes) {
         if (isMedicalAdvice(advice)) {
-            return resolveMedicalPaidAmountFromClaims(adviceAttachments);
+            return resolveMedicalPaidAmountFromClaims(adviceAttachments, staffCategoryCodes);
         }
         BigDecimal approved = advice.getTotalApprovedAmount();
         if (approved != null) {
@@ -483,10 +486,12 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
         return requested != null ? requested : BigDecimal.ZERO;
     }
 
-    private BigDecimal resolveMedicalPaidAmountFromClaims(List<PaymentAdviceAttachment> adviceAttachments) {
+    private BigDecimal resolveMedicalPaidAmountFromClaims(List<PaymentAdviceAttachment> adviceAttachments,
+                                                          List<String> staffCategoryCodes) {
         if (adviceAttachments == null || adviceAttachments.isEmpty()) {
             return BigDecimal.ZERO;
         }
+        Set<String> allowedStaffCategories = normalizeStaffCategoryCodes(staffCategoryCodes);
         BigDecimal total = BigDecimal.ZERO;
         Set<Long> claimIds = new HashSet<>();
         for (PaymentAdviceAttachment adviceAttachment : adviceAttachments) {
@@ -505,6 +510,9 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
                 if (!Workflow.APPROVED.equals(claim.getRequestStatus())) {
                     continue;
                 }
+                if (!matchesStaffCategory(attachmentClaim.getStaffCategoryCode(), allowedStaffCategories)) {
+                    continue;
+                }
                 BigDecimal approvedAmount = claim.getApprovedAmount() != null
                         ? claim.getApprovedAmount()
                         : attachmentClaim.getApprovedAmount();
@@ -512,6 +520,24 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             }
         }
         return total;
+    }
+
+    private Set<String> normalizeStaffCategoryCodes(List<String> staffCategoryCodes) {
+        if (staffCategoryCodes == null || staffCategoryCodes.isEmpty()) {
+            return Set.of();
+        }
+        return staffCategoryCodes.stream()
+                .filter(this::hasText)
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean matchesStaffCategory(String staffCategoryCode, Set<String> allowedStaffCategories) {
+        if (allowedStaffCategories == null || allowedStaffCategories.isEmpty()) {
+            return true;
+        }
+        return hasText(staffCategoryCode) && allowedStaffCategories.contains(staffCategoryCode.trim().toUpperCase());
     }
 
     private boolean isMedicalAdvice(PaymentAdvice advice) {
