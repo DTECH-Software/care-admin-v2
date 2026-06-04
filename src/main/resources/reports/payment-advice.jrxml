@@ -14,7 +14,7 @@
     <style name="TitleRed" style="Base" fontSize="17" isBold="true" isUnderline="false" forecolor="#D32F2F"/>
     <style name="HeaderName" style="Base" fontSize="12" isBold="true"/>
     <style name="Label" style="Base" isBold="true" forecolor="#111111"/>
-    <style name="SystemGeneratedText" style="Base" fontSize="10" isBold="true"/>
+    <style name="SystemGeneratedText" style="Base" fontSize="11" isBold="true" forecolor="#000000"/>
     <style name="Footer" style="Base" fontSize="8" forecolor="#666666"/>
     <style name="TableHeader" style="Base" mode="Opaque" backcolor="#111111" forecolor="#FFFFFF" isBold="true">
         <box>

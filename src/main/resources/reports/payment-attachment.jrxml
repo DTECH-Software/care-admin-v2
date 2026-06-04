@@ -26,7 +26,7 @@
         <paragraph leftIndent="3" rightIndent="3"/>
     </style>
     <style name="SummaryText" style="Base" isBold="true"/>
-    <style name="SystemGeneratedText" style="Base" fontSize="10" isBold="true"/>
+    <style name="SystemGeneratedText" style="Base" fontSize="11" isBold="true" forecolor="#000000"/>
     <style name="Footer" style="Base" fontSize="8" forecolor="#666666"/>
 
     <parameter name="logo" class="java.io.InputStream"/>
