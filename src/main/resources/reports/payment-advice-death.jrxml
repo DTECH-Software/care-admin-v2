@@ -14,6 +14,7 @@
     <style name="TitleRed" style="Base" fontSize="14" isBold="true" forecolor="#D32F2F"/>
     <style name="HeaderName" style="Base" fontSize="12" isBold="true"/>
     <style name="Label" style="Base" isBold="true" forecolor="#111111"/>
+    <style name="SystemGeneratedText" style="Base" fontSize="10" isBold="true"/>
     <style name="Footer" style="Base" fontSize="8" forecolor="#666666"/>
     <style name="TableHeader" style="Base" mode="Opaque" backcolor="#111111" forecolor="#FFFFFF" isBold="true">
         <box>
@@ -350,7 +351,7 @@
             </staticText>
 
             <staticText>
-                <reportElement x="0" y="52" width="575" height="14" style="Label"/>
+                <reportElement x="0" y="52" width="575" height="14" style="SystemGeneratedText"/>
                 <textElement textAlignment="Center" verticalAlignment="Middle"/>
                 <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
             </staticText>
