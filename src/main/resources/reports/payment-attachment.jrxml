@@ -243,14 +243,9 @@ Amount]]></text>
     </detail>
 
     <pageFooter>
-        <band height="24">
+        <band height="12">
             <staticText>
                 <reportElement x="0" y="0" width="555" height="12" style="Footer"/>
-                <textElement textAlignment="Center" verticalAlignment="Middle"/>
-                <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
-            </staticText>
-            <staticText>
-                <reportElement x="0" y="12" width="555" height="12" style="Footer"/>
                 <textElement textAlignment="Center" verticalAlignment="Middle"/>
                 <text><![CDATA[@ Powered by DTech (PVT) LTD 2026. | +94 (0) 11 204 5240.]]></text>
             </staticText>
@@ -258,7 +253,7 @@ Amount]]></text>
     </pageFooter>
 
     <summary>
-        <band height="78">
+        <band height="82">
             <textField>
                 <reportElement x="0" y="0" width="555" height="18" style="SummaryText"/>
                 <textElement verticalAlignment="Middle"/>
@@ -284,6 +279,12 @@ Amount]]></text>
                     "Created By: " + ($P{createdBy} == null ? "" : $P{createdBy}) + "    Checked By: __________________"
                 ]]></textFieldExpression>
             </textField>
+
+            <staticText>
+                <reportElement x="0" y="62" width="555" height="14" style="SummaryText"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
+            </staticText>
 
         </band>
     </summary>

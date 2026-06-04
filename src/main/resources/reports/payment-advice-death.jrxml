@@ -222,14 +222,9 @@
     </detail>
 
     <pageFooter>
-        <band height="24">
+        <band height="12">
             <staticText>
                 <reportElement x="0" y="0" width="575" height="12" style="Footer"/>
-                <textElement textAlignment="Center" verticalAlignment="Middle"/>
-                <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
-            </staticText>
-            <staticText>
-                <reportElement x="0" y="12" width="575" height="12" style="Footer"/>
                 <textElement textAlignment="Center" verticalAlignment="Middle"/>
                 <text><![CDATA[@ Powered by DTech (PVT) LTD 2026. | +94 (0) 11 204 5240.]]></text>
             </staticText>
@@ -237,7 +232,7 @@
     </pageFooter>
 
     <summary>
-        <band height="80">
+        <band height="82">
             <line>
                 <reportElement x="0" y="0" width="1" height="18"/>
                 <graphicElement>
@@ -352,6 +347,12 @@
             <staticText>
                 <reportElement x="481" y="26" width="88" height="12" style="Base"/>
                 <text><![CDATA[Received By:]]></text>
+            </staticText>
+
+            <staticText>
+                <reportElement x="0" y="52" width="575" height="14" style="Label"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <text><![CDATA[This is a system-generated document and does not require a signature.]]></text>
             </staticText>
 
         </band>
