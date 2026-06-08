@@ -97,7 +97,7 @@
                 <reportElement x="92" y="18" width="250" height="14" style="Base"/>
                 <textFieldExpression><![CDATA[
                     ($P{dateFrom} == null ? "" : $P{dateFrom})
-                    + " / "
+                    + " to "
                     + ($P{dateTo} == null ? "" : $P{dateTo})
                 ]]></textFieldExpression>
             </textField>
