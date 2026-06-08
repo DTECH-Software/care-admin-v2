@@ -31,6 +31,7 @@
 
     <parameter name="logo" class="java.io.InputStream"/>
     <parameter name="attachmentNo" class="java.lang.String"/>
+    <parameter name="createdDate" class="java.lang.String"/>
     <parameter name="dateFrom" class="java.lang.String"/>
     <parameter name="dateTo" class="java.lang.String"/>
     <parameter name="companyCode" class="java.lang.String"/>
@@ -69,7 +70,7 @@
     </title>
 
     <pageHeader>
-        <band height="122">
+        <band height="140">
             <staticText>
                 <reportElement x="0" y="0" width="90" height="14" style="Label"/>
                 <text><![CDATA[Attachment No:]]></text>
@@ -81,10 +82,19 @@
 
             <staticText>
                 <reportElement x="330" y="0" width="75" height="14" style="Label"/>
-                <text><![CDATA[Date Range:]]></text>
+                <text><![CDATA[Created Date:]]></text>
             </staticText>
             <textField>
                 <reportElement x="407" y="0" width="148" height="14" style="Base"/>
+                <textFieldExpression><![CDATA[$P{createdDate} == null ? "" : $P{createdDate}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="18" width="90" height="14" style="Label"/>
+                <text><![CDATA[Date Range:]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="92" y="18" width="250" height="14" style="Base"/>
                 <textFieldExpression><![CDATA[
                     ($P{dateFrom} == null ? "" : $P{dateFrom})
                     + " / "
@@ -93,47 +103,47 @@
             </textField>
 
             <staticText>
-                <reportElement x="0" y="18" width="120" height="14" style="Label"/>
+                <reportElement x="0" y="36" width="120" height="14" style="Label"/>
                 <text><![CDATA[Original Company:]]></text>
             </staticText>
             <textField textAdjust="StretchHeight">
-                <reportElement x="122" y="18" width="433" height="16" style="Base"/>
+                <reportElement x="122" y="36" width="433" height="16" style="Base"/>
                 <textFieldExpression><![CDATA[$P{companyCode}]]></textFieldExpression>
             </textField>
 
             <staticText>
-                <reportElement x="0" y="36" width="120" height="14" style="Label"/>
+                <reportElement x="0" y="54" width="120" height="14" style="Label"/>
                 <text><![CDATA[Payment Company:]]></text>
             </staticText>
             <textField textAdjust="StretchHeight">
-                <reportElement x="122" y="36" width="433" height="16" style="Base"/>
+                <reportElement x="122" y="54" width="433" height="16" style="Base"/>
                 <textFieldExpression><![CDATA[$P{paymentCompanyCode}]]></textFieldExpression>
             </textField>
 
             <staticText>
-                <reportElement x="0" y="54" width="120" height="14" style="Label"/>
+                <reportElement x="0" y="72" width="120" height="14" style="Label"/>
                 <text><![CDATA[Staff Category:]]></text>
             </staticText>
             <textField textAdjust="StretchHeight">
-                <reportElement x="122" y="54" width="433" height="16" style="Base"/>
+                <reportElement x="122" y="72" width="433" height="16" style="Base"/>
                 <textFieldExpression><![CDATA[$P{staffCategoryCode}]]></textFieldExpression>
             </textField>
 
             <staticText>
-                <reportElement x="0" y="72" width="120" height="14" style="Label"/>
+                <reportElement x="0" y="90" width="120" height="14" style="Label"/>
                 <text><![CDATA[Treatment Category:]]></text>
             </staticText>
             <textField textAdjust="StretchHeight">
-                <reportElement x="122" y="72" width="433" height="16" style="Base"/>
+                <reportElement x="122" y="90" width="433" height="16" style="Base"/>
                 <textFieldExpression><![CDATA[$P{treatmentCategory}]]></textFieldExpression>
             </textField>
 
             <staticText>
-                <reportElement x="0" y="92" width="120" height="14" style="Label"/>
+                <reportElement x="0" y="110" width="120" height="14" style="Label"/>
                 <text><![CDATA[Details/Description:]]></text>
             </staticText>
             <textField textAdjust="StretchHeight">
-                <reportElement x="122" y="92" width="433" height="24" style="Base"/>
+                <reportElement x="122" y="110" width="433" height="24" style="Base"/>
                 <textFieldExpression><![CDATA[$P{notes} == null ? "" : $P{notes}]]></textFieldExpression>
             </textField>
         </band>

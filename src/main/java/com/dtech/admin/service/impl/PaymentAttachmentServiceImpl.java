@@ -1192,6 +1192,7 @@ public class PaymentAttachmentServiceImpl implements PaymentAttachmentService {
             Map<String, Object> params = new HashMap<>();
             params.put("logo", loadLogo());
             params.put("attachmentNo", responseDTO.getAttachmentNo());
+            params.put("createdDate", formatDate(responseDTO.getCreatedDate()));
             params.put("dateFrom", formatDate(responseDTO.getDateFrom()));
             params.put("dateTo", formatDate(responseDTO.getDateTo()));
             params.put("status", responseDTO.getStatus());
