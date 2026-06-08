@@ -46,7 +46,7 @@ import java.util.Set;
 public class EmailNotificationService {
 
     private static final Set<String> ADMIN_NOTIFICATION_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN"
+            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
     );
 
     @Autowired
