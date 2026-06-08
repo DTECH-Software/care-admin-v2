@@ -63,6 +63,7 @@ public class ClaimsApprovalEntityToDto {
             }
             dto.setCreatedDate(insuranceClaimsRequest.getCreatedDate());
             populateEmployeeDatesAndRejoinDetails(dto, insuranceClaimsRequest.getEmployee().getUserPersonalDetails());
+            normalizeCompanyPermanentDatesForUi(dto);
             if (insuranceClaimsRequest.getClaimsDependents() != null) {
                 log.info("get Age fro insurance depende");
                 dto.getClaimsDependents().setAge(DateTimeUtil.getAge(String.valueOf(insuranceClaimsRequest.getClaimsDependents().getDob())));
@@ -119,6 +120,21 @@ public class ClaimsApprovalEntityToDto {
         } catch (Exception e) {
             log.error(e);
             throw e;
+        }
+    }
+
+    private void normalizeCompanyPermanentDatesForUi(ClaimsRequestResponseDTO dto) {
+        if (dto == null
+                || dto.getEmployee() == null
+                || dto.getEmployee().getUserPersonalDetails() == null
+                || dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null) {
+            return;
+        }
+
+        var companyDetails = dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails();
+        if (companyDetails.getPreviousPermanentDate() == null) {
+            companyDetails.setPreviousPermanentDate(companyDetails.getPermanentDate());
+            companyDetails.setPermanentDate(null);
         }
     }
 
