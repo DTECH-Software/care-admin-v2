@@ -265,7 +265,9 @@ public class RejoinCarryForwardService {
     }
 
     private boolean shouldApplyPromotionCarryForward(String treatmentCode) {
-        return TreatmentType.OUTDOOR.name().equalsIgnoreCase(normalize(treatmentCode));
+        String normalizedTreatment = normalize(treatmentCode);
+        return TreatmentType.OUTDOOR.name().equalsIgnoreCase(normalizedTreatment)
+                || TreatmentType.CRIC.name().equalsIgnoreCase(normalizedTreatment);
     }
 
     private BigDecimal safe(BigDecimal value) {

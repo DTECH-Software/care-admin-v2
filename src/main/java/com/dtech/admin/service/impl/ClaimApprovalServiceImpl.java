@@ -702,7 +702,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                                     policyId,
                                     Workflow.APPROVED);
 
-                    if (requestEmp > NS_MAX_EMPLOYEE_REQUESTS
+                    if (requestEmp >= NS_MAX_EMPLOYEE_REQUESTS
                             || exists
                             || insuranceClaimsRequest.getRequestAmount().compareTo(NS_MAX_CLAIM_AMOUNT) > 0) {
 
