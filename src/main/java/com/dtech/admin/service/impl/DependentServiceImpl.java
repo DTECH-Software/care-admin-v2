@@ -46,7 +46,7 @@ import java.util.stream.Stream;
 public class DependentServiceImpl implements DependentService {
 
     private static final Set<String> DEPENDENT_APPROVAL_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN"
+            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
     );
 
     @Autowired

@@ -47,7 +47,7 @@ import java.util.*;
 public class EmployeeServiceImpl implements EmployeeService {
 
     private static final Set<String> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN"
+            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
     );
 
     @Autowired

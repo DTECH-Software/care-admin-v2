@@ -48,7 +48,7 @@ import java.util.*;
 public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStatusApprovalService {
 
     private static final Set<String> CIVIL_STATUS_APPROVAL_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN"
+            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
     );
 
     @Autowired
