@@ -4,6 +4,7 @@ import com.dtech.admin.dto.search.ClaimRequestSearchDTO;
 import com.dtech.admin.enums.PaymentAttachmentStatus;
 import com.dtech.admin.enums.PaymentAdviceStatus;
 import com.dtech.admin.enums.PaymentAdviceType;
+import com.dtech.admin.enums.ThirdPartyIndoorClaimRowStatus;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.CompanyTypes;
@@ -15,6 +16,7 @@ import com.dtech.admin.model.PaymentAdviceAttachment;
 import com.dtech.admin.model.PaymentAttachment;
 import com.dtech.admin.model.PaymentAttachmentClaim;
 import com.dtech.admin.model.StaffCategories;
+import com.dtech.admin.model.ThirdPartyIndoorClaimImportRow;
 import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
@@ -129,10 +131,15 @@ public class MedicalClaimsReportSpecification {
                                             criteriaBuilder.isNull(paymentAdviceJoin.get("type")),
                                             criteriaBuilder.equal(paymentAdviceJoin.get("type"), PaymentAdviceType.MEDICAL)
                                     ));
+                    Predicate generatedByPaymentAdvice = criteriaBuilder.exists(adviceSubquery);
+                    Predicate generatedByThirdPartyImport = hasImportedThirdPartyClaim(root, query, criteriaBuilder);
                     if (paymentAdviceStatus.equals("GENERATED")) {
-                        predicates.add(criteriaBuilder.exists(adviceSubquery));
+                        predicates.add(criteriaBuilder.or(generatedByPaymentAdvice, generatedByThirdPartyImport));
                     } else {
-                        predicates.add(criteriaBuilder.not(criteriaBuilder.exists(adviceSubquery)));
+                        predicates.add(criteriaBuilder.and(
+                                criteriaBuilder.not(generatedByPaymentAdvice),
+                                criteriaBuilder.not(generatedByThirdPartyImport)
+                        ));
                     }
                 }
             }
@@ -142,14 +149,10 @@ public class MedicalClaimsReportSpecification {
             statuses.add(Workflow.REJECTED);
             predicates.add(root.get("requestStatus").in(statuses));
 
-            Subquery<Long> settledClaims = query.subquery(Long.class);
-            Root<PaymentAttachmentClaim> claimRoot = settledClaims.from(PaymentAttachmentClaim.class);
-            Join<PaymentAttachmentClaim, PaymentAttachment> attachmentJoin =
-                    claimRoot.join("paymentAttachment", JoinType.LEFT);
-            settledClaims.select(claimRoot.get("insuranceClaimsRequest").get("id"))
-                    .where(criteriaBuilder.equal(claimRoot.get("insuranceClaimsRequest"), root),
-                            criteriaBuilder.equal(attachmentJoin.get("status"), PaymentAttachmentStatus.FINALIZED));
-            predicates.add(criteriaBuilder.exists(settledClaims));
+            predicates.add(criteriaBuilder.or(
+                    hasFinalizedPaymentAttachment(root, query, criteriaBuilder),
+                    hasImportedThirdPartyClaim(root, query, criteriaBuilder)
+            ));
 
             query.distinct(true);
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -188,12 +191,18 @@ public class MedicalClaimsReportSpecification {
         try {
             if (hasText(filterDto.getFromDate())) {
                 Date fromDate = DateTimeUtil.getStartOfDay(normalizeDate(filterDto.getFromDate()));
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(paymentAdviceDateSubquery, fromDate));
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.greaterThanOrEqualTo(paymentAdviceDateSubquery, fromDate),
+                        criteriaBuilder.greaterThanOrEqualTo(importedThirdPartyPaidDate(root, query, criteriaBuilder), fromDate)
+                ));
             }
 
             if (hasText(filterDto.getToDate())) {
                 Date toDate = DateTimeUtil.getEndOfDay(normalizeDate(filterDto.getToDate()));
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(paymentAdviceDateSubquery, toDate));
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.lessThanOrEqualTo(paymentAdviceDateSubquery, toDate),
+                        criteriaBuilder.lessThanOrEqualTo(importedThirdPartyPaidDate(root, query, criteriaBuilder), toDate)
+                ));
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -208,14 +217,10 @@ public class MedicalClaimsReportSpecification {
             statuses.add(Workflow.REJECTED);
             predicates.add(root.get("requestStatus").in(statuses));
 
-            Subquery<Long> settledClaims = query.subquery(Long.class);
-            Root<PaymentAttachmentClaim> claimRoot = settledClaims.from(PaymentAttachmentClaim.class);
-            Join<PaymentAttachmentClaim, PaymentAttachment> attachmentJoin =
-                    claimRoot.join("paymentAttachment", JoinType.LEFT);
-            settledClaims.select(claimRoot.get("insuranceClaimsRequest").get("id"))
-                    .where(criteriaBuilder.equal(claimRoot.get("insuranceClaimsRequest"), root),
-                            criteriaBuilder.equal(attachmentJoin.get("status"), PaymentAttachmentStatus.FINALIZED));
-            predicates.add(criteriaBuilder.exists(settledClaims));
+            predicates.add(criteriaBuilder.or(
+                    hasFinalizedPaymentAttachment(root, query, criteriaBuilder),
+                    hasImportedThirdPartyClaim(root, query, criteriaBuilder)
+            ));
 
             query.distinct(true);
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -224,6 +229,42 @@ public class MedicalClaimsReportSpecification {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static Predicate hasFinalizedPaymentAttachment(Root<InsuranceClaimsRequest> root,
+                                                           CriteriaQuery<?> query,
+                                                           CriteriaBuilder criteriaBuilder) {
+        Subquery<Long> settledClaims = query.subquery(Long.class);
+        Root<PaymentAttachmentClaim> claimRoot = settledClaims.from(PaymentAttachmentClaim.class);
+        Join<PaymentAttachmentClaim, PaymentAttachment> attachmentJoin =
+                claimRoot.join("paymentAttachment", JoinType.LEFT);
+        settledClaims.select(claimRoot.get("insuranceClaimsRequest").get("id"))
+                .where(criteriaBuilder.equal(claimRoot.get("insuranceClaimsRequest"), root),
+                        criteriaBuilder.equal(attachmentJoin.get("status"), PaymentAttachmentStatus.FINALIZED));
+        return criteriaBuilder.exists(settledClaims);
+    }
+
+    private static Predicate hasImportedThirdPartyClaim(Root<InsuranceClaimsRequest> root,
+                                                        CriteriaQuery<?> query,
+                                                        CriteriaBuilder criteriaBuilder) {
+        Subquery<Long> importedClaim = query.subquery(Long.class);
+        Root<ThirdPartyIndoorClaimImportRow> importedClaimRoot = importedClaim.from(ThirdPartyIndoorClaimImportRow.class);
+        importedClaim.select(importedClaimRoot.get("id"))
+                .where(criteriaBuilder.equal(importedClaimRoot.get("insuranceClaim"), root),
+                        criteriaBuilder.equal(importedClaimRoot.get("status"), ThirdPartyIndoorClaimRowStatus.IMPORTED));
+        return criteriaBuilder.exists(importedClaim);
+    }
+
+    private static Subquery<Date> importedThirdPartyPaidDate(Root<InsuranceClaimsRequest> root,
+                                                             CriteriaQuery<?> query,
+                                                             CriteriaBuilder criteriaBuilder) {
+        Subquery<Date> importedDate = query.subquery(Date.class);
+        Root<ThirdPartyIndoorClaimImportRow> importedClaimRoot = importedDate.from(ThirdPartyIndoorClaimImportRow.class);
+        importedDate.select(criteriaBuilder.greatest(importedClaimRoot.<Date>get("paidDate")))
+                .where(criteriaBuilder.equal(importedClaimRoot.get("insuranceClaim"), root),
+                        criteriaBuilder.equal(importedClaimRoot.get("status"), ThirdPartyIndoorClaimRowStatus.IMPORTED),
+                        criteriaBuilder.isNotNull(importedClaimRoot.get("paidDate")));
+        return importedDate;
     }
 
     private static String normalizeDate(String value) {

@@ -18,6 +18,7 @@ import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.enums.PaymentAttachmentStatus;
+import com.dtech.admin.enums.ThirdPartyIndoorClaimRowStatus;
 import com.dtech.admin.mapper.entityToDto.ClaimsApprovalEntityToDto;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.InsuranceClaimsDetails;
@@ -29,6 +30,7 @@ import com.dtech.admin.model.PaymentAdviceAttachment;
 import com.dtech.admin.model.PaymentAttachment;
 import com.dtech.admin.model.PaymentAttachmentClaim;
 import com.dtech.admin.model.StaffCategories;
+import com.dtech.admin.model.ThirdPartyIndoorClaimImportRow;
 import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
@@ -39,6 +41,7 @@ import com.dtech.admin.repository.PaymentAdviceAttachmentRepository;
 import com.dtech.admin.repository.PaymentAttachmentClaimRepository;
 import com.dtech.admin.repository.RemarkRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
+import com.dtech.admin.repository.ThirdPartyIndoorClaimImportRowRepository;
 import com.dtech.admin.repository.TreatmentCategoryRepository;
 import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
@@ -137,6 +140,9 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
 
     @Autowired
     private final ClaimsApprovalEntityToDto claimsApprovalEntityToDto;
+
+    @Autowired
+    private final ThirdPartyIndoorClaimImportRowRepository thirdPartyIndoorClaimImportRowRepository;
 
     @Override
     @Transactional(readOnly = false)
@@ -253,7 +259,9 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
                 boolean settled = paymentAttachmentClaimRepository
                         .existsByInsuranceClaimsRequestAndPaymentAttachment_Status(claimsRequest, PaymentAttachmentStatus.FINALIZED);
-                if (!settled) {
+                boolean thirdPartySettled = thirdPartyIndoorClaimImportRowRepository
+                        .existsByInsuranceClaim_IdAndStatus(claimsRequest.getId(), ThirdPartyIndoorClaimRowStatus.IMPORTED);
+                if (!settled && !thirdPartySettled) {
                     return ResponseEntity.ok().body(responseUtil.error(null, 1051,
                             messageSource.getMessage(ResponseMessageUtil.CLAIMS_DETAILS_NOT_FOUND,
                                     new Object[]{claimRequestDTO.getId()}, locale)));
@@ -609,11 +617,20 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             return statusMap;
         }
 
+        Set<Long> importedClaimIds = thirdPartyIndoorClaimImportRowRepository
+                .findAllByInsuranceClaimInAndStatus(claims, ThirdPartyIndoorClaimRowStatus.IMPORTED)
+                .stream()
+                .map(ThirdPartyIndoorClaimImportRow::getInsuranceClaim)
+                .filter(Objects::nonNull)
+                .map(InsuranceClaimsRequest::getId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
         List<PaymentAttachmentClaim> attachmentClaims = paymentAttachmentClaimRepository.findAllByInsuranceClaimsRequestIn(claims);
         if (attachmentClaims == null || attachmentClaims.isEmpty()) {
             for (InsuranceClaimsRequest claim : claims) {
                 if (claim != null && claim.getId() != null) {
-                    statusMap.put(claim.getId(), "NOT_GENERATED");
+                    statusMap.put(claim.getId(), importedClaimIds.contains(claim.getId()) ? "GENERATED" : "NOT_GENERATED");
                 }
             }
             return statusMap;
@@ -652,7 +669,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                 continue;
             }
             List<Long> attachmentIds = claimAttachmentIds.get(claim.getId());
-            String status = "NOT_GENERATED";
+            String status = importedClaimIds.contains(claim.getId()) ? "GENERATED" : "NOT_GENERATED";
             if (attachmentIds != null) {
                 for (Long attachmentId : attachmentIds) {
                     if (attachmentsWithAdvice.contains(attachmentId)) {

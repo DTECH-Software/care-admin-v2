@@ -13,6 +13,7 @@ import com.dtech.admin.enums.AuditTask;
 import com.dtech.admin.enums.PaymentAdviceStatus;
 import com.dtech.admin.enums.PaymentAdviceType;
 import com.dtech.admin.enums.Status;
+import com.dtech.admin.enums.ThirdPartyIndoorClaimRowStatus;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
@@ -23,11 +24,13 @@ import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.PaymentAdvice;
 import com.dtech.admin.model.PaymentAdviceAttachment;
 import com.dtech.admin.model.PaymentAttachmentClaim;
+import com.dtech.admin.model.ThirdPartyIndoorClaimImportRow;
 import com.dtech.admin.repository.ChequePaymentDdfRepository;
 import com.dtech.admin.repository.ChequePaymentRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.PaymentAdviceAttachmentRepository;
 import com.dtech.admin.repository.PaymentAdviceRepository;
+import com.dtech.admin.repository.ThirdPartyIndoorClaimImportRowRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ProfitLossReportService;
 import com.dtech.admin.specifications.ChequePaymentDdfSpecification;
@@ -123,6 +126,9 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
 
     @Autowired
     private final MedicalClaimStaffCategoryResolver medicalClaimStaffCategoryResolver;
+
+    @Autowired
+    private final ThirdPartyIndoorClaimImportRowRepository thirdPartyIndoorClaimImportRowRepository;
 
     @Override
     @Transactional
@@ -227,6 +233,8 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             List<PaymentAdvice> advices = loadPaymentAdvice(PaymentAdviceType.MEDICAL, true, companyFilter,
                     storedStaffCategoryCodes, yearFilter);
             addPaidAmounts(summary, advices, monthFilter, companyDescriptions, storedStaffCategoryCodes);
+            addThirdPartyIndoorPaidAmounts(summary, companyFilter, storedStaffCategoryCodes, monthFilter,
+                    yearFilter, companyDescriptions);
 
             List<ChequePayment> cheques = loadChequePayments(companyFilter, storedStaffCategoryCodes, monthFilter, yearFilter);
             addReceivedAmounts(summary, cheques, monthFilter, companyDescriptions);
@@ -287,6 +295,75 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             BigDecimal amount = resolvePaidAmount(advice, attachmentsByAdviceId.get(advice.getId()), staffCategoryCodes);
             row.setTotalPaid(safeAmount(row.getTotalPaid()).add(amount));
         }
+    }
+
+    private void addThirdPartyIndoorPaidAmounts(Map<String, ProfitLossReportRowDTO> summary,
+                                                String companyFilter,
+                                                List<String> staffCategoryCodes,
+                                                Set<String> monthFilter,
+                                                Integer yearFilter,
+                                                Map<String, String> companyDescriptions) {
+        List<ThirdPartyIndoorClaimImportRow> rows = loadThirdPartyImportedRows(yearFilter);
+        if (rows.isEmpty()) {
+            return;
+        }
+
+        Set<String> allowedStaffCategories = normalizeStaffCategoryCodes(staffCategoryCodes);
+        for (ThirdPartyIndoorClaimImportRow importRow : rows) {
+            if (importRow == null || importRow.getInsuranceClaim() == null) {
+                continue;
+            }
+            InsuranceClaimsRequest claim = importRow.getInsuranceClaim();
+            if (!Workflow.APPROVED.equals(claim.getRequestStatus())) {
+                continue;
+            }
+            Date paidDate = importRow.getPaidDate();
+            if (paidDate == null || !matchesMonth(paidDate, monthFilter)) {
+                continue;
+            }
+            if (yearFilter != null && DateTimeUtil.getYear(paidDate) != yearFilter) {
+                continue;
+            }
+            String companyCode = hasText(importRow.getCompanyCode()) ? importRow.getCompanyCode().trim() : resolveClaimCompanyCode(claim);
+            if (!hasText(companyCode)) {
+                continue;
+            }
+            if (hasText(companyFilter) && !companyCode.equalsIgnoreCase(companyFilter.trim())) {
+                continue;
+            }
+            String staffCategoryCode = medicalClaimStaffCategoryResolver.resolveForClaim(claim);
+            if (!matchesStaffCategory(staffCategoryCode, allowedStaffCategories)) {
+                continue;
+            }
+            String year = String.valueOf(DateTimeUtil.getYear(paidDate));
+            String key = companyCode + "|" + year;
+            ProfitLossReportRowDTO row = summary.computeIfAbsent(key, code ->
+                    buildRow(companyCode, companyDescriptions.get(companyCode), year));
+            row.setTotalPaid(safeAmount(row.getTotalPaid()).add(safeAmount(importRow.getApprovedAmount())));
+        }
+    }
+
+    private List<ThirdPartyIndoorClaimImportRow> loadThirdPartyImportedRows(Integer yearFilter) {
+        if (yearFilter == null) {
+            return thirdPartyIndoorClaimImportRowRepository
+                    .findAllByStatusAndInsuranceClaimIsNotNull(ThirdPartyIndoorClaimRowStatus.IMPORTED);
+        }
+        return thirdPartyIndoorClaimImportRowRepository
+                .findAllByStatusAndInsuranceClaimIsNotNullAndPaidDateBetween(
+                        ThirdPartyIndoorClaimRowStatus.IMPORTED,
+                        buildYearStart(yearFilter),
+                        buildYearEnd(yearFilter));
+    }
+
+    private String resolveClaimCompanyCode(InsuranceClaimsRequest claim) {
+        if (claim == null
+                || claim.getEmployee() == null
+                || claim.getEmployee().getUserPersonalDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() == null) {
+            return null;
+        }
+        return claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode();
     }
 
     private void addReceivedAmounts(Map<String, ProfitLossReportRowDTO> summary,
