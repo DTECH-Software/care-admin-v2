@@ -5,6 +5,7 @@ import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
+import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
@@ -49,8 +50,10 @@ public class TreatmentCategoryCompanyReportSpecification {
                     personalJoin.join("userCompanyDetails", JoinType.LEFT);
             Join<UserCompanyDetails, CompanyTypes> companyTypeJoin =
                     companyJoin.join("companyTypes", JoinType.LEFT);
-            Join<UserCompanyDetails, StaffCategories> staffCategoryJoin =
-                    companyJoin.join("staffCategories", JoinType.LEFT);
+            Join<InsuranceClaimsDetails, InsuranceStaffCategoryPeriod> claimPeriodJoin =
+                    detailsJoin.join("insuranceStaffCategoryPeriod", JoinType.LEFT);
+            Join<InsuranceStaffCategoryPeriod, StaffCategories> staffCategoryJoin =
+                    claimPeriodJoin.join("staffCategories", JoinType.LEFT);
 
             if (hasText(filterDto.getCompany())) {
                 predicates.add(cb.equal(cb.lower(companyTypeJoin.get("code")),

@@ -16,6 +16,7 @@ import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
+import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
@@ -200,7 +201,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
                     : null;
             UserCompanyDetails companyDetails = personalDetails != null ? personalDetails.getUserCompanyDetails() : null;
             CompanyTypes companyType = companyDetails != null ? companyDetails.getCompanyTypes() : null;
-            StaffCategories staffCategories = companyDetails != null ? companyDetails.getStaffCategories() : null;
+            StaffCategories staffCategories = resolveClaimStaffCategory(claim);
 
             String companyCode = companyType != null ? companyType.getCode() : "";
             String staffCategoryCode = staffCategories != null ? staffCategories.getCode() : "";
@@ -239,6 +240,20 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
         }
 
         return new ArrayList<>(summary.values());
+    }
+
+    private StaffCategories resolveClaimStaffCategory(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return null;
+        }
+        InsuranceStaffCategoryPeriod period = null;
+        if (claim.getInsuranceDetailsLimit() != null) {
+            period = claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod();
+        }
+        if (period == null && claim.getInsuranceClaimsDetails() != null) {
+            period = claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod();
+        }
+        return period != null ? period.getStaffCategories() : null;
     }
 
     private List<TreatmentCategoryCompanyReportRowDTO> sortRows(List<TreatmentCategoryCompanyReportRowDTO> rows,

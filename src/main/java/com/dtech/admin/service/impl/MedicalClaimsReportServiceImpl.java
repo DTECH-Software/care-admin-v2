@@ -21,12 +21,14 @@ import com.dtech.admin.enums.PaymentAttachmentStatus;
 import com.dtech.admin.mapper.entityToDto.ClaimsApprovalEntityToDto;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.InsuranceClaimsDetails;
+import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.ClaimsDependents;
 import com.dtech.admin.model.PaymentAdvice;
 import com.dtech.admin.model.PaymentAdviceAttachment;
 import com.dtech.admin.model.PaymentAttachment;
 import com.dtech.admin.model.PaymentAttachmentClaim;
+import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
@@ -220,6 +222,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             List<ClaimsRequestResponseDTO> responseDTOList = claimsPage.stream()
                     .map(claim -> {
                         ClaimsRequestResponseDTO dto = stripDocuments(claimsApprovalEntityToDto.mapClaimsApproval(claim, false));
+                        applyClaimStaffCategoryToEmployee(dto);
                         String paymentAdviceStatus = paymentAdviceStatusMap.getOrDefault(claim.getId(), "NOT_GENERATED");
                         dto.setPaymentAdviceStatus(paymentAdviceStatus);
                         dto.setPaymentAdviceStatusDescription(resolvePaymentAdviceStatusDescription(paymentAdviceStatus));
@@ -257,6 +260,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                 }
 
                 ClaimsRequestResponseDTO claimsRequestResponseDTO = claimsApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
+                applyClaimStaffCategoryToEmployee(claimsRequestResponseDTO);
                 String paymentAdviceStatus = getPaymentAdviceStatusMap(List.of(claimsRequest))
                         .getOrDefault(claimsRequest.getId(), "NOT_GENERATED");
                 claimsRequestResponseDTO.setPaymentAdviceStatus(paymentAdviceStatus);
@@ -404,13 +408,10 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                         companyDetails != null && companyDetails.getCompanyTypes() != null
                                 ? companyDetails.getCompanyTypes().getDescription()
                                 : null);
+                StaffCategories claimStaffCategory = resolveClaimStaffCategory(rowDTO);
                 String staffDisplay = buildDisplay(
-                        companyDetails != null && companyDetails.getStaffCategories() != null
-                                ? companyDetails.getStaffCategories().getCode()
-                                : null,
-                        companyDetails != null && companyDetails.getStaffCategories() != null
-                                ? companyDetails.getStaffCategories().getDescription()
-                                : null);
+                        claimStaffCategory != null ? claimStaffCategory.getCode() : null,
+                        claimStaffCategory != null ? claimStaffCategory.getDescription() : null);
 
                 InsuranceClaimsDetails details = rowDTO.getInsuranceClaimsDetails();
                 Treatment treatment = details != null ? details.getTreatment() : null;
@@ -489,6 +490,34 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
         dto.setFinalRemark(resolveFinalRemark(claim));
         dto.setFinalApproveDate(resolveFinalApproveDate(claim));
         dto.setRejectionDate(resolveRejectionDate(claim));
+    }
+
+    private void applyClaimStaffCategoryToEmployee(ClaimsRequestResponseDTO dto) {
+        if (dto == null
+                || dto.getEmployee() == null
+                || dto.getEmployee().getUserPersonalDetails() == null
+                || dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null
+                || !hasText(dto.getStaffCategoryCode())) {
+            return;
+        }
+        dto.getEmployee()
+                .getUserPersonalDetails()
+                .getUserCompanyDetails()
+                .setStaffCategories(new SimpleBaseDTO(dto.getStaffCategoryCode(), dto.getStaffCategoryDescription()));
+    }
+
+    private StaffCategories resolveClaimStaffCategory(InsuranceClaimsRequest claim) {
+        if (claim == null) {
+            return null;
+        }
+        InsuranceStaffCategoryPeriod period = null;
+        if (claim.getInsuranceDetailsLimit() != null) {
+            period = claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod();
+        }
+        if (period == null && claim.getInsuranceClaimsDetails() != null) {
+            period = claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod();
+        }
+        return period != null ? period.getStaffCategories() : null;
     }
 
     private List<InsuranceClaimsRequest> filterByFinalDecisionDate(List<InsuranceClaimsRequest> claims,
