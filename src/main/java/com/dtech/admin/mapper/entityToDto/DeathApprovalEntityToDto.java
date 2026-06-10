@@ -11,7 +11,9 @@ import com.dtech.admin.dto.response.ApprovalWorkFlowResponseDTO;
 import com.dtech.admin.dto.response.DeathRequestResponseDTO;
 import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.enums.*;
+import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.DeathClaimRequest;
+import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.util.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -45,6 +47,7 @@ public class DeathApprovalEntityToDto {
             dto.getEmployee().setAge(DateTimeUtil.getAge(String.valueOf(deathClaimRequest.getEmployee().getUserPersonalDetails().getDob())));
             dto.getEmployee().setGenderDescription(deathClaimRequest.getEmployee().getUserPersonalDetails().getGender().getDescription());
             dto.setCreatedDate(deathClaimRequest.getCreatedDate());
+            populateClaimStaffCategory(dto, deathClaimRequest);
             if(deathClaimRequest.getClaimsDependents() != null) {
                 dto.getClaimsDependents().setAge(DateTimeUtil.getAge(String.valueOf(deathClaimRequest.getClaimsDependents().getDob())));
             }
@@ -98,5 +101,52 @@ public class DeathApprovalEntityToDto {
             log.error(e);
             throw e;
         }
+    }
+
+    private void populateClaimStaffCategory(DeathRequestResponseDTO dto, DeathClaimRequest deathClaimRequest) {
+        StaffCategories staffCategory = resolveClaimStaffCategory(deathClaimRequest);
+        if (staffCategory != null) {
+            dto.setStaffCategoryCode(staffCategory.getCode());
+            dto.setStaffCategoryDescription(staffCategory.getDescription());
+            return;
+        }
+
+        String code = extractStaffCategoryFromDeathRequestId(deathClaimRequest.getRequestId());
+        if (code != null) {
+            dto.setStaffCategoryCode(code);
+            dto.setStaffCategoryDescription(resolveKnownStaffDescription(code));
+        }
+    }
+
+    private StaffCategories resolveClaimStaffCategory(DeathClaimRequest deathClaimRequest) {
+        if (deathClaimRequest.getApprovalWorkFlows() == null) {
+            return null;
+        }
+        return deathClaimRequest.getApprovalWorkFlows().stream()
+                .map(ApprovalWorkFlow::getPolicy)
+                .filter(policy -> policy != null && policy.getStaffCategories() != null)
+                .map(policy -> policy.getStaffCategories())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String extractStaffCategoryFromDeathRequestId(String requestId) {
+        if (requestId == null) {
+            return null;
+        }
+        String[] parts = requestId.split("/");
+        return parts.length > 3 && "DDF".equalsIgnoreCase(parts[1]) ? parts[3] : null;
+    }
+
+    private String resolveKnownStaffDescription(String code) {
+        return switch (code) {
+            case "NS" -> "Normal Staff";
+            case "EX-OP1" -> "Executive Staff - Option 01";
+            case "EX-OP2" -> "Executive Staff - Option 02";
+            case "EX-OP3" -> "Executive Staff - Option 03";
+            case "MM" -> "Middle Management level Staff - Option 03";
+            case "SNR" -> "Senior Staff";
+            default -> code;
+        };
     }
 }

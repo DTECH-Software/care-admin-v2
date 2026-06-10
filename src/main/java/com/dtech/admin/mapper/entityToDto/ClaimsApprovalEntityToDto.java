@@ -16,6 +16,8 @@ import com.dtech.admin.enums.*;
 import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsRequest;
+import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
+import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.UserPersonalDetailsRepository;
@@ -62,6 +64,7 @@ public class ClaimsApprovalEntityToDto {
                 );
             }
             dto.setCreatedDate(insuranceClaimsRequest.getCreatedDate());
+            populateClaimStaffCategory(dto, insuranceClaimsRequest);
             populateEmployeeDatesAndRejoinDetails(dto, insuranceClaimsRequest.getEmployee().getUserPersonalDetails());
             normalizeCompanyPermanentDatesForUi(dto);
             if (insuranceClaimsRequest.getClaimsDependents() != null) {
@@ -121,6 +124,26 @@ public class ClaimsApprovalEntityToDto {
             log.error(e);
             throw e;
         }
+    }
+
+    private void populateClaimStaffCategory(ClaimsRequestResponseDTO dto, InsuranceClaimsRequest claim) {
+        StaffCategories staffCategory = resolveClaimStaffCategory(claim);
+        if (staffCategory == null) {
+            return;
+        }
+        dto.setStaffCategoryCode(staffCategory.getCode());
+        dto.setStaffCategoryDescription(staffCategory.getDescription());
+    }
+
+    private StaffCategories resolveClaimStaffCategory(InsuranceClaimsRequest claim) {
+        InsuranceStaffCategoryPeriod period = null;
+        if (claim.getInsuranceDetailsLimit() != null) {
+            period = claim.getInsuranceDetailsLimit().getInsuranceStaffCategoryPeriod();
+        }
+        if (period == null && claim.getInsuranceClaimsDetails() != null) {
+            period = claim.getInsuranceClaimsDetails().getInsuranceStaffCategoryPeriod();
+        }
+        return period != null ? period.getStaffCategories() : null;
     }
 
     private void normalizeCompanyPermanentDatesForUi(ClaimsRequestResponseDTO dto) {

@@ -36,4 +36,6 @@ public class ClaimsRequestResponseDTO {
     private Date terminateDate;
     private List<SimpleBaseDTO> previousCompanies;
     private List<String> previousEpfs;
+    private String staffCategoryCode;
+    private String staffCategoryDescription;
 }

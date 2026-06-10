@@ -26,4 +26,6 @@ public class DeathRequestResponseDTO {
     private BigDecimal approvedAmount;
     private BigDecimal deathLimit;
     private Date createdDate;
+    private String staffCategoryCode;
+    private String staffCategoryDescription;
 }
