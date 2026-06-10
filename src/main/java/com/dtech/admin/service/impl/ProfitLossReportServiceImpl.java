@@ -781,40 +781,44 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
 
             sheet.setColumnWidth(0, 6 * 256);
             sheet.setColumnWidth(1, 28 * 256);
-            sheet.setColumnWidth(2, 10 * 256);
+            sheet.setColumnWidth(2, 24 * 256);
             sheet.setColumnWidth(3, 18 * 256);
             sheet.setColumnWidth(4, 18 * 256);
             sheet.setColumnWidth(5, 18 * 256);
-            sheet.setColumnWidth(6, 12 * 256);
+            sheet.setColumnWidth(6, 18 * 256);
+            sheet.setColumnWidth(7, 12 * 256);
 
             int rowIndex = 0;
             Row row = sheet.createRow(rowIndex++);
             Cell titleCell = row.createCell(0);
             titleCell.setCellValue("Profit and Loss Report");
             titleCell.setCellStyle(titleStyle);
-            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 6));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 7));
 
             rowIndex++;
             row = sheet.createRow(rowIndex++);
             createStringCell(row, 0, "#", headerStyle);
             createStringCell(row, 1, "Company", headerStyle);
-            createStringCell(row, 2, "Year", headerStyle);
-            createStringCell(row, 3, "Total Paid", headerStyle);
-            createStringCell(row, 4, "Total Received", headerStyle);
-            createStringCell(row, 5, "Difference", headerStyle);
-            createStringCell(row, 6, "Result", headerStyle);
+            createStringCell(row, 2, "Staff Category", headerStyle);
+            createStringCell(row, 3, "Year", headerStyle);
+            createStringCell(row, 4, "Total Paid", headerStyle);
+            createStringCell(row, 5, "Total Received", headerStyle);
+            createStringCell(row, 6, "Difference", headerStyle);
+            createStringCell(row, 7, "Result", headerStyle);
 
             int lineNo = 1;
             for (ProfitLossReportRowDTO rowDTO : rows) {
                 row = sheet.createRow(rowIndex++);
                 String companyDisplay = buildDisplay(rowDTO.getCompanyCode(), rowDTO.getCompanyDescription());
+                String staffCategoryDisplay = buildDisplay(rowDTO.getStaffCategoryCode(), rowDTO.getStaffCategoryDescription());
                 createStringCell(row, 0, String.valueOf(lineNo++), dataStyle);
                 createStringCell(row, 1, companyDisplay, dataStyle);
-                createStringCell(row, 2, rowDTO.getYear(), dataStyle);
-                createStringCell(row, 3, toAmountString(rowDTO.getTotalPaid()), dataStyle);
-                createStringCell(row, 4, toAmountString(rowDTO.getTotalReceived()), dataStyle);
-                createStringCell(row, 5, toAmountString(rowDTO.getDifference()), dataStyle);
-                createStringCell(row, 6, rowDTO.getResultDescription(), dataStyle);
+                createStringCell(row, 2, staffCategoryDisplay, dataStyle);
+                createStringCell(row, 3, rowDTO.getYear(), dataStyle);
+                createStringCell(row, 4, toAmountString(rowDTO.getTotalPaid()), dataStyle);
+                createStringCell(row, 5, toAmountString(rowDTO.getTotalReceived()), dataStyle);
+                createStringCell(row, 6, toAmountString(rowDTO.getDifference()), dataStyle);
+                createStringCell(row, 7, rowDTO.getResultDescription(), dataStyle);
             }
 
             workbook.write(out);
