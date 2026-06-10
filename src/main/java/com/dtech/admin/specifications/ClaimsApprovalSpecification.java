@@ -33,11 +33,11 @@ public class ClaimsApprovalSpecification {
             Join<UserPersonalDetails, CompanyTypes> companyTypesJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT)
                     .join("companyTypes",JoinType.LEFT);
 
-            Join<UserPersonalDetails, StaffCategories> staffCategoriesJoin = userPersonalDetailsJoin.join("userCompanyDetails", JoinType.LEFT)
-                    .join("staffCategories",JoinType.LEFT);
-
             Join<InsuranceClaimsDetails, InsuranceStaffCategoryPeriod> insuranceStaffCategoryPeriodJoin = root.join("insuranceClaimsDetails", JoinType.LEFT)
                     .join("insuranceStaffCategoryPeriod", JoinType.LEFT);
+
+            Join<InsuranceStaffCategoryPeriod, StaffCategories> claimStaffCategoriesJoin =
+                    insuranceStaffCategoryPeriodJoin.join("staffCategories", JoinType.LEFT);
 
 
             if (filterDto.getFromDate() != null && !filterDto.getFromDate().isEmpty()) {
@@ -93,7 +93,7 @@ public class ClaimsApprovalSpecification {
             }
 
             if (filterDto.getStaffCategory() != null && !filterDto.getStaffCategory().isEmpty()) {
-                predicates.add(criteriaBuilder.equal(staffCategoriesJoin.get("code"),  filterDto.getStaffCategory()));
+                predicates.add(criteriaBuilder.equal(claimStaffCategoriesJoin.get("code"),  filterDto.getStaffCategory()));
             }
 
             if (filterDto.getPeriod() != null) {

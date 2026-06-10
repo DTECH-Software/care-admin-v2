@@ -145,7 +145,7 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
             log.info("Insurance claims filter records map start");
 
             List<ClaimsRequestResponseDTO> responseDTOList = insuranceClaimsRequests.stream()
-                    .map(claim -> claimsApprovalEntityToDto.mapClaimsApproval(claim, false)).toList();
+                    .map(claim -> applyClaimStaffCategoryToEmployee(claimsApprovalEntityToDto.mapClaimsApproval(claim, false))).toList();
             log.info("Insurance claims  filter records map finish");
 //            List<String> newAuditList = customerApprovalAuditMapper.mapToDTOAudit(insuranceClaimsRequests.stream().toList());
 //            auditLogService.log(WebPage.INCH.name(), WebTask.SEARCH.name(), AuditTask.SEARCH_FILTER.getDescription(), paginationRequest.getIp(), paginationRequest.getUserAgent(), gson.toJson(newAuditList), null, paginationRequest.getUsername());
@@ -164,7 +164,8 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
         try {
             log.info("Claims history request details view {}", claimRequestDTO);
             return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
-                ClaimsRequestResponseDTO claimsRequestResponseDTO = claimsApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
+                ClaimsRequestResponseDTO claimsRequestResponseDTO =
+                        applyClaimStaffCategoryToEmployee(claimsApprovalEntityToDto.mapClaimsApproval(claimsRequest, true));
                 List<String> newAuditList = customerApprovalAuditMapper.mapToDTOAudit(List.of(claimsRequest));
                 auditLogService.log(WebPage.INCH.name(), WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(), claimRequestDTO.getIp(), claimRequestDTO.getUserAgent(), gson.toJson(newAuditList), null, claimRequestDTO.getUsername());
                 return ResponseEntity.ok().body(responseUtil.success((Object) claimsRequestResponseDTO, messageSource.getMessage(ResponseMessageUtil.INSURANCE_CLAIM_HISTORY_DETAILS_RETRIEVE_SUCCESSFULLY, null, locale)));
@@ -178,5 +179,22 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
             log.error(e);
             throw e;
         }
+    }
+
+    private ClaimsRequestResponseDTO applyClaimStaffCategoryToEmployee(ClaimsRequestResponseDTO dto) {
+        if (dto == null
+                || dto.getEmployee() == null
+                || dto.getEmployee().getUserPersonalDetails() == null
+                || dto.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null
+                || dto.getStaffCategoryCode() == null
+                || dto.getStaffCategoryCode().isBlank()) {
+            return dto;
+        }
+
+        dto.getEmployee()
+                .getUserPersonalDetails()
+                .getUserCompanyDetails()
+                .setStaffCategories(new SimpleBaseDTO(dto.getStaffCategoryCode(), dto.getStaffCategoryDescription()));
+        return dto;
     }
 }
