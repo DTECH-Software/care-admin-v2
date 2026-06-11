@@ -37,9 +37,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Log4j2
@@ -49,6 +53,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final Set<String> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES = Set.of(
             "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
     );
+    private static final Map<String, ReentrantLock> EMPLOYEE_ADD_LOCKS = new ConcurrentHashMap<>();
 
     @Autowired
     private final MessageSource messageSource;
@@ -203,6 +208,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> add(EmployeeDetailsRequestDTO dto, Locale locale) {
+        List<String> addLockKeys = buildEmployeeAddLockKeys(dto);
+        List<ReentrantLock> addLocks = acquireEmployeeAddLocks(addLockKeys);
+        registerEmployeeAddLockRelease(addLockKeys, addLocks);
         try {
             log.info("Adding employee: {}", dto);
 
@@ -284,7 +292,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                     AuditTask.ADD_DATA.getDescription(), dto.getIp(), dto.getUserAgent(),
                     gson.toJson(auditList), null, dto.getUsername());
 
-            notifyAdminTeamOnEmployeeAddition(personalDetails, dto.getUsername());
+            notifyAdminTeamOnEmployeeAdditionAfterCommit(personalDetails, dto.getUsername());
 
             return ResponseEntity.ok().body(responseUtil.success(null,
                     messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_ADDED_SUCCESSFULLY, new Object[]{personalDetails.getEpfNo()}, locale)));
@@ -292,6 +300,73 @@ public class EmployeeServiceImpl implements EmployeeService {
         } catch (Exception e) {
             log.error("Error occurred while adding employee", e);
             return ResponseEntity.internalServerError().body(responseUtil.error(null, 500, "Internal Server Error"));
+        } finally {
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                releaseEmployeeAddLocks(addLockKeys, addLocks);
+            }
+        }
+    }
+
+    private List<String> buildEmployeeAddLockKeys(EmployeeDetailsRequestDTO dto) {
+        String nic = normalizeLockValue(dto != null ? dto.getNic() : null);
+        String email = normalizeLockValue(dto != null ? dto.getEmail() : null);
+        String company = normalizeLockValue(dto != null && dto.getUserCompanyDetails() != null
+                ? dto.getUserCompanyDetails().getCompanyTypeCode()
+                : null);
+        String epf = normalizeLockValue(dto != null ? dto.getEpfNo() : null);
+        List<String> keys = new ArrayList<>();
+        if (StringUtils.hasText(nic)) {
+            keys.add("NIC:" + nic);
+        }
+        if (StringUtils.hasText(email)) {
+            keys.add("EMAIL:" + email);
+        }
+        if (StringUtils.hasText(company) && StringUtils.hasText(epf)) {
+            keys.add("EPF:" + company + ":" + epf);
+        }
+        if (keys.isEmpty()) {
+            keys.add("REQUEST:" + UUID.randomUUID());
+        }
+        return keys.stream().distinct().sorted().toList();
+    }
+
+    private String normalizeLockValue(String value) {
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "";
+    }
+
+    private List<ReentrantLock> acquireEmployeeAddLocks(List<String> lockKeys) {
+        List<ReentrantLock> locks = new ArrayList<>();
+        for (String lockKey : lockKeys) {
+            ReentrantLock lock = EMPLOYEE_ADD_LOCKS.computeIfAbsent(lockKey, key -> new ReentrantLock());
+            lock.lock();
+            locks.add(lock);
+        }
+        return locks;
+    }
+
+    private void registerEmployeeAddLockRelease(List<String> lockKeys, List<ReentrantLock> locks) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                releaseEmployeeAddLocks(lockKeys, locks);
+            }
+        });
+    }
+
+    private void releaseEmployeeAddLocks(List<String> lockKeys, List<ReentrantLock> locks) {
+        for (int i = locks.size() - 1; i >= 0; i--) {
+            ReentrantLock lock = locks.get(i);
+            String lockKey = lockKeys.get(i);
+            try {
+                lock.unlock();
+            } finally {
+                if (!lock.hasQueuedThreads()) {
+                    EMPLOYEE_ADD_LOCKS.remove(lockKey, lock);
+                }
+            }
         }
     }
 
@@ -319,8 +394,25 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .toList();
     }
 
+    private void notifyAdminTeamOnEmployeeAdditionAfterCommit(UserPersonalDetails employee, String hrUsername) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            notifyAdminTeamOnEmployeeAddition(employee, hrUsername);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                notifyAdminTeamOnEmployeeAddition(employee, hrUsername);
+            }
+        });
+    }
+
     private void notifyAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername) {
-        emailNotificationService.notifyEmployeeAddedPendingApproval(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
+        try {
+            emailNotificationService.notifyEmployeeAddedPendingApproval(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
+        } catch (Exception e) {
+            log.error("Failed to send employee inclusion email after employee add commit", e);
+        }
     }
 
     private void notifyAdminTeamOnEmployeeDeactivation(UserPersonalDetails employee, String hrUsername) {
