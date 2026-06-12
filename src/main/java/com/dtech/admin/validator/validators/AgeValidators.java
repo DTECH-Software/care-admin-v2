@@ -21,6 +21,8 @@ import java.util.Date;
 
 @Log4j2
 public class AgeValidators implements ConstraintValidator<ValidAge, Date> {
+    private static final int MAX_PARENT_AGE = 64;
+
     @Override
     public void initialize(ValidAge constraintAnnotation) {
         ConstraintValidator.super.initialize(constraintAnnotation);
@@ -38,7 +40,7 @@ public class AgeValidators implements ConstraintValidator<ValidAge, Date> {
             LocalDate givenDate = LocalDate.parse(String.valueOf(dob), formatter);
             LocalDate currentDate = LocalDate.now();
             int age = Period.between(givenDate, currentDate).getYears();
-            return age < 65;
+            return age <= MAX_PARENT_AGE;
         } catch (DateTimeParseException e) {
             log.error(e);
             return false;

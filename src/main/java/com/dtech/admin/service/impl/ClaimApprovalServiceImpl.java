@@ -48,6 +48,7 @@ import java.util.*;
 @Log4j2
 @RequiredArgsConstructor
 public class ClaimApprovalServiceImpl implements ClaimApprovalService {
+    private static final int CHILD_MAX_CLAIM_AGE = 24;
 
     @Autowired
     private final InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
@@ -542,6 +543,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 || ("NS".equals(staffCategoryCode) && com.dtech.admin.enums.MaritalStatus.MARRIED.equals(maritalStatus));
     }
 
+    private boolean isChildWithinMedicalAgeLimit(ClaimsDependents dependent) {
+        if (dependent == null || !DependentCategory.CHILDREN.equals(dependent.getDependentCategory())) {
+            return true;
+        }
+        int age = DateTimeUtil.getAge(String.valueOf(dependent.getDob()));
+        return age <= CHILD_MAX_CLAIM_AGE;
+    }
+
     private ResponseEntity<ApiResponse<Object>> claimsApprovalValidation(ApplicationUser user,
                                                                          ClaimRequestDTO claimRequestDTO,
                                                                          InsuranceClaimsRequest insuranceClaimsRequest,
@@ -614,6 +623,12 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 if (isParentClaimBlockedForMedical(staffCategoryCode, user.getUserPersonalDetails().getMaritalStatus())
                         && claimsDependentsOpt.get().getDependentCategory().equals(DependentCategory.PARENTS)) {
                     log.info("Parent dependent claim is not allowed for staff category {}", staffCategoryCode);
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1049,
+                            messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
+                }
+
+                if (!isChildWithinMedicalAgeLimit(claimsDependentsOpt.get())) {
+                    log.info("Child dependent claim is not allowed because age exceeds {}", CHILD_MAX_CLAIM_AGE);
                     return ResponseEntity.ok().body(responseUtil.error(null, 1049,
                             messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
                 }
