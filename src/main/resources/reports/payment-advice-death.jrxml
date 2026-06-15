@@ -123,10 +123,15 @@
                     <textFieldExpression><![CDATA["Default Company: " + $P{originalCompany} + "\nPayment Company: " + $P{paymentCompany}]]></textFieldExpression>
                 </textField>
 
+                <staticText>
+                    <reportElement x="6" y="54" width="80" height="28" style="Label"/>
+                    <textElement verticalAlignment="Top"/>
+                    <text><![CDATA[Details/Description:]]></text>
+                </staticText>
                 <textField textAdjust="StretchHeight">
-                    <reportElement x="6" y="54" width="318" height="28" style="Base"/>
-                    <textElement verticalAlignment="Middle"/>
-                    <textFieldExpression><![CDATA["Details/Description: " + $P{description}]]></textFieldExpression>
+                    <reportElement x="86" y="54" width="238" height="28" style="Base"/>
+                    <textElement verticalAlignment="Top"/>
+                    <textFieldExpression><![CDATA[$P{description} == null ? "" : $P{description}]]></textFieldExpression>
                 </textField>
 
                 <textField>

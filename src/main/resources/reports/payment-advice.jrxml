@@ -142,10 +142,15 @@
                     <textFieldExpression><![CDATA["Date: " + $P{adviceDate}]]></textFieldExpression>
                 </textField>
 
-                <textField textAdjust="StretchHeight">
-                    <reportElement x="6" y="54" width="318" height="32" style="Base"/>
+                <staticText>
+                    <reportElement x="6" y="54" width="80" height="32" style="Label"/>
                     <textElement verticalAlignment="Top"/>
-                    <textFieldExpression><![CDATA["Details/Description: " + $P{description}]]></textFieldExpression>
+                    <text><![CDATA[Details/Description:]]></text>
+                </staticText>
+                <textField textAdjust="StretchHeight">
+                    <reportElement x="86" y="54" width="238" height="32" style="Base"/>
+                    <textElement verticalAlignment="Top"/>
+                    <textFieldExpression><![CDATA[$P{description} == null ? "" : $P{description}]]></textFieldExpression>
                 </textField>
                 <staticText>
                     <reportElement x="330" y="72" width="165" height="14" style="Label"/>
