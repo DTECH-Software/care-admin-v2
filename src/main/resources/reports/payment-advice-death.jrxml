@@ -124,13 +124,13 @@
                 </textField>
 
                 <staticText>
-                    <reportElement x="6" y="54" width="80" height="28" style="Label"/>
-                    <textElement verticalAlignment="Top"/>
+                    <reportElement x="6" y="54" width="318" height="12" style="Label"/>
+                    <textElement textAlignment="Left" verticalAlignment="Top"/>
                     <text><![CDATA[Details/Description:]]></text>
                 </staticText>
                 <textField textAdjust="StretchHeight">
-                    <reportElement x="86" y="54" width="238" height="28" style="Base"/>
-                    <textElement verticalAlignment="Top"/>
+                    <reportElement x="6" y="66" width="318" height="16" style="Base"/>
+                    <textElement textAlignment="Left" verticalAlignment="Top"/>
                     <textFieldExpression><![CDATA[$P{description} == null ? "" : $P{description}]]></textFieldExpression>
                 </textField>
 
