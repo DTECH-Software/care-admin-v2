@@ -64,7 +64,7 @@
     </title>
 
     <pageHeader>
-        <band height="154">
+        <band height="172">
             <image>
                 <reportElement x="0" y="-25" width="150" height="120"/>
                 <imageExpression><![CDATA[$P{logo}]]></imageExpression>
@@ -87,7 +87,7 @@
             </staticText>
 
             <frame>
-                <reportElement x="0" y="70" width="575" height="84"/>
+                <reportElement x="0" y="70" width="575" height="102"/>
                 <box>
                     <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                 </box>
@@ -99,19 +99,19 @@
                     </graphicElement>
                 </line>
                 <line>
-                    <reportElement x="0" y="50" width="575" height="1"/>
+                    <reportElement x="0" y="86" width="575" height="1"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
                 </line>
                 <line>
-                    <reportElement x="325" y="0" width="1" height="84"/>
+                    <reportElement x="325" y="0" width="1" height="102"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
                 </line>
                 <line>
-                    <reportElement x="475" y="32" width="1" height="52"/>
+                    <reportElement x="475" y="32" width="1" height="70"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
@@ -123,15 +123,10 @@
                     <textFieldExpression><![CDATA["Default Company: " + $P{originalCompany} + "\nPayment Company: " + $P{paymentCompany}]]></textFieldExpression>
                 </textField>
 
-                <staticText>
-                    <reportElement x="6" y="54" width="318" height="12" style="Label"/>
-                    <textElement textAlignment="Left" verticalAlignment="Top"/>
-                    <text><![CDATA[Details/Description:]]></text>
-                </staticText>
                 <textField textAdjust="StretchHeight">
-                    <reportElement x="6" y="66" width="318" height="16" style="Base"/>
-                    <textElement textAlignment="Left" verticalAlignment="Top"/>
-                    <textFieldExpression><![CDATA[$P{description} == null ? "" : $P{description}]]></textFieldExpression>
+                    <reportElement x="6" y="54" width="318" height="30" style="Base"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                    <textFieldExpression><![CDATA["Details/Description: " + ($P{description} == null ? "" : $P{description})]]></textFieldExpression>
                 </textField>
 
                 <textField>
@@ -150,7 +145,7 @@
                 </textField>
 
                 <staticText>
-                    <reportElement x="480" y="54" width="90" height="28" style="Label"/>
+                    <reportElement x="480" y="90" width="90" height="10" style="Label"/>
                     <textElement verticalAlignment="Middle"/>
                     <text><![CDATA[Amount (Rs)]]></text>
                 </staticText>
