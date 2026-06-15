@@ -665,7 +665,7 @@ public class PaymentAdviceServiceImpl implements PaymentAdviceService {
         String staff = hasText(dto.getStaffCategoryDescription()) ? dto.getStaffCategoryDescription() : dto.getStaffCategoryCode();
         String company = hasText(dto.getCompanyDescription()) ? dto.getCompanyDescription() : dto.getCompanyCode();
         if (hasText(staff) && hasText(company)) {
-            return staff + " Medical for " + company;
+            return staff + " Medical Claims For " + company;
         }
         return hasText(staff) ? staff : company;
     }

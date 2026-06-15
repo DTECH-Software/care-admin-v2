@@ -91,7 +91,7 @@
                 </box>
 
                 <line>
-                    <reportElement x="0" y="32" width="555" height="1"/>
+                    <reportElement x="325" y="32" width="230" height="1"/>
                     <graphicElement>
                         <pen lineWidth="0.3" lineColor="#C8CCD4"/>
                     </graphicElement>
@@ -128,7 +128,7 @@
                 </line>
 
                 <textField textAdjust="StretchHeight">
-                    <reportElement x="6" y="4" width="318" height="24" style="Base"/>
+                    <reportElement x="6" y="4" width="318" height="44" style="Base"/>
                     <textElement textAlignment="Center" verticalAlignment="Middle"/>
                     <textFieldExpression><![CDATA["Original Company: " + $P{company} + "\nPayment Company: " + $P{paymentCompany}]]></textFieldExpression>
                 </textField>
