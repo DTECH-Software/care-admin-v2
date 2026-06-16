@@ -49,6 +49,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     private static final int CHILD_MAX_CLAIM_AGE = 24;
+    private static final int NORMAL_STAFF_SPOUSE_MAX_CLAIM_AGE = 59;
+    private static final int OTHER_STAFF_SPOUSE_MAX_CLAIM_AGE = 69;
 
     @Autowired
     private final InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
@@ -551,6 +553,20 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         return age <= CHILD_MAX_CLAIM_AGE;
     }
 
+    private boolean isSpouseWithinMedicalAgeLimit(String staffCategoryCode, ClaimsDependents dependent) {
+        if (dependent == null || !DependentCategory.SPOUSE.equals(dependent.getDependentCategory())) {
+            return true;
+        }
+        int age = DateTimeUtil.getAge(String.valueOf(dependent.getDob()));
+        return age <= resolveSpouseClaimMaxAge(staffCategoryCode);
+    }
+
+    private int resolveSpouseClaimMaxAge(String staffCategoryCode) {
+        return "NS".equals(staffCategoryCode)
+                ? NORMAL_STAFF_SPOUSE_MAX_CLAIM_AGE
+                : OTHER_STAFF_SPOUSE_MAX_CLAIM_AGE;
+    }
+
     private ResponseEntity<ApiResponse<Object>> claimsApprovalValidation(ApplicationUser user,
                                                                          ClaimRequestDTO claimRequestDTO,
                                                                          InsuranceClaimsRequest insuranceClaimsRequest,
@@ -629,6 +645,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
                 if (!isChildWithinMedicalAgeLimit(claimsDependentsOpt.get())) {
                     log.info("Child dependent claim is not allowed because age exceeds {}", CHILD_MAX_CLAIM_AGE);
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1049,
+                            messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
+                }
+
+                if (!isSpouseWithinMedicalAgeLimit(staffCategoryCode, claimsDependentsOpt.get())) {
+                    int maxAge = resolveSpouseClaimMaxAge(staffCategoryCode);
+                    log.info("Spouse dependent claim is not allowed because age reaches or exceeds {}", maxAge + 1);
                     return ResponseEntity.ok().body(responseUtil.error(null, 1049,
                             messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
                 }
