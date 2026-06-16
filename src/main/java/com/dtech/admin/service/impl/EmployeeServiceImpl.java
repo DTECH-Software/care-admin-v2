@@ -396,33 +396,29 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private void notifyAdminTeamOnEmployeeAdditionAfterCommit(UserPersonalDetails employee, String hrUsername) {
-        Long employeeId = employee != null ? employee.getId() : null;
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            scheduleAdminTeamOnEmployeeAddition(employeeId, hrUsername);
+            scheduleAdminTeamOnEmployeeAddition(employee, hrUsername);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                scheduleAdminTeamOnEmployeeAddition(employeeId, hrUsername);
+                scheduleAdminTeamOnEmployeeAddition(employee, hrUsername);
             }
         });
     }
 
-    private void scheduleAdminTeamOnEmployeeAddition(Long employeeId, String hrUsername) {
-        CompletableFuture.runAsync(() -> notifyAdminTeamOnEmployeeAddition(employeeId, hrUsername));
+    private void scheduleAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername) {
+        CompletableFuture.runAsync(() -> notifyAdminTeamOnEmployeeAddition(employee, hrUsername));
     }
 
-    private void notifyAdminTeamOnEmployeeAddition(Long employeeId, String hrUsername) {
+    private void notifyAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername) {
         try {
-            if (employeeId == null) {
-                log.warn("Skipping employee inclusion email - employee id is missing");
+            if (employee == null) {
+                log.warn("Skipping employee inclusion email - employee is missing");
                 return;
             }
-            userPersonalDetailsRepository.findById(employeeId).ifPresentOrElse(employee ->
-                            emailNotificationService.notifyEmployeeAddedPendingApproval(
-                                    resolveEmployeeAdminRecipients(employee), employee, hrUsername),
-                    () -> log.warn("Skipping employee inclusion email - employee {} not found", employeeId));
+            emailNotificationService.notifyEmployeeAddedPendingApproval(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
         } catch (Exception e) {
             log.error("Failed to send employee inclusion email after employee add commit", e);
         }
