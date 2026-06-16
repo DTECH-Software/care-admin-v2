@@ -392,10 +392,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                             && policyId1 != null
                             && policyId2 != null
                             && !policyId1.equals(policyId2);
+                    boolean remarkMismatch = levelOneWorkflow != null
+                            && !normalizeApprovalRemark(levelOneWorkflow.getRejectedRemark())
+                            .equals(normalizeApprovalRemark(workFlow.getRejectedRemark()));
 
                     if ((status1 != null && !status1.equals(status2))
                             || (appAmount1 != null && appAmount1.compareTo(appAmount2) != 0)
-                            || policyMismatch) {
+                            || policyMismatch
+                            || remarkMismatch) {
                         ApprovalWorkFlow level3Workflow = new ApprovalWorkFlow();
                         level3Workflow.setApprovalLevel(ApprovalLevel.LEVEL03);
                         level3Workflow.setStatus(Workflow.UNDER_REVIEW);
@@ -538,6 +542,10 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         }
 
         return amountText;
+    }
+
+    private String normalizeApprovalRemark(String remark) {
+        return remark == null ? "" : remark.trim();
     }
 
     private boolean isParentClaimBlockedForMedical(String staffCategoryCode, com.dtech.admin.enums.MaritalStatus maritalStatus) {
