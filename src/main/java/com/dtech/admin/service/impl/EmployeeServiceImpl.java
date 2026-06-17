@@ -450,7 +450,37 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private void notifyAdminTeamOnEmployeeDeactivation(UserPersonalDetails employee, String hrUsername) {
-        emailNotificationService.notifyEmployeeDeactivated(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
+        List<WebUser> recipients = resolveEmployeeAdminRecipients(employee);
+        initializeEmployeeInclusionEmailData(employee, recipients);
+        if (employee != null && employee.getUserCompanyDetails() != null) {
+            employee.getUserCompanyDetails().getTerminateDate();
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            scheduleAdminTeamOnEmployeeDeactivation(employee, hrUsername, recipients);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                scheduleAdminTeamOnEmployeeDeactivation(employee, hrUsername, recipients);
+            }
+        });
+    }
+
+    private void scheduleAdminTeamOnEmployeeDeactivation(UserPersonalDetails employee, String hrUsername, List<WebUser> recipients) {
+        CompletableFuture.runAsync(() -> notifyAdminTeamOnEmployeeDeactivation(employee, hrUsername, recipients));
+    }
+
+    private void notifyAdminTeamOnEmployeeDeactivation(UserPersonalDetails employee, String hrUsername, List<WebUser> recipients) {
+        try {
+            if (employee == null) {
+                log.warn("Skipping employee deactivation email - employee is missing");
+                return;
+            }
+            emailNotificationService.notifyEmployeeDeactivated(recipients, employee, hrUsername);
+        } catch (Exception e) {
+            log.error("Failed to send employee deactivation email after employee update commit", e);
+        }
     }
 
     private String resolvePaymentCompanyCode(UserCompanyDetailsRequestDTO userCompanyDetails) {
