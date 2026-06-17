@@ -396,31 +396,56 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private void notifyAdminTeamOnEmployeeAdditionAfterCommit(UserPersonalDetails employee, String hrUsername) {
+        List<WebUser> recipients = resolveEmployeeAdminRecipients(employee);
+        initializeEmployeeInclusionEmailData(employee, recipients);
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            scheduleAdminTeamOnEmployeeAddition(employee, hrUsername);
+            scheduleAdminTeamOnEmployeeAddition(employee, hrUsername, recipients);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                scheduleAdminTeamOnEmployeeAddition(employee, hrUsername);
+                scheduleAdminTeamOnEmployeeAddition(employee, hrUsername, recipients);
             }
         });
     }
 
-    private void scheduleAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername) {
-        CompletableFuture.runAsync(() -> notifyAdminTeamOnEmployeeAddition(employee, hrUsername));
+    private void scheduleAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername, List<WebUser> recipients) {
+        CompletableFuture.runAsync(() -> notifyAdminTeamOnEmployeeAddition(employee, hrUsername, recipients));
     }
 
-    private void notifyAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername) {
+    private void notifyAdminTeamOnEmployeeAddition(UserPersonalDetails employee, String hrUsername, List<WebUser> recipients) {
         try {
             if (employee == null) {
                 log.warn("Skipping employee inclusion email - employee is missing");
                 return;
             }
-            emailNotificationService.notifyEmployeeAddedPendingApproval(resolveEmployeeAdminRecipients(employee), employee, hrUsername);
+            emailNotificationService.notifyEmployeeAddedPendingApproval(recipients, employee, hrUsername);
         } catch (Exception e) {
             log.error("Failed to send employee inclusion email after employee add commit", e);
+        }
+    }
+
+    private void initializeEmployeeInclusionEmailData(UserPersonalDetails employee, List<WebUser> recipients) {
+        if (employee != null) {
+            employee.getEpfNo();
+            employee.getFirstName();
+            employee.getLastName();
+            employee.getMaritalStatus();
+            employee.getDob();
+            employee.getNic();
+            UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
+            if (companyDetails != null) {
+                if (companyDetails.getCompanyTypes() != null) {
+                    companyDetails.getCompanyTypes().getDescription();
+                }
+                if (companyDetails.getStaffCategories() != null) {
+                    companyDetails.getStaffCategories().getDescription();
+                }
+            }
+        }
+        if (recipients != null) {
+            recipients.forEach(WebUser::getEmail);
         }
     }
 
