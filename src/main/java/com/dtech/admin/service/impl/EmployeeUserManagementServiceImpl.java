@@ -30,6 +30,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -37,6 +39,7 @@ import java.math.BigDecimal;
 import java.text.ParseException;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 
@@ -619,6 +622,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     }
 
     @Override
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> staffCategoryUpdate(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
         try {
             log.info("Staff category update request {}", employeeManagementRequestDTO);
@@ -651,7 +655,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                           companyDetails.setPermanentDate(employeeManagementRequestDTO.getEffectiveDate());
                           companyDetails.setPromoDocs(t);
                           applicationUserRepository.saveAndFlush(applicationUser);
-                        notifyAdminTeamOnStaffCategoryTransfer(applicationUser,
+                        notifyAdminTeamOnStaffCategoryTransferAsync(applicationUser,
                                 previousStaffCategory,
                                 staffCategories,
                                 employeeManagementRequestDTO.getEffectiveDate(),
@@ -682,11 +686,11 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         }
     }
 
-    private void notifyAdminTeamOnStaffCategoryTransfer(ApplicationUser applicationUser,
-                                                        StaffCategories previousStaffCategory,
-                                                        StaffCategories newStaffCategory,
-                                                        Date effectiveDate,
-                                                        String hrUsername) {
+    private void notifyAdminTeamOnStaffCategoryTransferAsync(ApplicationUser applicationUser,
+                                                             StaffCategories previousStaffCategory,
+                                                             StaffCategories newStaffCategory,
+                                                             Date effectiveDate,
+                                                             String hrUsername) {
         UserPersonalDetails employee = applicationUser != null ? applicationUser.getUserPersonalDetails() : null;
         String employeeCompanyCode = employee != null
                 && employee.getUserCompanyDetails() != null
@@ -707,14 +711,66 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                                 && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
                 .toList();
 
-        emailNotificationService.notifyStaffCategoryTransferred(
-                recipients,
-                employee,
-                previousStaffCategory,
-                newStaffCategory,
-                effectiveDate,
-                hrUsername
-        );
+        initializeStaffCategoryTransferEmailData(employee, previousStaffCategory, newStaffCategory, recipients);
+
+        Runnable emailTask = () -> {
+            try {
+                emailNotificationService.notifyStaffCategoryTransferred(
+                        recipients,
+                        employee,
+                        previousStaffCategory,
+                        newStaffCategory,
+                        effectiveDate,
+                        hrUsername
+                );
+            } catch (Exception ex) {
+                log.error("Staff category transfer email failed employeeId={}",
+                        employee != null ? employee.getId() : null, ex);
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    CompletableFuture.runAsync(emailTask);
+                }
+            });
+        } else {
+            CompletableFuture.runAsync(emailTask);
+        }
+    }
+
+    private void initializeStaffCategoryTransferEmailData(UserPersonalDetails employee,
+                                                          StaffCategories previousStaffCategory,
+                                                          StaffCategories newStaffCategory,
+                                                          List<WebUser> recipients) {
+        if (employee != null) {
+            employee.getId();
+            employee.getEpfNo();
+            employee.getFirstName();
+            employee.getLastName();
+            employee.getNic();
+            if (employee.getUserCompanyDetails() != null) {
+                employee.getUserCompanyDetails().getId();
+            }
+        }
+        if (previousStaffCategory != null) {
+            previousStaffCategory.getDescription();
+        }
+        if (newStaffCategory != null) {
+            newStaffCategory.getDescription();
+        }
+        if (recipients != null) {
+            recipients.forEach(recipient -> {
+                if (recipient != null) {
+                    recipient.getEmail();
+                    if (recipient.getUserRole() != null) {
+                        recipient.getUserRole().getCode();
+                    }
+                }
+            });
+        }
     }
 
     protected Document uploadImage(String tye, String file, String fileType, String fileName) throws IOException {
