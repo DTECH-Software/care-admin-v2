@@ -404,6 +404,11 @@ public class DependentServiceImpl implements DependentService {
                 }
             } else if (claimDependentRequestDTO.getRelationCategory().name().equalsIgnoreCase(RelationCategory.WIFE.name())) {
 
+                if (hasActiveOrPendingSpouse(applicationUser, claimDependentRequestDTO.getId())) {
+                    log.info("User profile add dependent request already has active spouse");
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1022, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_WIFE_MARRIED_ROUND_ALREADY_FOUND,null, locale)));
+                }
+
                 boolean existed = claimDependentsRepository.existsAllByApplicationUserAndRelationCategoryAndStatusInAndMarried_Id(applicationUser,
                         RelationCategory.WIFE, List.of(Workflow.APPROVED), claimDependentRequestDTO.getMarried().getId());
                 if (existed) {
@@ -411,6 +416,11 @@ public class DependentServiceImpl implements DependentService {
                     return ResponseEntity.ok().body(responseUtil.error(null, 1022, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_WIFE_MARRIED_ROUND_ALREADY_FOUND,null, locale)));
                 }
             } else if (claimDependentRequestDTO.getRelationCategory().name().equalsIgnoreCase(RelationCategory.HUSBAND.name())) {
+
+                if (hasActiveOrPendingSpouse(applicationUser, claimDependentRequestDTO.getId())) {
+                    log.info("User profile add dependent request already has active spouse");
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1022, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_HUSBAND_MARRIED_ROUND_ALREADY_FOUND,null, locale)));
+                }
 
                 boolean existed = claimDependentsRepository.existsAllByApplicationUserAndRelationCategoryAndStatusInAndMarried_Id(applicationUser,
                         RelationCategory.HUSBAND, List.of(Workflow.APPROVED),claimDependentRequestDTO.getMarried().getId());
@@ -482,6 +492,17 @@ public class DependentServiceImpl implements DependentService {
             log.error(e);
             throw e;
         }
+    }
+
+    private boolean hasActiveOrPendingSpouse(ApplicationUser applicationUser, Long currentDependentId) {
+        List<RelationCategory> spouseRelations = List.of(RelationCategory.WIFE, RelationCategory.HUSBAND);
+        List<Workflow> activeStatuses = List.of(Workflow.APPROVED, Workflow.UNDER_REVIEW);
+        if (currentDependentId == null) {
+            return claimDependentsRepository.existsByApplicationUserAndRelationCategoryInAndStatusInAndLiveStatus(
+                    applicationUser, spouseRelations, activeStatuses, true);
+        }
+        return claimDependentsRepository.existsByApplicationUserAndRelationCategoryInAndStatusInAndLiveStatusAndIdNot(
+                applicationUser, spouseRelations, activeStatuses, true, currentDependentId);
     }
 
     @Override
