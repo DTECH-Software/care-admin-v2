@@ -223,6 +223,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 return errorResponse(1042, ResponseMessageUtil.EMPLOYEE_EMAIL_ALREADY_EXISTED, dto.getEmail(), locale);
             }
 
+            if (StringUtils.hasText(dto.getMobileNo())
+                    && userPersonalDetailsRepository.existsByMobileNoIgnoreCaseAndUserStatusIn(dto.getMobileNo(), List.of(Status.ACTIVE))) {
+                return errorResponse(1048, ResponseMessageUtil.EMPLOYEE_MOBILE_ALREADY_EXISTED, dto.getMobileNo(), locale);
+            }
+
             Optional<CompanyTypes> companyOpt = companyTypeRepository.findByCodeAndStatus(dto.getUserCompanyDetails().getCompanyTypeCode(), Status.ACTIVE);
             if (companyOpt.isEmpty()) {
                 return errorResponse(1036, ResponseMessageUtil.COMPANY_NOT_FOUND, dto.getUserCompanyDetails().getCompanyTypeCode(), locale);
@@ -702,6 +707,14 @@ public class EmployeeServiceImpl implements EmployeeService {
                 if (oldModel.equals(newModel)) {
                     log.info("Employee details update data not changed to {}", newModel);
                     return ResponseEntity.ok().body(responseUtil.error(null, 1044, messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_NOT_CHANGING, null, locale)));
+                }
+
+                if (Status.ACTIVE.name().equalsIgnoreCase(employeeDetailsRequestDTO.getUserStatus())
+                        && StringUtils.hasText(employeeDetailsRequestDTO.getMobileNo())
+                        && userPersonalDetailsRepository.existsByMobileNoIgnoreCaseAndUserStatusInAndIdNot(
+                        employeeDetailsRequestDTO.getMobileNo(), List.of(Status.ACTIVE), userPersonalDetails.getId())) {
+                    return errorResponse(1048, ResponseMessageUtil.EMPLOYEE_MOBILE_ALREADY_EXISTED,
+                            employeeDetailsRequestDTO.getMobileNo(), locale);
                 }
 
                 log.info("Employee details update old audit start");

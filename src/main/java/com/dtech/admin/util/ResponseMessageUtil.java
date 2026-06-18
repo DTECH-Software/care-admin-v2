@@ -113,6 +113,7 @@ public class ResponseMessageUtil {
     public final static String EMPLOYEE_EPF_ALREADY_EXISTED = "val.employee.epf.already.successful";
     public final static String EMPLOYEE_NIC_ALREADY_EXISTED = "val.employee.nic.already.successful";
     public final static String EMPLOYEE_EMAIL_ALREADY_EXISTED = "val.employee.email.already.successful";
+    public final static String EMPLOYEE_MOBILE_ALREADY_EXISTED = "val.employee.mobile.already.successful";
     public final static String EMPLOYEE_DETAILS_FILTER_LIST_SUCCESSFULLY = "val.employee.details.filter.list.successfully";
     public final static String EMPLOYEE_DETAILS_NOT_FOUND = "val.employee.details.not.found";
     public final static String EMPLOYEE_DETAILS_RETRIEVE_SUCCESSFULLY  = "val.employee.details.retrieve.successfully";
@@ -165,6 +166,7 @@ public class ResponseMessageUtil {
     public final static String COMMON_PARAM_NOT_FOUND = "val.common.param.not.found";
     public final static String USER_NOT_ELIGIBLE_TO_CLAIM_REQUEST = "val.user.not.eligible.to.claim.request";
     public final static String DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST = "val.dependent.not.eligible.to.claim.request";
+    public final static String NORMAL_STAFF_CRIC_PERMANENT_PERIOD_NOT_COMPLETED = "val.claim.normal.staff.cric.permanent.period.not.completed";
     public final static String CLAIM_DEPENDENT_DEATH_REQUEST_ALREADY_PROCEED = "val.claim.dependent.death.request.already.proceed";
     public final static String CLAIM_DEPENDENT_NOT_FOUND_OR_FACILITY_NOT_ELIGIBLE = "val.claim.dependent.not.eligible.or.facility.not.eligible";
     public final static String OLDER_DATE_INSURANCE_CLAIM_REQUEST = "val.older.date.insurance.claim.request";
