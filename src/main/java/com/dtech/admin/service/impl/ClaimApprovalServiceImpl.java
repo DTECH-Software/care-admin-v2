@@ -51,9 +51,18 @@ import java.util.concurrent.CompletableFuture;
 @Log4j2
 @RequiredArgsConstructor
 public class ClaimApprovalServiceImpl implements ClaimApprovalService {
-    private static final int CHILD_MAX_CLAIM_AGE = 24;
-    private static final int NORMAL_STAFF_SPOUSE_MAX_CLAIM_AGE = 59;
-    private static final int OTHER_STAFF_SPOUSE_MAX_CLAIM_AGE = 69;
+    private static final int NORMAL_STAFF_PARENT_MAX_CLAIM_AGE = 65;
+    private static final int NORMAL_STAFF_PARENT_EXTRA_ELIGIBLE_DAYS = 14;
+    private static final int CHILD_MAX_CLAIM_AGE = 25;
+    private static final int CHILD_EXTRA_ELIGIBLE_DAYS = 14;
+    private static final int NORMAL_STAFF_EMPLOYEE_MAX_CLAIM_AGE = 60;
+    private static final int NORMAL_STAFF_EMPLOYEE_EXTRA_ELIGIBLE_DAYS = 14;
+    private static final int OTHER_STAFF_EMPLOYEE_MAX_CLAIM_AGE = 70;
+    private static final int OTHER_STAFF_EMPLOYEE_EXTRA_ELIGIBLE_DAYS = 14;
+    private static final int NORMAL_STAFF_SPOUSE_MAX_CLAIM_AGE = 60;
+    private static final int NORMAL_STAFF_SPOUSE_EXTRA_ELIGIBLE_DAYS = 14;
+    private static final int OTHER_STAFF_SPOUSE_MAX_CLAIM_AGE = 70;
+    private static final int OTHER_STAFF_SPOUSE_EXTRA_ELIGIBLE_DAYS = 14;
     private static final int NORMAL_STAFF_CRIC_MIN_PERMANENT_YEARS = 3;
 
     @Autowired
@@ -626,26 +635,89 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 || ("NS".equals(staffCategoryCode) && com.dtech.admin.enums.MaritalStatus.MARRIED.equals(maritalStatus));
     }
 
+    private boolean isParentWithinNormalStaffMedicalAgeLimit(ApplicationUser user, ClaimsDependents dependent) {
+        if (user == null
+                || dependent == null
+                || !DependentCategory.PARENTS.equals(dependent.getDependentCategory())
+                || user.getUserPersonalDetails() == null
+                || user.getUserPersonalDetails().getUserCompanyDetails() == null
+                || user.getUserPersonalDetails().getUserCompanyDetails().getStaffCategories() == null) {
+            return true;
+        }
+        String staffCategoryCode = user.getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
+        if (!"NS".equalsIgnoreCase(staffCategoryCode)
+                || !com.dtech.admin.enums.MaritalStatus.UNMARRIED.equals(user.getUserPersonalDetails().getMaritalStatus())) {
+            return true;
+        }
+        return isDateWithinAgeLimit(
+                dependent.getDob(),
+                NORMAL_STAFF_PARENT_MAX_CLAIM_AGE,
+                NORMAL_STAFF_PARENT_EXTRA_ELIGIBLE_DAYS
+        );
+    }
+
     private boolean isChildWithinMedicalAgeLimit(ClaimsDependents dependent) {
         if (dependent == null || !DependentCategory.CHILDREN.equals(dependent.getDependentCategory())) {
             return true;
         }
-        int age = DateTimeUtil.getAge(String.valueOf(dependent.getDob()));
-        return age <= CHILD_MAX_CLAIM_AGE;
+        return isDateWithinAgeLimit(dependent.getDob(), CHILD_MAX_CLAIM_AGE, CHILD_EXTRA_ELIGIBLE_DAYS);
     }
 
     private boolean isSpouseWithinMedicalAgeLimit(String staffCategoryCode, ClaimsDependents dependent) {
         if (dependent == null || !DependentCategory.SPOUSE.equals(dependent.getDependentCategory())) {
             return true;
         }
-        int age = DateTimeUtil.getAge(String.valueOf(dependent.getDob()));
-        return age <= resolveSpouseClaimMaxAge(staffCategoryCode);
+        if ("NS".equals(staffCategoryCode)) {
+            return isDateWithinAgeLimit(
+                    dependent.getDob(),
+                    NORMAL_STAFF_SPOUSE_MAX_CLAIM_AGE,
+                    NORMAL_STAFF_SPOUSE_EXTRA_ELIGIBLE_DAYS
+            );
+        }
+        return isDateWithinAgeLimit(
+                dependent.getDob(),
+                OTHER_STAFF_SPOUSE_MAX_CLAIM_AGE,
+                OTHER_STAFF_SPOUSE_EXTRA_ELIGIBLE_DAYS
+        );
     }
 
     private int resolveSpouseClaimMaxAge(String staffCategoryCode) {
         return "NS".equals(staffCategoryCode)
                 ? NORMAL_STAFF_SPOUSE_MAX_CLAIM_AGE
                 : OTHER_STAFF_SPOUSE_MAX_CLAIM_AGE;
+    }
+
+    private boolean isNormalStaffEmployeeWithinMedicalAgeLimit(ApplicationUser user) {
+        if (user == null || user.getUserPersonalDetails() == null || user.getUserPersonalDetails().getDob() == null) {
+            return false;
+        }
+        return isDateWithinAgeLimit(
+                user.getUserPersonalDetails().getDob(),
+                NORMAL_STAFF_EMPLOYEE_MAX_CLAIM_AGE,
+                NORMAL_STAFF_EMPLOYEE_EXTRA_ELIGIBLE_DAYS
+        );
+    }
+
+    private boolean isOtherStaffEmployeeWithinMedicalAgeLimit(ApplicationUser user) {
+        if (user == null || user.getUserPersonalDetails() == null || user.getUserPersonalDetails().getDob() == null) {
+            return false;
+        }
+        return isDateWithinAgeLimit(
+                user.getUserPersonalDetails().getDob(),
+                OTHER_STAFF_EMPLOYEE_MAX_CLAIM_AGE,
+                OTHER_STAFF_EMPLOYEE_EXTRA_ELIGIBLE_DAYS
+        );
+    }
+
+    private boolean isDateWithinAgeLimit(Date dateOfBirth, int maxYears, int extraEligibleDays) {
+        if (dateOfBirth == null) {
+            return false;
+        }
+        Calendar eligibleUntil = Calendar.getInstance();
+        eligibleUntil.setTime(dateOfBirth);
+        eligibleUntil.add(Calendar.YEAR, maxYears);
+        eligibleUntil.add(Calendar.DAY_OF_MONTH, extraEligibleDays);
+        return !DateTimeUtil.getCurrentDateTime().after(eligibleUntil.getTime());
     }
 
     private boolean hasCompletedNormalStaffCricPermanentPeriod(ApplicationUser user) {
@@ -730,6 +802,18 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
             boolean isCRIC = insuranceClaimsRequest.getInsuranceClaimsDetails().getTreatment().getTreatmentCode().equals(TreatmentType.CRIC.name());
 
+            if ("NS".equals(staffCategoryCode) && !isNormalStaffEmployeeWithinMedicalAgeLimit(user)) {
+                log.info("Normal staff employee age limit exceeded user={} ", user.getUsername());
+                return ResponseEntity.ok().body(responseUtil.error(null, 1047,
+                        messageSource.getMessage(ResponseMessageUtil.CLAIM_NORMAL_STAFF_EMPLOYEE_AGE_LIMIT_EXCEED, null, locale)));
+            }
+
+            if (!"NS".equals(staffCategoryCode) && !isOtherStaffEmployeeWithinMedicalAgeLimit(user)) {
+                log.info("Other staff employee age limit exceeded user={} ", user.getUsername());
+                return ResponseEntity.ok().body(responseUtil.error(null, 1047,
+                        messageSource.getMessage(ResponseMessageUtil.CLAIM_OTHER_STAFF_EMPLOYEE_AGE_LIMIT_EXCEED, null, locale)));
+            }
+
             if (isCRIC && "NS".equals(staffCategoryCode) && !hasCompletedNormalStaffCricPermanentPeriod(user)) {
                 log.info("Normal staff CRIC approval blocked. Three years permanent employment not completed user={}",
                         user.getUsername());
@@ -756,15 +840,23 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                             messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
                 }
 
+                if (!isParentWithinNormalStaffMedicalAgeLimit(user, claimsDependentsOpt.get())) {
+                    log.info("Parent dependent claim is not allowed because age exceeds {} years and {} days",
+                            NORMAL_STAFF_PARENT_MAX_CLAIM_AGE, NORMAL_STAFF_PARENT_EXTRA_ELIGIBLE_DAYS);
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1049,
+                            messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
+                }
+
                 if (!isChildWithinMedicalAgeLimit(claimsDependentsOpt.get())) {
-                    log.info("Child dependent claim is not allowed because age exceeds {}", CHILD_MAX_CLAIM_AGE);
+                    log.info("Child dependent claim is not allowed because age exceeds {} years and {} days",
+                            CHILD_MAX_CLAIM_AGE, CHILD_EXTRA_ELIGIBLE_DAYS);
                     return ResponseEntity.ok().body(responseUtil.error(null, 1049,
                             messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
                 }
 
                 if (!isSpouseWithinMedicalAgeLimit(staffCategoryCode, claimsDependentsOpt.get())) {
                     int maxAge = resolveSpouseClaimMaxAge(staffCategoryCode);
-                    log.info("Spouse dependent claim is not allowed because age reaches or exceeds {}", maxAge + 1);
+                    log.info("Spouse dependent claim is not allowed because age reaches or exceeds {}", maxAge);
                     return ResponseEntity.ok().body(responseUtil.error(null, 1049,
                             messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST, null, locale)));
                 }

@@ -166,6 +166,8 @@ public class ResponseMessageUtil {
     public final static String COMMON_PARAM_NOT_FOUND = "val.common.param.not.found";
     public final static String USER_NOT_ELIGIBLE_TO_CLAIM_REQUEST = "val.user.not.eligible.to.claim.request";
     public final static String DEPENDENT_NOT_ELIGIBLE_TO_CLAIM_REQUEST = "val.dependent.not.eligible.to.claim.request";
+    public final static String CLAIM_NORMAL_STAFF_EMPLOYEE_AGE_LIMIT_EXCEED = "val.claim.normal.staff.employee.age.limit.exceed";
+    public final static String CLAIM_OTHER_STAFF_EMPLOYEE_AGE_LIMIT_EXCEED = "val.claim.other.staff.employee.age.limit.exceed";
     public final static String NORMAL_STAFF_CRIC_PERMANENT_PERIOD_NOT_COMPLETED = "val.claim.normal.staff.cric.permanent.period.not.completed";
     public final static String CLAIM_DEPENDENT_DEATH_REQUEST_ALREADY_PROCEED = "val.claim.dependent.death.request.already.proceed";
     public final static String CLAIM_DEPENDENT_NOT_FOUND_OR_FACILITY_NOT_ELIGIBLE = "val.claim.dependent.not.eligible.or.facility.not.eligible";
