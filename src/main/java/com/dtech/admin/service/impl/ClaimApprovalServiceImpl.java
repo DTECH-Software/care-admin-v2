@@ -717,6 +717,10 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         eligibleUntil.setTime(dateOfBirth);
         eligibleUntil.add(Calendar.YEAR, maxYears);
         eligibleUntil.add(Calendar.DAY_OF_MONTH, extraEligibleDays);
+        eligibleUntil.set(Calendar.HOUR_OF_DAY, 23);
+        eligibleUntil.set(Calendar.MINUTE, 59);
+        eligibleUntil.set(Calendar.SECOND, 59);
+        eligibleUntil.set(Calendar.MILLISECOND, 999);
         return !DateTimeUtil.getCurrentDateTime().after(eligibleUntil.getTime());
     }
 
