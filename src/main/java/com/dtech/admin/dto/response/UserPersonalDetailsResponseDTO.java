@@ -18,6 +18,7 @@ public class UserPersonalDetailsResponseDTO {
     private String titleDescription;
     private String email;
     private String mobileNo;
+    private Boolean noMobileNumber;
     private String gender;
     private String genderDescription;
     private String maritalStatus;

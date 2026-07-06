@@ -21,6 +21,7 @@ public class EmployeeDetailsResponseDTO extends CommonAuditResponseDTO {
     private String nic;
     private String email;
     private String mobileNo;
+    private Boolean noMobileNumber;
     private String maritalStatus;
     private String maritalStatusDescription;
     private Date dob;

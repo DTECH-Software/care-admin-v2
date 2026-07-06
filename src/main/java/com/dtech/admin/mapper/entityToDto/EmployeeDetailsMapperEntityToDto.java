@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class EmployeeDetailsMapperEntityToDto {
+    private static final String DUMMY_MOBILE_PREFIX = "0000";
 
     private  final ModelMapper modelMapper;
 
@@ -43,10 +44,15 @@ public class EmployeeDetailsMapperEntityToDto {
             employeeDetailsResponseDTO.getUserCompanyDetails().setFacilityDescription(Facility.valueOf(employeeDetailsResponseDTO.getUserCompanyDetails().getFacility()).getDescription());
             int age = DateTimeUtil.getAge(String.valueOf(userPersonalDetails.getDob()));
             employeeDetailsResponseDTO.setAge(age);
+            employeeDetailsResponseDTO.setNoMobileNumber(isDummyMobile(userPersonalDetails.getMobileNo()));
             return employeeDetailsResponseDTO;
         }catch (Exception e){
             log.error(e);
             throw e;
         }
+    }
+
+    private boolean isDummyMobile(String mobileNo) {
+        return mobileNo != null && mobileNo.trim().startsWith(DUMMY_MOBILE_PREFIX);
     }
 }
