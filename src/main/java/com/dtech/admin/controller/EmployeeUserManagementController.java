@@ -84,6 +84,13 @@ public class EmployeeUserManagementController {
         return employeeUserManagementService.staffCategoryUpdate(gson.fromJson(gson.toJson(employeeManagementRequestValidatorDTO), EmployeeManagementRequestDTO.class), locale);
     }
 
+    @PostMapping(path = "/staff-category-transfer",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Handle employee staff category transfer request request ",notes = "Employee staff category transfer request success or failed")
+    public ResponseEntity<ApiResponse<Object>> staffCategoryTransfer(@RequestBody @Validated(OnStaffCategoryUpdate.class) @Valid EmployeeManagementRequestValidatorDTO employeeManagementRequestValidatorDTO, Locale locale) {
+        log.info("Employee staff category transfer request controller {} ", employeeManagementRequestValidatorDTO);
+        return employeeUserManagementService.staffCategoryTransfer(gson.fromJson(gson.toJson(employeeManagementRequestValidatorDTO), EmployeeManagementRequestDTO.class), locale);
+    }
+
     @PostMapping(path = "/update",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
     @ApiOperation(value = "Handle employee staff category update request request ",notes = "Employee staff category update request success or failed")
     public ResponseEntity<ApiResponse<Object>> update(@RequestBody @Validated(OnUpdate.class) @Valid EmployeeManagementRequestValidatorDTO employeeManagementRequestValidatorDTO, Locale locale) {

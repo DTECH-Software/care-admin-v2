@@ -80,6 +80,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     private final InsurancePolicyRepository insurancePolicyRepository;
 
     @Autowired
+    private final InsurancePolicyStaffCategoryGroupRepository insurancePolicyStaffCategoryGroupRepository;
+
+    @Autowired
     private final UserPersonalDetailsRepository userPersonalDetailsRepository;
 
     @Autowired
@@ -670,17 +673,35 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> staffCategoryUpdate(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
+        return updateStaffCategory(employeeManagementRequestDTO, locale, false);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> staffCategoryTransfer(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
+        return updateStaffCategory(employeeManagementRequestDTO, locale, true);
+    }
+
+    private ResponseEntity<ApiResponse<Object>> updateStaffCategory(EmployeeManagementRequestDTO employeeManagementRequestDTO,
+                                                                    Locale locale,
+                                                                    boolean transferOnly) {
         try {
-            log.info("Staff category update request {}", employeeManagementRequestDTO);
+            log.info("Staff category {} request {}", transferOnly ? "transfer" : "update", employeeManagementRequestDTO);
 
             return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(applicationUser -> {
                 log.info("Employee details staff category old audit start");
                 return staffCategoriesRepository.findByCodeAndStatus(employeeManagementRequestDTO.getStaffCategory(), Status.ACTIVE).map(staffCategories -> {
                     log.info("Employee details staff category old audit end");
                     return insurancePolicyRepository.findByCodeAndStatus(employeeManagementRequestDTO.getPolicy(), Status.ACTIVE).map(in -> {
-                        StaffCategories previousStaffCategory = applicationUser.getUserPersonalDetails()
-                                .getUserCompanyDetails()
-                                .getStaffCategories();
+                        UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
+                        StaffCategories previousStaffCategory = companyDetails.getStaffCategories();
+
+                        if (transferOnly) {
+                            Optional<String> transferValidationError = validateStaffCategoryTransfer(companyDetails, in, staffCategories);
+                            if (transferValidationError.isPresent()) {
+                                return ResponseEntity.ok().body(responseUtil.error(null, 1002, transferValidationError.get()));
+                            }
+                        }
 
                         log.info("Upload supporting document from dependent employeeId={}", employeeManagementRequestDTO.getId());
                         Document t = null;
@@ -692,7 +713,6 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                             throw new RuntimeException(e);
                         }
 
-                          UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
                           if (companyDetails.getPreviousPermanentDate() == null) {
                               companyDetails.setPreviousPermanentDate(companyDetails.getPermanentDate());
                           }
@@ -708,7 +728,8 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                                 employeeManagementRequestDTO.getUsername());
                         ApplicationUserResponseDTO responseDTO = buildEmployeeResponse(applicationUser);
                         return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
-                                messageSource.getMessage(ResponseMessageUtil.STAFF_CATEGORY_UPDATE_SUCCESS, null, locale)));
+                                transferOnly ? "Employee staff category transfer successful"
+                                        : messageSource.getMessage(ResponseMessageUtil.STAFF_CATEGORY_UPDATE_SUCCESS, null, locale)));
 
                     }).orElseGet(() -> {
                         log.info("Insurance period policy not found {}", employeeManagementRequestDTO.getPolicy());
@@ -730,6 +751,58 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             log.error(e);
             throw e;
         }
+    }
+
+    private Optional<String> validateStaffCategoryTransfer(UserCompanyDetails currentCompanyDetails,
+                                                           InsurancePolicy requestedPolicy,
+                                                           StaffCategories requestedStaffCategory) {
+        if (currentCompanyDetails == null || currentCompanyDetails.getStaffCategories() == null) {
+            return Optional.of("Current staff category not found for employee.");
+        }
+
+        Optional<InsurancePolicyStaffCategoryGroup> currentGroup = findStaffCategoryGroup(
+                currentCompanyDetails.getInsurancePolicy(),
+                currentCompanyDetails.getStaffCategories()
+        );
+        Optional<InsurancePolicyStaffCategoryGroup> requestedGroup = findStaffCategoryGroup(
+                requestedPolicy,
+                requestedStaffCategory
+        );
+
+        if (currentGroup.isEmpty() || requestedGroup.isEmpty()) {
+            return Optional.of("Staff category group mapping not found. Please check policy staff category group setup.");
+        }
+
+        String currentMainCategory = currentGroup.get().getMainCategoryCode();
+        String requestedMainCategory = requestedGroup.get().getMainCategoryCode();
+        if (!org.springframework.util.StringUtils.hasText(currentMainCategory)
+                || !currentMainCategory.equalsIgnoreCase(requestedMainCategory)) {
+            return Optional.of("Selected staff category is not in the same main category. Please use promotion.");
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<InsurancePolicyStaffCategoryGroup> findStaffCategoryGroup(InsurancePolicy policy,
+                                                                               StaffCategories staffCategory) {
+        if (staffCategory == null || !org.springframework.util.StringUtils.hasText(staffCategory.getCode())) {
+            return Optional.empty();
+        }
+
+        if (policy != null && policy.getId() != null) {
+            Optional<InsurancePolicyStaffCategoryGroup> policyGroup = insurancePolicyStaffCategoryGroupRepository
+                    .findByInsurancePolicy_IdAndStaffCategories_CodeAndStatus(
+                            policy.getId(), staffCategory.getCode(), Status.ACTIVE);
+            if (policyGroup.isPresent()) {
+                return policyGroup;
+            }
+        }
+
+        return insurancePolicyStaffCategoryGroupRepository
+                .findAllByStaffCategories_CodeAndStatus(staffCategory.getCode(), Status.ACTIVE)
+                .stream()
+                .filter(group -> org.springframework.util.StringUtils.hasText(group.getMainCategoryCode()))
+                .findFirst();
     }
 
     private void notifyAdminTeamOnStaffCategoryTransferAsync(ApplicationUser applicationUser,

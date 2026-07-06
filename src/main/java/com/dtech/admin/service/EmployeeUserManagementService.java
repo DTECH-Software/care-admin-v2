@@ -18,5 +18,6 @@ public interface EmployeeUserManagementService {
     ResponseEntity<ApiResponse<Object>> view(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> update(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> staffCategoryUpdate(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
+    ResponseEntity<ApiResponse<Object>> staffCategoryTransfer(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
 
 }
