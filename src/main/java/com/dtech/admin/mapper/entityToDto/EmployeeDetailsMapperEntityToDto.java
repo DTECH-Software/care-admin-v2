@@ -44,7 +44,11 @@ public class EmployeeDetailsMapperEntityToDto {
             employeeDetailsResponseDTO.getUserCompanyDetails().setFacilityDescription(Facility.valueOf(employeeDetailsResponseDTO.getUserCompanyDetails().getFacility()).getDescription());
             int age = DateTimeUtil.getAge(String.valueOf(userPersonalDetails.getDob()));
             employeeDetailsResponseDTO.setAge(age);
-            employeeDetailsResponseDTO.setNoMobileNumber(isDummyMobile(userPersonalDetails.getMobileNo()));
+            boolean noMobileNumber = isDummyMobile(userPersonalDetails.getMobileNo());
+            employeeDetailsResponseDTO.setNoMobileNumber(noMobileNumber);
+            if (noMobileNumber) {
+                employeeDetailsResponseDTO.setMobileNo(null);
+            }
             return employeeDetailsResponseDTO;
         }catch (Exception e){
             log.error(e);
