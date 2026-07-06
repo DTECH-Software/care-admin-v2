@@ -449,7 +449,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                             applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
                         }
 
-                        notifyMessage(claim.getEmployee().getPrimaryMobile(), claim.getRequestId(), messageType, otherMark);
+                        notifyMessage(resolveClaimNotificationMobile(claim), claim.getRequestId(), messageType, otherMark);
 
                     }
 
@@ -486,7 +486,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
                     scheduleClaimEmailAfterCommit("level 01 final decision", claim, levelOneApprovers,
                             () -> emailNotificationService.notifyLevelOneFinalDecision(levelOneApprovers, claim, newStatus, workFlow.getRejectedRemark(), locale));
-                    notifyMessage(claim.getEmployee().getPrimaryMobile(), claim.getRequestId(), messageType, otherMark);
+                    notifyMessage(resolveClaimNotificationMobile(claim), claim.getRequestId(), messageType, otherMark);
                 }
             }
 
@@ -614,6 +614,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             log.error(e);
             throw e;
         }
+    }
+
+    private String resolveClaimNotificationMobile(InsuranceClaimsRequest claim) {
+        if (claim != null && claim.getAssistedMobileNo() != null && !claim.getAssistedMobileNo().trim().isEmpty()) {
+            return claim.getAssistedMobileNo().trim();
+        }
+        return claim != null && claim.getEmployee() != null ? claim.getEmployee().getPrimaryMobile() : null;
     }
 
     private String buildApprovedAmountMessage(BigDecimal requestAmount, BigDecimal approvedAmount, String remark) {

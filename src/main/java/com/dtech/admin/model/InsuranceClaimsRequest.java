@@ -71,4 +71,7 @@ public class InsuranceClaimsRequest extends Audit implements Serializable {
 
     @Column(name = "approved_amount")
     private BigDecimal approvedAmount;
+
+    @Column(name = "assisted_mobile_no")
+    private String assistedMobileNo;
 }
