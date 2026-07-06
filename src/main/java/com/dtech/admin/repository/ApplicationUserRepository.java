@@ -3,8 +3,12 @@ package com.dtech.admin.repository;
 import com.dtech.admin.enums.Status;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.UserPersonalDetails;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -33,4 +37,9 @@ public interface ApplicationUserRepository extends JpaRepository<ApplicationUser
 
     Optional<ApplicationUser> findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_NicIgnoreCaseAndUserPersonalDetails_UserStatus(
             String epfNo, String nic, Status status);
+
+    Optional<ApplicationUser> findByUserPersonalDetails(UserPersonalDetails userPersonalDetails);
+    boolean existsByPrimaryMobile(String primaryMobile);
+    @Query("select u.primaryMobile from ApplicationUser u where u.primaryMobile like concat(:prefix, '%') order by u.primaryMobile desc")
+    List<String> findLatestPrimaryMobileByPrefix(@Param("prefix") String prefix, Pageable pageable);
 }

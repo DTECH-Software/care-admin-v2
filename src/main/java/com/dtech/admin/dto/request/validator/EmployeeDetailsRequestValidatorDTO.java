@@ -39,9 +39,8 @@ public class EmployeeDetailsRequestValidatorDTO extends ChannelRequestValidatorD
     @NotBlank(message = "Email is required",groups = {OnAdd.class,OnUpdate.class})
     @Pattern(regexp = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", message = "Please enter a valid email address",groups = {OnAdd.class,OnUpdate.class})
     private String email;
-    @NotBlank(message = "Mobile number is required",groups = {OnAdd.class,OnUpdate.class})
-    @Pattern(regexp = "^(071|070|074|077|075|078|072|076)[0-9]{7}$", message = "Invalid mobile number. It must start with 071,074, 070, 077, 075, 078, 072, or 076, and be followed by 7 digits",groups = {OnAdd.class,OnUpdate.class})
     private String mobileNo;
+    private Boolean noMobileNumber;
     @NotNull(message = "Marital status is required",groups = {OnAdd.class,OnUpdate.class})
     private String maritalStatus;
     @NotNull(message = "DOB is required",groups = {OnAdd.class})

@@ -34,6 +34,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Pattern;
 
 @Service
 @Log4j2
@@ -54,6 +56,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final Set<String> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES = Set.of(
             "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
     );
+    private static final String DUMMY_MOBILE_PREFIX = "0000";
+    private static final Pattern REAL_MOBILE_PATTERN = Pattern.compile("^(071|070|074|077|075|078|072|076)[0-9]{7}$");
     private static final Map<String, ReentrantLock> EMPLOYEE_ADD_LOCKS = new ConcurrentHashMap<>();
 
     @Autowired
@@ -88,6 +92,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private final WebUserRepository webUserRepository;
+
+    @Autowired
+    private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
     private final EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
@@ -223,9 +230,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 return errorResponse(1042, ResponseMessageUtil.EMPLOYEE_EMAIL_ALREADY_EXISTED, dto.getEmail(), locale);
             }
 
-            if (StringUtils.hasText(dto.getMobileNo())
-                    && userPersonalDetailsRepository.existsByMobileNoIgnoreCaseAndUserStatusIn(dto.getMobileNo(), List.of(Status.ACTIVE))) {
-                return errorResponse(1048, ResponseMessageUtil.EMPLOYEE_MOBILE_ALREADY_EXISTED, dto.getMobileNo(), locale);
+            ResponseEntity<ApiResponse<Object>> mobileValidation = prepareEmployeeMobile(dto, null, locale);
+            if (mobileValidation != null) {
+                return mobileValidation;
             }
 
             Optional<CompanyTypes> companyOpt = companyTypeRepository.findByCodeAndStatus(dto.getUserCompanyDetails().getCompanyTypeCode(), Status.ACTIVE);
@@ -374,6 +381,85 @@ public class EmployeeServiceImpl implements EmployeeService {
                 }
             }
         }
+    }
+
+    private ResponseEntity<ApiResponse<Object>> prepareEmployeeMobile(EmployeeDetailsRequestDTO dto,
+                                                                       UserPersonalDetails existingEmployee,
+                                                                       Locale locale) {
+        if (Boolean.TRUE.equals(dto.getNoMobileNumber())) {
+            if (existingEmployee != null && isDummyMobile(existingEmployee.getMobileNo())) {
+                dto.setMobileNo(existingEmployee.getMobileNo());
+            } else {
+                dto.setMobileNo(generateNextDummyMobile());
+            }
+            return null;
+        }
+
+        String mobile = StringUtils.hasText(dto.getMobileNo()) ? dto.getMobileNo().trim() : null;
+        if (!StringUtils.hasText(mobile)) {
+            return ResponseEntity.ok().body(responseUtil.error(null, 1048, "Mobile number is required"));
+        }
+        if (isDummyMobile(mobile)) {
+            return ResponseEntity.ok().body(responseUtil.error(null, 1048,
+                    "Dummy mobile numbers are system generated. Select no mobile number instead."));
+        }
+        if (!REAL_MOBILE_PATTERN.matcher(mobile).matches()) {
+            return ResponseEntity.ok().body(responseUtil.error(null, 1048,
+                    "Invalid mobile number. It must start with 071, 074, 070, 077, 075, 078, 072, or 076, and be followed by 7 digits"));
+        }
+
+        boolean mobileExists = existingEmployee == null
+                ? userPersonalDetailsRepository.existsByMobileNoIgnoreCaseAndUserStatusIn(mobile, List.of(Status.ACTIVE))
+                : Status.ACTIVE.name().equalsIgnoreCase(dto.getUserStatus())
+                && userPersonalDetailsRepository.existsByMobileNoIgnoreCaseAndUserStatusInAndIdNot(
+                mobile, List.of(Status.ACTIVE), existingEmployee.getId());
+        if (mobileExists) {
+            return errorResponse(1048, ResponseMessageUtil.EMPLOYEE_MOBILE_ALREADY_EXISTED, mobile, locale);
+        }
+        dto.setMobileNo(mobile);
+        return null;
+    }
+
+    private synchronized String generateNextDummyMobile() {
+        long maxPersonal = findMaxDummyMobile(userPersonalDetailsRepository.findLatestMobileNoByPrefix(
+                DUMMY_MOBILE_PREFIX, PageRequest.of(0, 1)));
+        long maxApplication = findMaxDummyMobile(applicationUserRepository.findLatestPrimaryMobileByPrefix(
+                DUMMY_MOBILE_PREFIX, PageRequest.of(0, 1)));
+        long next = Math.max(maxPersonal, maxApplication) + 1;
+        String mobile;
+        do {
+            mobile = DUMMY_MOBILE_PREFIX + String.format("%06d", next++);
+        } while (userPersonalDetailsRepository.existsByMobileNo(mobile)
+                || applicationUserRepository.existsByPrimaryMobile(mobile));
+        return mobile;
+    }
+
+    private long findMaxDummyMobile(List<String> mobileNumbers) {
+        if (mobileNumbers == null || mobileNumbers.isEmpty() || !StringUtils.hasText(mobileNumbers.get(0))) {
+            return 0;
+        }
+        String mobile = mobileNumbers.get(0).trim();
+        if (!isDummyMobile(mobile)) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(mobile.substring(DUMMY_MOBILE_PREFIX.length()));
+        } catch (NumberFormatException e) {
+            log.warn("Invalid dummy mobile number found {}", mobile);
+            return 0;
+        }
+    }
+
+    private boolean isDummyMobile(String mobileNo) {
+        return StringUtils.hasText(mobileNo) && mobileNo.trim().startsWith(DUMMY_MOBILE_PREFIX);
+    }
+
+    private void syncApplicationUserMobile(UserPersonalDetails userPersonalDetails) {
+        applicationUserRepository.findByUserPersonalDetails(userPersonalDetails)
+                .ifPresent(applicationUser -> {
+                    applicationUser.setPrimaryMobile(userPersonalDetails.getMobileNo());
+                    applicationUserRepository.saveAndFlush(applicationUser);
+                });
     }
 
     private ResponseEntity<ApiResponse<Object>> errorResponse(int code, String messageKey, String arg, Locale locale) {
@@ -621,6 +707,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 Date effectiveDob = Objects.nonNull(employeeDetailsRequestDTO.getDob())
                         ? employeeDetailsRequestDTO.getDob()
                         : userPersonalDetails.getDob();
+                ResponseEntity<ApiResponse<Object>> mobileValidation = prepareEmployeeMobile(employeeDetailsRequestDTO, userPersonalDetails, locale);
+                if (mobileValidation != null) {
+                    return mobileValidation;
+                }
 
                 String newModel = new StringBuilder()
                         .append(employeeDetailsRequestDTO.getNic())
@@ -709,14 +799,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                     return ResponseEntity.ok().body(responseUtil.error(null, 1044, messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_NOT_CHANGING, null, locale)));
                 }
 
-                if (Status.ACTIVE.name().equalsIgnoreCase(employeeDetailsRequestDTO.getUserStatus())
-                        && StringUtils.hasText(employeeDetailsRequestDTO.getMobileNo())
-                        && userPersonalDetailsRepository.existsByMobileNoIgnoreCaseAndUserStatusInAndIdNot(
-                        employeeDetailsRequestDTO.getMobileNo(), List.of(Status.ACTIVE), userPersonalDetails.getId())) {
-                    return errorResponse(1048, ResponseMessageUtil.EMPLOYEE_MOBILE_ALREADY_EXISTED,
-                            employeeDetailsRequestDTO.getMobileNo(), locale);
-                }
-
                 log.info("Employee details update old audit start");
                 List<String> oldAuditList = employeeDetailsAuditMapper.mapToDTOAudit(List.of(userPersonalDetails));
                 log.info("Employee details update old audit end");
@@ -771,6 +853,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 }
                 log.info("Employee details success");
                 userPersonalDetails = userPersonalDetailsRepository.saveAndFlush(userPersonalDetails);
+                syncApplicationUserMobile(userPersonalDetails);
 
                 if (!Status.INACTIVE.equals(previousStatus) && Status.INACTIVE.equals(userPersonalDetails.getUserStatus())) {
                     notifyAdminTeamOnEmployeeDeactivation(userPersonalDetails, employeeDetailsRequestDTO.getUsername());

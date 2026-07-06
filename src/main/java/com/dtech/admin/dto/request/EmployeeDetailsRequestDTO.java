@@ -19,6 +19,7 @@ public class EmployeeDetailsRequestDTO extends ChannelRequestDTO {
     private String nic;
     private String email;
     private String mobileNo;
+    private Boolean noMobileNumber;
     private String maritalStatus;
     private Date dob;
     private EmployeeAddressDTO userAddress;
