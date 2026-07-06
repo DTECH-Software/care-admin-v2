@@ -12,6 +12,7 @@ import com.dtech.admin.dto.search.EmployeeSearchDTO;
 import com.dtech.admin.service.EmployeeUserManagementService;
 import com.dtech.admin.validator.OnGet;
 import com.dtech.admin.validator.OnStaffCategoryUpdate;
+import com.dtech.admin.validator.OnUpdate;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.swagger.annotations.ApiOperation;
@@ -85,9 +86,9 @@ public class EmployeeUserManagementController {
 
     @PostMapping(path = "/update",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
     @ApiOperation(value = "Handle employee staff category update request request ",notes = "Employee staff category update request success or failed")
-    public ResponseEntity<ApiResponse<Object>> update(@RequestBody @Validated(OnStaffCategoryUpdate.class) @Valid EmployeeManagementRequestValidatorDTO employeeManagementRequestValidatorDTO, Locale locale) {
+    public ResponseEntity<ApiResponse<Object>> update(@RequestBody @Validated(OnUpdate.class) @Valid EmployeeManagementRequestValidatorDTO employeeManagementRequestValidatorDTO, Locale locale) {
         log.info("Employee user update request controller {} ", employeeManagementRequestValidatorDTO);
-        return employeeUserManagementService.staffCategoryUpdate(gson.fromJson(gson.toJson(employeeManagementRequestValidatorDTO), EmployeeManagementRequestDTO.class), locale);
+        return employeeUserManagementService.update(gson.fromJson(gson.toJson(employeeManagementRequestValidatorDTO), EmployeeManagementRequestDTO.class), locale);
     }
 
 }

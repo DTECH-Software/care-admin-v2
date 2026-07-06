@@ -16,6 +16,7 @@ public interface EmployeeUserManagementService {
     ResponseEntity<ApiResponse<Object>> getDependents(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> getLimitDetails(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> view(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
+    ResponseEntity<ApiResponse<Object>> update(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> staffCategoryUpdate(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale);
 
 }

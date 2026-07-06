@@ -623,6 +623,52 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
 
     @Override
     @Transactional
+    public ResponseEntity<ApiResponse<Object>> update(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
+        try {
+            log.info("Employee user status update request {}", employeeManagementRequestDTO);
+
+            return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(applicationUser -> {
+                boolean changed = false;
+
+                if (hasText(employeeManagementRequestDTO.getLoginStatus())) {
+                    applicationUser.setLoginStatus(Status.valueOf(employeeManagementRequestDTO.getLoginStatus()));
+                    changed = true;
+                }
+
+                if (hasText(employeeManagementRequestDTO.getUserStatus())) {
+                    if (applicationUser.getUserPersonalDetails() != null) {
+                        applicationUser.getUserPersonalDetails().setUserStatus(Status.valueOf(employeeManagementRequestDTO.getUserStatus()));
+                    }
+                    changed = true;
+                }
+
+                if (!changed) {
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1002,
+                            "Login status or user status is required"));
+                }
+
+                applicationUser = applicationUserRepository.saveAndFlush(applicationUser);
+                ApplicationUserResponseDTO responseDTO = buildEmployeeResponse(applicationUser);
+                return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
+                        messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_UPDATE_SUCCESSFULLY, null, locale)));
+            }).orElseGet(() -> {
+                log.info("Employee user not found {}", employeeManagementRequestDTO.getId());
+                return ResponseEntity.ok().body(responseUtil.error(null, 1043,
+                        messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_NOT_FOUND,
+                                new Object[]{employeeManagementRequestDTO.getId()}, locale)));
+            });
+        } catch (Exception e) {
+            log.error(e);
+            throw e;
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    @Override
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> staffCategoryUpdate(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
         try {
             log.info("Staff category update request {}", employeeManagementRequestDTO);
