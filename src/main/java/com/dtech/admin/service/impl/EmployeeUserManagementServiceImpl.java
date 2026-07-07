@@ -933,10 +933,20 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
 
             if (applicationUser.getUserPersonalDetails().getUserCompanyDetails() != null
                     && applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPromoDocs() != null) {
+                UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
                 DocumentDownloadResponseDTO promoDoc = mapDocument(
-                        applicationUser.getUserPersonalDetails().getUserCompanyDetails().getPromoDocs());
+                        companyDetails.getPromoDocs());
                 applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().setPromoDoc(promoDoc);
                 applicationUserResponseDTO.getUserPersonalDetails().setPromoDoc(promoDoc);
+
+                if (companyDetails.getPreviousPermanentDate() != null) {
+                    applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
+                            .setTransferDate(companyDetails.getPermanentDate());
+                    applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
+                            .setTransferDoc(promoDoc);
+                    applicationUserResponseDTO.getUserPersonalDetails().setTransferDate(companyDetails.getPermanentDate());
+                    applicationUserResponseDTO.getUserPersonalDetails().setTransferDoc(promoDoc);
+                }
             }
         }
 

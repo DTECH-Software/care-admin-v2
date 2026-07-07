@@ -34,4 +34,6 @@ public class UserPersonalDetailsResponseDTO {
     private DocumentDownloadResponseDTO birthImg;
     private DocumentDownloadResponseDTO maritalStatusDocument;
     private DocumentDownloadResponseDTO promoDoc;
+    private Date transferDate;
+    private DocumentDownloadResponseDTO transferDoc;
 }

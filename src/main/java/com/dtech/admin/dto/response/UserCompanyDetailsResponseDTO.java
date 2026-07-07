@@ -20,4 +20,6 @@ public class UserCompanyDetailsResponseDTO {
     private String facility;
     private String facilityDescription;
     private DocumentDownloadResponseDTO promoDoc;
+    private Date transferDate;
+    private DocumentDownloadResponseDTO transferDoc;
 }
