@@ -80,4 +80,12 @@ public class UserCompanyDetails extends AdminAudit implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     private Document promoDocs;
 
+    @Column(name = "transfer_date")
+    @Temporal(TemporalType.DATE)
+    private Date transferDate;
+
+    @JoinColumn(name = "transfer_doc",nullable = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Document transferDocs;
+
 }

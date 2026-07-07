@@ -713,13 +713,18 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                             throw new RuntimeException(e);
                         }
 
-                          if (companyDetails.getPreviousPermanentDate() == null) {
-                              companyDetails.setPreviousPermanentDate(companyDetails.getPermanentDate());
-                          }
                           companyDetails.setStaffCategories(staffCategories);
                           companyDetails.setInsurancePolicy(in);
-                          companyDetails.setPermanentDate(employeeManagementRequestDTO.getEffectiveDate());
-                          companyDetails.setPromoDocs(t);
+                          if (transferOnly) {
+                              companyDetails.setTransferDate(employeeManagementRequestDTO.getEffectiveDate());
+                              companyDetails.setTransferDocs(t);
+                          } else {
+                              if (companyDetails.getPreviousPermanentDate() == null) {
+                                  companyDetails.setPreviousPermanentDate(companyDetails.getPermanentDate());
+                              }
+                              companyDetails.setPermanentDate(employeeManagementRequestDTO.getEffectiveDate());
+                              companyDetails.setPromoDocs(t);
+                          }
                           applicationUserRepository.saveAndFlush(applicationUser);
                         notifyAdminTeamOnStaffCategoryTransferAsync(applicationUser,
                                 previousStaffCategory,
@@ -938,15 +943,17 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                         companyDetails.getPromoDocs());
                 applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails().setPromoDoc(promoDoc);
                 applicationUserResponseDTO.getUserPersonalDetails().setPromoDoc(promoDoc);
+            }
 
-                if (companyDetails.getPreviousPermanentDate() != null) {
-                    applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
-                            .setTransferDate(companyDetails.getPermanentDate());
-                    applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
-                            .setTransferDoc(promoDoc);
-                    applicationUserResponseDTO.getUserPersonalDetails().setTransferDate(companyDetails.getPermanentDate());
-                    applicationUserResponseDTO.getUserPersonalDetails().setTransferDoc(promoDoc);
-                }
+            if (applicationUser.getUserPersonalDetails().getUserCompanyDetails() != null) {
+                UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
+                DocumentDownloadResponseDTO transferDoc = mapDocument(companyDetails.getTransferDocs());
+                applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
+                        .setTransferDate(companyDetails.getTransferDate());
+                applicationUserResponseDTO.getUserPersonalDetails().getUserCompanyDetails()
+                        .setTransferDoc(transferDoc);
+                applicationUserResponseDTO.getUserPersonalDetails().setTransferDate(companyDetails.getTransferDate());
+                applicationUserResponseDTO.getUserPersonalDetails().setTransferDoc(transferDoc);
             }
         }
 
