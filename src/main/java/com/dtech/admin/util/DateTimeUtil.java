@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 
 @Log4j2
 public class DateTimeUtil {
@@ -115,18 +116,33 @@ public class DateTimeUtil {
 
     public static int getAge(String date) {
         log.info("get age");
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        LocalDate givenDate = LocalDate.parse(date, formatter);
+        LocalDate givenDate = parseLocalDate(date);
         LocalDate currentDate = LocalDate.now();
         return Period.between(givenDate, currentDate).getYears();
     }
 
     public static int getAgeInDays(String date) {
         log.info("get age in days {} ",date);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        LocalDate givenDate = LocalDate.parse(date, formatter);
+        LocalDate givenDate = parseLocalDate(date);
         LocalDate currentDate = LocalDate.now();
         return (int) ChronoUnit.DAYS.between(givenDate, currentDate);
+    }
+
+    private static LocalDate parseLocalDate(String date) {
+        if (date == null || date.isBlank()) {
+            throw new IllegalArgumentException("Date is required");
+        }
+
+        String value = date.trim();
+        if (value.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+            return LocalDate.parse(value.substring(0, 10), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        }
+        if (value.matches("\\d{4}/\\d{2}/\\d{2}.*")) {
+            return LocalDate.parse(value.substring(0, 10), DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        }
+
+        DateTimeFormatter javaDateFormatter = DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss zzz yyyy", Locale.ENGLISH);
+        return ZonedDateTime.parse(value, javaDateFormatter).toLocalDate();
     }
 
     public static Date getStartOfDay(String dateStr) throws Exception {
