@@ -8,6 +8,7 @@ import com.dtech.admin.dto.request.validator.DependentRequestValidatorDTO;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.search.ClaimDependentSearchDTO;
 import com.dtech.admin.service.DependentService;
+import com.dtech.admin.validator.OnDependentDetailsUpdate;
 import com.dtech.admin.validator.OnGet;
 import com.dtech.admin.validator.OnUpdate;
 import com.google.gson.Gson;
@@ -65,6 +66,13 @@ public class DependentController {
     public ResponseEntity<ApiResponse<Object>> update(@RequestBody @Validated(OnUpdate.class) @Valid DependentRequestValidatorDTO dependentRequestValidatorDTO, Locale locale) {
         log.info("Dependent update request  controller {} ", dependentRequestValidatorDTO);
         return dependentService.update(gson.fromJson(gson.toJson(dependentRequestValidatorDTO), DependentRequestDTO.class), locale);
+    }
+
+    @PostMapping(path = "/details-update",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Handle dependent profile details update request ",notes = "Dependent profile details update request success or failed")
+    public ResponseEntity<ApiResponse<Object>> detailsUpdate(@RequestBody @Validated(OnDependentDetailsUpdate.class) @Valid DependentRequestValidatorDTO dependentRequestValidatorDTO, Locale locale) {
+        log.info("Dependent details update request controller {} ", dependentRequestValidatorDTO);
+        return dependentService.detailsUpdate(gson.fromJson(gson.toJson(dependentRequestValidatorDTO), DependentRequestDTO.class), locale);
     }
 
 }

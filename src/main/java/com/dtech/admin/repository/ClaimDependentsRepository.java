@@ -24,6 +24,7 @@ import java.util.Optional;
 @Repository
 public interface ClaimDependentsRepository extends JpaRepository<ClaimsDependents, Long>, JpaSpecificationExecutor<ClaimsDependents> {
     boolean existsAllByApplicationUserAndRelationCategoryAndStatusIn(ApplicationUser applicationUser, RelationCategory relationCategory, List<Workflow> workflow);
+    boolean existsByApplicationUserAndRelationCategoryAndStatusInAndIdNot(ApplicationUser applicationUser, RelationCategory relationCategory, List<Workflow> workflow, Long id);
     boolean existsAllByApplicationUserAndRelationCategoryAndStatusInAndMarried_Id(ApplicationUser applicationUser, RelationCategory relationCategory, List<Workflow> workflow, Long id);
     boolean existsByApplicationUserAndRelationCategoryInAndStatusInAndLiveStatus(ApplicationUser applicationUser, List<RelationCategory> relationCategories, List<Workflow> workflow, Boolean liveStatus);
     boolean existsByApplicationUserAndRelationCategoryInAndStatusInAndLiveStatusAndIdNot(ApplicationUser applicationUser, List<RelationCategory> relationCategories, List<Workflow> workflow, Boolean liveStatus, Long id);

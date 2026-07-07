@@ -13,6 +13,7 @@ import com.dtech.admin.enums.*;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.ThirdPartyCriticalClaimImportService;
 import com.dtech.admin.service.ThirdPartyIndoorClaimImportService;
 import com.dtech.admin.specifications.ThirdPartyIndoorClaimBatchSpecification;
 import com.dtech.admin.util.*;
@@ -46,13 +47,8 @@ import java.util.stream.Collectors;
 @Service
 @Log4j2
 @RequiredArgsConstructor
-public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorClaimImportService {
+public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorClaimImportService, ThirdPartyCriticalClaimImportService {
 
-    private static final String PAGE_CODE = com.dtech.admin.enums.WebPage.TPIC.name();
-    private static final String FIXED_TREATMENT_CODE = TreatmentType.INDOOR.name();
-    private static final String FIXED_TREATMENT_CATEGORY_CODE = com.dtech.admin.enums.TreatmentCategory.OTHER.name();
-    private static final String IMPORTED_CLAIM_DISEASE = "Third Party Indoor Claim";
-    private static final String TEMPLATE_FILE_NAME = "third-party-indoor-claims-template.xlsx";
     private static final List<String> TEMPLATE_HEADERS = List.of(
             "thirdPartyReferenceNo",
             "companyCode",
@@ -87,6 +83,34 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             "paidAmount", List.of("paidAmount", "approvedAmount")
     );
     private static final List<Facility> INSURANCE_FACILITIES = List.of(Facility.INSURANCE, Facility.BOTH);
+    private static final ImportConfig INDOOR_CONFIG = new ImportConfig(
+            com.dtech.admin.enums.WebPage.TPIC.name(),
+            "TPIC",
+            "third-party-indoor-claims",
+            "third-party-indoor-claims-template.xlsx",
+            TreatmentType.INDOOR.name(),
+            TreatmentType.INDOOR.getDescription(),
+            com.dtech.admin.enums.TreatmentCategory.OTHER.name(),
+            "Other",
+            "Third Party Indoor Claim",
+            "Only indoor claims are allowed.",
+            "Indoor treatment is not configured",
+            "Indoor insurance limit is not configured for the employee policy"
+    );
+    private static final ImportConfig CRITICAL_CONFIG = new ImportConfig(
+            com.dtech.admin.enums.WebPage.TPIC.name(),
+            "TPCC",
+            "third-party-critical-claims",
+            "third-party-critical-claims-template.xlsx",
+            TreatmentType.CRIC.name(),
+            TreatmentType.CRIC.getDescription(),
+            com.dtech.admin.enums.TreatmentCategory.OTHER.name(),
+            "Other",
+            "Third Party Critical Illness Claim",
+            "Only critical illness claims are allowed.",
+            "Critical illness treatment is not configured",
+            "Critical illness insurance limit is not configured for the employee policy"
+    );
     private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("yyyy-MM-dd"),
             DateTimeFormatter.ofPattern("yyyy/MM/dd"),
@@ -142,20 +166,30 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
+        return getReferenceDate(channelRequestDTO, locale, INDOOR_CONFIG);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> getCriticalReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
+        return getReferenceDate(channelRequestDTO, locale, CRITICAL_CONFIG);
+    }
+
+    private ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale, ImportConfig config) {
         try {
             Map<String, Object> responseMap = new HashMap<>();
-            responseMap.put("privileges", commonPrivilegeGetter.getPrivileges(channelRequestDTO.getUsername(), PAGE_CODE));
+            responseMap.put("privileges", commonPrivilegeGetter.getPrivileges(channelRequestDTO.getUsername(), config.pageCode()));
             responseMap.put("batchStatuses", Arrays.stream(ThirdPartyIndoorClaimBatchStatus.values())
                     .map(status -> new SimpleBaseDTO(status.name(), status.getDescription()))
                     .toList());
-            responseMap.put("fixedTreatment", new SimpleBaseDTO(FIXED_TREATMENT_CODE, TreatmentType.INDOOR.getDescription()));
-            responseMap.put("fixedTreatmentCategory", new SimpleBaseDTO(FIXED_TREATMENT_CATEGORY_CODE, "Other"));
+            responseMap.put("fixedTreatment", new SimpleBaseDTO(config.treatmentCode(), config.treatmentDescription()));
+            responseMap.put("fixedTreatmentCategory", new SimpleBaseDTO(config.treatmentCategoryCode(), config.treatmentCategoryDescription()));
             responseMap.put("templateColumns", TEMPLATE_HEADERS.stream()
                     .map(header -> new SimpleBaseDTO(header, header))
                     .toList());
             responseMap.put("rules", List.of(
                     "Only active non-NS employees are allowed.",
-                    "Only indoor claims are allowed.",
+                    config.claimRule(),
                     "companyCode and epfNo are used to identify the employee.",
                     "Policy Period From and Policy Period To are used to map the insurance period.",
                     "Paid Amount is entered manually.",
@@ -165,13 +199,13 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     "nonPayableItem is required when nonPayableAmount is greater than zero."
             ));
 
-            auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.REF_DATA.name(), AuditTask.GETTING_ALL_REFERENCE_DATA.getDescription(),
+            auditLogService.log(config.pageCode(), com.dtech.admin.enums.WebTask.REF_DATA.name(), AuditTask.GETTING_ALL_REFERENCE_DATA.getDescription(),
                     channelRequestDTO.getIp(), channelRequestDTO.getUserAgent(), gson.toJson(responseMap), null, channelRequestDTO.getUsername());
 
             return ResponseEntity.ok().body(responseUtil.success(responseMap,
                     messageSource.getMessage(ResponseMessageUtil.THIRD_PARTY_INDOOR_REFERENCE_SUCCESS, null, locale)));
         } catch (Exception e) {
-            log.error("Failed to load third party indoor claim import reference data", e);
+            log.error("Failed to load third party claim import reference data", e);
             throw new RuntimeException(e);
         }
     }
@@ -179,20 +213,30 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     @Override
     @Transactional
     public ResponseEntity<byte[]> downloadTemplate(ChannelRequestDTO channelRequestDTO, Locale locale) {
+        return downloadTemplate(channelRequestDTO, locale, INDOOR_CONFIG);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<byte[]> downloadCriticalTemplate(ChannelRequestDTO channelRequestDTO, Locale locale) {
+        return downloadTemplate(channelRequestDTO, locale, CRITICAL_CONFIG);
+    }
+
+    private ResponseEntity<byte[]> downloadTemplate(ChannelRequestDTO channelRequestDTO, Locale locale, ImportConfig config) {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("third-party-indoor-claims");
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet(config.sheetName());
             createTemplateHeader(workbook, sheet);
 
             workbook.write(out);
-            auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(),
-                    channelRequestDTO.getIp(), channelRequestDTO.getUserAgent(), TEMPLATE_FILE_NAME, null, channelRequestDTO.getUsername());
+            auditLogService.log(config.pageCode(), com.dtech.admin.enums.WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(),
+                    channelRequestDTO.getIp(), channelRequestDTO.getUserAgent(), config.templateFileName(), null, channelRequestDTO.getUsername());
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + TEMPLATE_FILE_NAME + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + config.templateFileName() + "\"")
                     .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                     .body(out.toByteArray());
         } catch (Exception e) {
-            log.error("Failed to generate third party indoor claim template", e);
+            log.error("Failed to generate third party claim template", e);
             throw new RuntimeException(e);
         }
     }
@@ -200,14 +244,24 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> validate(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale) {
+        return validate(requestDTO, locale, INDOOR_CONFIG);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> validateCritical(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale) {
+        return validate(requestDTO, locale, CRITICAL_CONFIG);
+    }
+
+    private ResponseEntity<ApiResponse<Object>> validate(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale, ImportConfig config) {
         try {
-            ValidationResult validationResult = validateFile(requestDTO);
-            auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.FILE_UPLOAD.name(), AuditTask.VIEW_DATA.getDescription(),
+            ValidationResult validationResult = validateFile(requestDTO, config);
+            auditLogService.log(config.pageCode(), com.dtech.admin.enums.WebTask.FILE_UPLOAD.name(), AuditTask.VIEW_DATA.getDescription(),
                     requestDTO.getIp(), requestDTO.getUserAgent(), gson.toJson(validationResult.toResponse()), null, requestDTO.getUsername());
             return ResponseEntity.ok().body(responseUtil.success(validationResult.toResponse(),
                     messageSource.getMessage(ResponseMessageUtil.THIRD_PARTY_INDOOR_VALIDATE_SUCCESS, null, locale)));
         } catch (Exception e) {
-            log.error("Failed to validate third party indoor claim import file", e);
+            log.error("Failed to validate third party claim import file", e);
             throw new RuntimeException(e);
         }
     }
@@ -215,8 +269,18 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> importClaims(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale) {
+        return importClaims(requestDTO, locale, INDOOR_CONFIG);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> importCriticalClaims(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale) {
+        return importClaims(requestDTO, locale, CRITICAL_CONFIG);
+    }
+
+    private ResponseEntity<ApiResponse<Object>> importClaims(ThirdPartyIndoorClaimFileRequestDTO requestDTO, Locale locale, ImportConfig config) {
         try {
-            ValidationResult validationResult = validateFile(requestDTO);
+            ValidationResult validationResult = validateFile(requestDTO, config);
             if (validationResult.invalidRows() > 0) {
                 return ResponseEntity.ok().body(responseUtil.error(
                         buildImportValidationErrors(validationResult),
@@ -236,7 +300,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             batch.setImportedRows(0);
             batch.setStatus(ThirdPartyIndoorClaimBatchStatus.FAILED);
             batch = batchRepository.saveAndFlush(batch);
-            batch.setBatchNo(generateBatchNo(batch.getId()));
+            batch.setBatchNo(generateBatchNo(batch.getId(), config));
 
             int importedRows = 0;
             int failedRows = 0;
@@ -252,7 +316,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 }
 
                 try {
-                    InsuranceClaimsRequest claim = createImportedClaim(rowValidation, requestDTO.getUsername());
+                    InsuranceClaimsRequest claim = createImportedClaim(rowValidation, requestDTO.getUsername(), config);
                     row.setStatus(ThirdPartyIndoorClaimRowStatus.IMPORTED);
                     row.setInsuranceClaim(claim);
                     importedRows++;
@@ -280,13 +344,13 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
 
             ThirdPartyIndoorClaimBatchResponseDTO responseDTO = mapBatchResponse(batch, rowRepository.findAllByBatchOrderByRowNoAsc(batch));
 
-            auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.ADD.name(), AuditTask.ADD_DATA.getDescription(),
+            auditLogService.log(config.pageCode(), com.dtech.admin.enums.WebTask.ADD.name(), AuditTask.ADD_DATA.getDescription(),
                     requestDTO.getIp(), requestDTO.getUserAgent(), gson.toJson(responseDTO), null, requestDTO.getUsername());
 
             return ResponseEntity.ok().body(responseUtil.success(responseDTO,
                     messageSource.getMessage(ResponseMessageUtil.THIRD_PARTY_INDOOR_IMPORT_SUCCESS, null, locale)));
         } catch (Exception e) {
-            log.error("Failed to import third party indoor claims", e);
+            log.error("Failed to import third party claims", e);
             throw new RuntimeException(e);
         }
     }
@@ -294,20 +358,30 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<ThirdPartyIndoorClaimBatchSearchDTO> paginationRequest, Locale locale) {
+        return filterList(paginationRequest, locale, INDOOR_CONFIG);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> filterCriticalList(PaginationRequest<ThirdPartyIndoorClaimBatchSearchDTO> paginationRequest, Locale locale) {
+        return filterList(paginationRequest, locale, CRITICAL_CONFIG);
+    }
+
+    private ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<ThirdPartyIndoorClaimBatchSearchDTO> paginationRequest, Locale locale, ImportConfig config) {
         try {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
             ThirdPartyIndoorClaimBatchSearchDTO filter = Optional.ofNullable(paginationRequest.getSearch())
                     .orElseGet(ThirdPartyIndoorClaimBatchSearchDTO::new);
 
             Page<ThirdPartyIndoorClaimImportBatch> page = batchRepository.findAll(
-                    ThirdPartyIndoorClaimBatchSpecification.getSpecification(filter), pageable);
-            long total = batchRepository.count(ThirdPartyIndoorClaimBatchSpecification.getSpecification(filter));
+                    ThirdPartyIndoorClaimBatchSpecification.getSpecification(filter, config.batchPrefix()), pageable);
+            long total = batchRepository.count(ThirdPartyIndoorClaimBatchSpecification.getSpecification(filter, config.batchPrefix()));
 
             List<ThirdPartyIndoorClaimBatchListResponseDTO> response = page.stream()
                     .map(this::mapBatchListResponse)
                     .toList();
 
-            auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.SEARCH.name(), AuditTask.SEARCH_FILTER.getDescription(),
+            auditLogService.log(config.pageCode(), com.dtech.admin.enums.WebTask.SEARCH.name(), AuditTask.SEARCH_FILTER.getDescription(),
                     paginationRequest.getIp(), paginationRequest.getUserAgent(), gson.toJson(response), null, paginationRequest.getUsername());
 
             return ResponseEntity.ok().body(responseUtil.success(
@@ -315,7 +389,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     messageSource.getMessage(ResponseMessageUtil.THIRD_PARTY_INDOOR_FILTER_SUCCESS, null, locale)
             ));
         } catch (Exception e) {
-            log.error("Failed to filter third party indoor claim import batches", e);
+            log.error("Failed to filter third party claim import batches", e);
             throw new RuntimeException(e);
         }
     }
@@ -323,12 +397,27 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> view(ThirdPartyIndoorClaimBatchRequestDTO requestDTO, Locale locale) {
+        return view(requestDTO, locale, INDOOR_CONFIG);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> viewCritical(ThirdPartyIndoorClaimBatchRequestDTO requestDTO, Locale locale) {
+        return view(requestDTO, locale, CRITICAL_CONFIG);
+    }
+
+    private ResponseEntity<ApiResponse<Object>> view(ThirdPartyIndoorClaimBatchRequestDTO requestDTO, Locale locale, ImportConfig config) {
         try {
             return batchRepository.findById(requestDTO.getId()).map(batch -> {
+                if (!isBatchForConfig(batch, config)) {
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1051,
+                            messageSource.getMessage(ResponseMessageUtil.THIRD_PARTY_INDOOR_BATCH_NOT_FOUND,
+                                    new Object[]{requestDTO.getId()}, locale)));
+                }
                 List<ThirdPartyIndoorClaimImportRow> rows = rowRepository.findAllByBatchOrderByRowNoAsc(batch);
                 ThirdPartyIndoorClaimBatchResponseDTO responseDTO = mapBatchResponse(batch, rows);
 
-                auditLogService.log(PAGE_CODE, com.dtech.admin.enums.WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(),
+                auditLogService.log(config.pageCode(), com.dtech.admin.enums.WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(),
                         requestDTO.getIp(), requestDTO.getUserAgent(), gson.toJson(responseDTO), null, requestDTO.getUsername());
 
                 return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
@@ -337,12 +426,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     messageSource.getMessage(ResponseMessageUtil.THIRD_PARTY_INDOOR_BATCH_NOT_FOUND,
                             new Object[]{requestDTO.getId()}, locale))));
         } catch (Exception e) {
-            log.error("Failed to view third party indoor claim import batch {}", requestDTO.getId(), e);
+            log.error("Failed to view third party claim import batch {}", requestDTO.getId(), e);
             throw new RuntimeException(e);
         }
     }
 
-    private ValidationResult validateFile(ThirdPartyIndoorClaimFileRequestDTO requestDTO) throws Exception {
+    private ValidationResult validateFile(ThirdPartyIndoorClaimFileRequestDTO requestDTO, ImportConfig config) throws Exception {
         byte[] fileBytes = decodeFile(requestDTO.getFile());
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(fileBytes))) {
             org.apache.poi.ss.usermodel.Sheet sheet = workbook.getNumberOfSheets() > 0 ? workbook.getSheetAt(0) : null;
@@ -351,10 +440,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
             }
 
             Map<String, Integer> headerIndex = resolveHeaderIndex(sheet);
-            Treatment treatment = treatmentRepository.findByTreatmentCodeAndStatus(FIXED_TREATMENT_CODE, Status.ACTIVE)
-                    .orElseThrow(() -> new IllegalArgumentException("Indoor treatment is not configured"));
+            Treatment treatment = treatmentRepository.findByTreatmentCodeAndStatus(config.treatmentCode(), Status.ACTIVE)
+                    .orElseThrow(() -> new IllegalArgumentException(config.missingTreatmentMessage()));
             com.dtech.admin.model.TreatmentCategory treatmentCategory = treatmentCategoryRepository
-                    .findByCodeAndStatus(FIXED_TREATMENT_CATEGORY_CODE, Status.ACTIVE)
+                    .findByCodeAndStatus(config.treatmentCategoryCode(), Status.ACTIVE)
                     .orElseThrow(() -> new IllegalArgumentException("Other treatment category is not configured"));
 
             List<RowValidation> rows = new ArrayList<>();
@@ -365,7 +454,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 if (isBlankRow(row)) {
                     continue;
                 }
-                rows.add(validateRow(row, headerIndex, treatment, treatmentCategory, fileReferences));
+                rows.add(validateRow(row, headerIndex, treatment, treatmentCategory, fileReferences, config));
             }
 
             return new ValidationResult(requestDTO.getFileName(), rows);
@@ -376,7 +465,8 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                                       Map<String, Integer> headerIndex,
                                       Treatment treatment,
                                       com.dtech.admin.model.TreatmentCategory treatmentCategory,
-                                      Set<String> fileReferences) {
+                                      Set<String> fileReferences,
+                                      ImportConfig config) {
         DataFormatter formatter = new DataFormatter();
         int rowNo = row.getRowNum() + 1;
         List<String> errors = new ArrayList<>();
@@ -495,10 +585,10 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                         insuranceDetailsLimit = insuranceDetailsLimitRepository.findByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment(
                                 companyDetails.getInsurancePolicy(), Status.ACTIVE, insurancePeriod, treatment).orElse(null);
                         if (insuranceDetailsLimit == null) {
-                            errors.add("Indoor insurance limit is not configured for the employee policy");
+                            errors.add(config.missingLimitMessage());
                         } else if (Boolean.TRUE.equals(insuranceDetailsLimit.getIsQuarter())) {
                             insuranceQuarter = insuranceQuarterRepository.findByDateWithinRangeAndCodeWithLimit(
-                                            insuranceDetailsLimit, FIXED_TREATMENT_CATEGORY_CODE, toDate)
+                                            insuranceDetailsLimit, config.treatmentCategoryCode(), toDate)
                                     .stream()
                                     .findFirst()
                                     .orElse(null);
@@ -535,7 +625,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         return nonPayable.add(paidAmount);
     }
 
-    private InsuranceClaimsRequest createImportedClaim(RowValidation rowValidation, String username) {
+    private InsuranceClaimsRequest createImportedClaim(RowValidation rowValidation, String username, ImportConfig config) {
         ClaimRequestIdGen claimRequestIdGen = ClaimRequestIdGen.builder()
                 .year(String.valueOf(rowValidation.policyYear()))
                 .company(rowValidation.employee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode())
@@ -558,7 +648,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         claimDetails.setTreatmentCategory(rowValidation.treatmentCategory());
         claimDetails.setFromTreatmentDate(rowValidation.fromDate());
         claimDetails.setToTreatmentDate(rowValidation.toDate());
-        claimDetails.setDisease(IMPORTED_CLAIM_DISEASE);
+        claimDetails.setDisease(config.importedClaimDisease());
         claimDetails.setInsuranceStaffCategoryPeriod(rowValidation.insurancePeriod());
 
         InsuranceClaimsRequest claim = new InsuranceClaimsRequest();
@@ -844,8 +934,12 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                 .toList();
     }
 
-    private String generateBatchNo(Long id) {
-        return "TPIC/" + DateTimeUtil.getCurrentYear() + "/" + String.format("%04d", id);
+    private String generateBatchNo(Long id, ImportConfig config) {
+        return config.batchPrefix() + "/" + DateTimeUtil.getCurrentYear() + "/" + String.format("%04d", id);
+    }
+
+    private boolean isBatchForConfig(ThirdPartyIndoorClaimImportBatch batch, ImportConfig config) {
+        return batch != null && batch.getBatchNo() != null && batch.getBatchNo().startsWith(config.batchPrefix() + "/");
     }
 
     private String normalizeReference(String value) {
@@ -866,6 +960,22 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private record ImportConfig(
+            String pageCode,
+            String batchPrefix,
+            String sheetName,
+            String templateFileName,
+            String treatmentCode,
+            String treatmentDescription,
+            String treatmentCategoryCode,
+            String treatmentCategoryDescription,
+            String importedClaimDisease,
+            String claimRule,
+            String missingTreatmentMessage,
+            String missingLimitMessage
+    ) {
     }
 
     private enum ValidationStatus {

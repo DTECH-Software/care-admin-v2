@@ -19,8 +19,17 @@ public class ThirdPartyIndoorClaimBatchSpecification {
     }
 
     public static Specification<ThirdPartyIndoorClaimImportBatch> getSpecification(ThirdPartyIndoorClaimBatchSearchDTO filter) {
+        return getSpecification(filter, null);
+    }
+
+    public static Specification<ThirdPartyIndoorClaimImportBatch> getSpecification(ThirdPartyIndoorClaimBatchSearchDTO filter,
+                                                                                  String batchPrefix) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            if (hasText(batchPrefix)) {
+                predicates.add(cb.like(root.get("batchNo"), batchPrefix + "/%"));
+            }
 
             if (hasText(filter.getBatchNo())) {
                 predicates.add(cb.like(cb.lower(root.get("batchNo")), "%" + filter.getBatchNo().toLowerCase() + "%"));

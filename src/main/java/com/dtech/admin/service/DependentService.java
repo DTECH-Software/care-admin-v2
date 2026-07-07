@@ -15,5 +15,6 @@ public interface DependentService {
     ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<ClaimDependentSearchDTO> paginationRequest, Locale locale);
     ResponseEntity<ApiResponse<Object>> update(DependentRequestDTO dependentRequestDTO, Locale locale);
+    ResponseEntity<ApiResponse<Object>> detailsUpdate(DependentRequestDTO dependentRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> view(DependentRequestDTO dependentRequestDTO, Locale locale);
 }

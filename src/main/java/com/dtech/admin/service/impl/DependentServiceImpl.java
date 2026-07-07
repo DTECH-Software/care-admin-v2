@@ -268,6 +268,163 @@ public class DependentServiceImpl implements DependentService {
         }
     }
 
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> detailsUpdate(DependentRequestDTO dependentRequestDTO, Locale locale) {
+        try {
+            log.info("Dependent profile details update data {}", dependentRequestDTO);
+            return claimDependentsRepository.findById(dependentRequestDTO.getId()).map(dependent -> {
+                List<String> oldAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(dependent));
+
+                ClaimsDependents updatedPreview = copyDependent(dependent);
+                applyDependentDetails(updatedPreview, dependentRequestDTO);
+                ResponseEntity<ApiResponse<Object>> validationResponse = validateDependentProfileDetails(updatedPreview, locale);
+                if (validationResponse != null) {
+                    return validationResponse;
+                }
+
+                applyDependentDetails(dependent, dependentRequestDTO);
+                claimDependentsRepository.saveAndFlush(dependent);
+
+                List<String> newAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(dependent));
+                auditLogService.log(WebPage.DPNM.name(), WebTask.UPDATE.name(), AuditTask.UPDATE_DATA.getDescription(),
+                        dependentRequestDTO.getIp(), dependentRequestDTO.getUserAgent(), gson.toJson(newAuditList),
+                        gson.toJson(oldAuditList), dependentRequestDTO.getUsername());
+
+                DependentDetailsResponseDTO responseDTO = dependentDetailsMapperEntityToDto.mapDependentDetails(dependent);
+                return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
+                        messageSource.getMessage(ResponseMessageUtil.DEPENDENT_DETAILS_UPDATE_SUCCESSFULLY, null, locale)));
+            }).orElseGet(() -> {
+                log.info("Dependent not found {}", dependentRequestDTO.getId());
+                return ResponseEntity.ok().body(responseUtil.error(null, 1048,
+                        messageSource.getMessage(ResponseMessageUtil.DEPENDENT_NOT_FOUND,
+                                new Object[]{dependentRequestDTO.getId()}, locale)));
+            });
+        } catch (Exception e) {
+            log.error(e);
+            throw e;
+        }
+    }
+
+    private ClaimsDependents copyDependent(ClaimsDependents source) {
+        ClaimsDependents copy = new ClaimsDependents();
+        copy.setId(source.getId());
+        copy.setDependentCategory(source.getDependentCategory());
+        copy.setInitials(source.getInitials());
+        copy.setFirstName(source.getFirstName());
+        copy.setLastName(source.getLastName());
+        copy.setDob(source.getDob());
+        copy.setGender(source.getGender());
+        copy.setNic(source.getNic());
+        copy.setJobTitle(source.getJobTitle());
+        copy.setEligibleFacility(source.getEligibleFacility());
+        copy.setRelationCategory(source.getRelationCategory());
+        copy.setStatus(source.getStatus());
+        copy.setApplicationUser(source.getApplicationUser());
+        copy.setLiveStatus(source.getLiveStatus());
+        copy.setDocuments(source.getDocuments());
+        copy.setMarried(source.getMarried());
+        copy.setApprovedDate(source.getApprovedDate());
+        copy.setApprovedUser(source.getApprovedUser());
+        copy.setRemark(source.getRemark());
+        return copy;
+    }
+
+    private void applyDependentDetails(ClaimsDependents dependent, DependentRequestDTO request) {
+        if (hasText(request.getDependentCategory())) {
+            dependent.setDependentCategory(DependentCategory.valueOf(request.getDependentCategory()));
+        }
+        if (hasText(request.getInitials())) {
+            dependent.setInitials(request.getInitials().trim());
+        }
+        if (hasText(request.getFirstName())) {
+            dependent.setFirstName(request.getFirstName().trim());
+        }
+        if (hasText(request.getLastName())) {
+            dependent.setLastName(request.getLastName().trim());
+        }
+        if (request.getDob() != null) {
+            dependent.setDob(request.getDob());
+        }
+        if (hasText(request.getGender())) {
+            dependent.setGender(Gender.valueOf(request.getGender()));
+        }
+        if (request.getNic() != null) {
+            dependent.setNic(request.getNic().trim());
+        }
+        if (request.getJobTitle() != null) {
+            dependent.setJobTitle(request.getJobTitle().trim());
+        }
+        if (hasText(request.getEligibleFacility())) {
+            dependent.setEligibleFacility(Facility.valueOf(request.getEligibleFacility()));
+        }
+        if (hasText(request.getRelationCategory())) {
+            dependent.setRelationCategory(RelationCategory.valueOf(request.getRelationCategory()));
+        }
+        if (request.getLiveStatus() != null) {
+            dependent.setLiveStatus(request.getLiveStatus());
+        }
+    }
+
+    private ResponseEntity<ApiResponse<Object>> validateDependentProfileDetails(ClaimsDependents dependent, Locale locale) {
+        if (dependent.getRelationCategory() == null || dependent.getGender() == null) {
+            return null;
+        }
+
+        RelationCategory relationCategory = dependent.getRelationCategory();
+        Gender gender = dependent.getGender();
+        ApplicationUser applicationUser = dependent.getApplicationUser();
+
+        if ((RelationCategory.HUSBAND.equals(relationCategory)
+                || RelationCategory.FATHER.equals(relationCategory)
+                || RelationCategory.BROTHER.equals(relationCategory)
+                || RelationCategory.FATHER_IN_LAW.equals(relationCategory)) && Gender.FEMALE.equals(gender)) {
+            return ResponseEntity.ok().body(responseUtil.error(null, 1042,
+                    messageSource.getMessage(ResponseMessageUtil.DEPENDENT_GENDER_INCORRECT, null, locale)));
+        }
+
+        if ((RelationCategory.WIFE.equals(relationCategory)
+                || RelationCategory.MOTHER.equals(relationCategory)
+                || RelationCategory.SISTER.equals(relationCategory)
+                || RelationCategory.MOTHER_IN_LAW.equals(relationCategory)) && Gender.MALE.equals(gender)) {
+            return ResponseEntity.ok().body(responseUtil.error(null, 1042,
+                    messageSource.getMessage(ResponseMessageUtil.DEPENDENT_GENDER_INCORRECT, null, locale)));
+        }
+
+        if (applicationUser == null) {
+            return null;
+        }
+
+        if ((RelationCategory.WIFE.equals(relationCategory) || RelationCategory.HUSBAND.equals(relationCategory))
+                && Boolean.TRUE.equals(dependent.getLiveStatus())
+                && hasActiveOrPendingSpouse(applicationUser, dependent.getId())) {
+            String messageKey = RelationCategory.WIFE.equals(relationCategory)
+                    ? ResponseMessageUtil.DEPENDENT_WIFE_MARRIED_ROUND_ALREADY_FOUND
+                    : ResponseMessageUtil.DEPENDENT_HUSBAND_MARRIED_ROUND_ALREADY_FOUND;
+            return ResponseEntity.ok().body(responseUtil.error(null, 1022,
+                    messageSource.getMessage(messageKey, null, locale)));
+        }
+
+        if ((RelationCategory.MOTHER.equals(relationCategory) || RelationCategory.FATHER.equals(relationCategory))
+                && Boolean.TRUE.equals(dependent.getLiveStatus())) {
+            boolean duplicate = claimDependentsRepository.existsByApplicationUserAndRelationCategoryAndStatusInAndIdNot(
+                    applicationUser, relationCategory, List.of(Workflow.APPROVED), dependent.getId());
+            if (duplicate) {
+                String messageKey = RelationCategory.MOTHER.equals(relationCategory)
+                        ? ResponseMessageUtil.CLAIM_DEPENDENT_MOTHER_FOUND
+                        : ResponseMessageUtil.CLAIM_DEPENDENT_FATHER_FOUND;
+                return ResponseEntity.ok().body(responseUtil.error(null, 1022,
+                        messageSource.getMessage(messageKey, null, locale)));
+            }
+        }
+
+        return null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
     private void notifyAdminTeamOnDependentApproval(ClaimsDependents dependent, String hrUsername) {
         String employeeCompanyCode = dependent.getApplicationUser() != null
                 && dependent.getApplicationUser().getUserPersonalDetails() != null
