@@ -902,11 +902,12 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             log.info("Upload Document image");
             MultipartFile multipartFile = MultipartFileUtil.convertToMultipartFile(file, fileType, fileName);
             DocumentUploadRequestDTO dto = new DocumentUploadRequestDTO();
-            dto.setType(tye);
+            dto.setType(resolveDocType(tye).name());
             dto.setDocument(file.getBytes());
             dto.setFileName(multipartFile.getOriginalFilename());
             dto.setFileType(multipartFile.getContentType());
             Document document = gson.fromJson(gson.toJson(dto), Document.class);
+            document.setType(resolveDocType(tye));
             document.setDoc(file);
             document = documentRepository.saveAndFlush(document);
             log.info("image upload success id={} type={} fileName={} fileType={}",
@@ -915,6 +916,17 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         } catch (Exception e) {
             log.error(e);
             throw e;
+        }
+    }
+
+    private DocType resolveDocType(String type) {
+        if (!hasText(type)) {
+            return DocType.DOCUMENT;
+        }
+        try {
+            return DocType.valueOf(type.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return DocType.DOCUMENT;
         }
     }
 
