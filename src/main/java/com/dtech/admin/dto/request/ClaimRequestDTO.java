@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -14,4 +15,5 @@ public class ClaimRequestDTO extends ChannelRequestDTO {
     private BigDecimal approvedAmount;
     private Long policyId;
     private BigDecimal availableLimit;
+    private List<ApprovalRejectReasonDTO> rejectReasons;
 }

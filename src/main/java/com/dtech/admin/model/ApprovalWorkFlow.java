@@ -8,10 +8,11 @@ import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, exclude = "rejectReasons")
 @Entity
 @Table(name = "approval_work_flow")
 @Data
@@ -48,5 +49,8 @@ public class ApprovalWorkFlow extends Audit implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_id", referencedColumnName = "id")
     private InsuranceStaffCategoryPeriod policy;
+
+    @OneToMany(mappedBy = "approvalWorkFlow", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ApprovalWorkflowRejectReason> rejectReasons = new ArrayList<>();
 
 }

@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.List;
 
 @Data
 public class ApprovalWorkFlowResponseDTO {
@@ -18,4 +19,6 @@ public class ApprovalWorkFlowResponseDTO {
     private BigDecimal approvedAmount;
     private Long policyId;
     private String policyDescription;
+    private BigDecimal rejectedAmount;
+    private List<ApprovalRejectReasonResponseDTO> rejectReasons;
 }

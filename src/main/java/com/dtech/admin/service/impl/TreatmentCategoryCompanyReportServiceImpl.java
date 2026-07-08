@@ -30,6 +30,7 @@ import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.TreatmentCategoryCompanyReportService;
 import com.dtech.admin.specifications.TreatmentCategoryCompanyReportSpecification;
+import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.ResponseMessageUtil;
 import com.dtech.admin.util.ResponseUtil;
@@ -446,12 +447,12 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
         }
 
         for (ApprovalWorkFlow workflow : claim.getApprovalWorkFlows()) {
-            if (workflow.getRejectedRemark() == null || workflow.getRejectedRemark().isBlank()
-                    || workflow.getApprovalLevel() == null) {
+            String workflowRemark = ApprovalRemarkUtil.resolveWorkflowRemark(workflow);
+            if (workflowRemark == null || workflowRemark.isBlank() || workflow.getApprovalLevel() == null) {
                 continue;
             }
 
-            String remark = claim.getRequestId() + " - " + workflow.getRejectedRemark().trim();
+            String remark = claim.getRequestId() + " - " + workflowRemark.trim();
             switch (workflow.getApprovalLevel()) {
                 case LEVEL01 -> row.setL1Remark(appendRemark(row.getL1Remark(), remark));
                 case LEVEL02 -> row.setL2Remark(appendRemark(row.getL2Remark(), remark));

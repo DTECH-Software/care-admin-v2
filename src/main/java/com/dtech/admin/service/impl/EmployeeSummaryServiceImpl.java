@@ -377,7 +377,8 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                         dto.setStatus(flow.getStatus().name());
                         dto.setStatusDescription(flow.getStatus().getDescription());
                     }
-                    dto.setRejectedRemark(flow.getRejectedRemark());
+                    String rejectedRemark = ApprovalRemarkUtil.resolveWorkflowRemark(flow);
+                    dto.setRejectedRemark(rejectedRemark != null ? rejectedRemark : flow.getRejectedRemark());
                     dto.setApprovedAmount(flow.getApprovedAmount());
                     return dto;
                 })

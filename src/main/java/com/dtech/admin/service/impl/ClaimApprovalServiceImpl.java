@@ -87,6 +87,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     private final ApprovalWorkFlowRepository approvalWorkFlowRepository;
 
     @Autowired
+    private final ApprovalWorkflowRejectReasonRepository approvalWorkflowRejectReasonRepository;
+
+    @Autowired
     private final CommonPrivilegeGetter commonPrivilegeGetter;
 
     @Autowired
@@ -280,6 +283,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
             }
 
+            BigDecimal effectiveApprovedAmount = resolveEffectiveApprovedAmount(claimRequestDTO);
+            RejectReasonBuildResult rejectReasonResult = validateAndBuildRejectReasons(claimRequestDTO, claim, effectiveApprovedAmount);
+            if (rejectReasonResult.error() != null) {
+                return ResponseEntity.ok(responseUtil.error(null, 1048,
+                        rejectReasonResult.error()));
+            }
+
             WebUser user = optUser.get();
             if (user.getApprovalLevel() == null) {
                 log.info("User approval level not found: {}", user.getUsername());
@@ -348,11 +358,15 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             Workflow newStatus = Workflow.valueOf(claimRequestDTO.getStatus());
             workFlow.setStatus(newStatus);
             if (newStatus.equals(Workflow.APPROVED)) {
-                workFlow.setApprovedAmount(claimRequestDTO.getApprovedAmount());
+                workFlow.setApprovedAmount(effectiveApprovedAmount);
+            } else if (newStatus.equals(Workflow.REJECTED)) {
+                workFlow.setApprovedAmount(effectiveApprovedAmount);
             }
             workFlow.setApprovedDate(DateTimeUtil.getCurrentDateTime());
             workFlow.setApprovedUser(claimRequestDTO.getUsername());
-            workFlow.setRejectedRemark(claimRequestDTO.getRemark());
+            replaceRejectReasons(workFlow, rejectReasonResult.reasons());
+            String combinedRejectRemark = ApprovalRemarkUtil.resolveWorkflowRemark(workFlow);
+            workFlow.setRejectedRemark(hasText(combinedRejectRemark) ? combinedRejectRemark : claimRequestDTO.getRemark());
             if (insuranceStaffCategoryPeriod != null) {
                 workFlow.setPolicy(insuranceStaffCategoryPeriod);
             }
@@ -633,8 +647,103 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         return amountText;
     }
 
+    private BigDecimal resolveEffectiveApprovedAmount(ClaimRequestDTO claimRequestDTO) {
+        if (Workflow.REJECTED.name().equals(claimRequestDTO.getStatus())) {
+            return claimRequestDTO.getApprovedAmount() != null ? claimRequestDTO.getApprovedAmount() : BigDecimal.ZERO;
+        }
+        return claimRequestDTO.getApprovedAmount();
+    }
+
+    private RejectReasonBuildResult validateAndBuildRejectReasons(ClaimRequestDTO request,
+                                                                  InsuranceClaimsRequest claim,
+                                                                  BigDecimal approvedAmount) {
+        BigDecimal requestAmount = claim.getRequestAmount() != null ? claim.getRequestAmount() : BigDecimal.ZERO;
+        BigDecimal approved = approvedAmount != null ? approvedAmount : BigDecimal.ZERO;
+        BigDecimal rejectedAmount = requestAmount.subtract(approved);
+
+        if (rejectedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            return new RejectReasonBuildResult(List.of(), "Approved amount cannot exceed requested amount.");
+        }
+
+        boolean hasRejectedPortion = rejectedAmount.compareTo(BigDecimal.ZERO) > 0
+                || Workflow.REJECTED.name().equals(request.getStatus());
+        List<com.dtech.admin.dto.request.ApprovalRejectReasonDTO> inputReasons =
+                request.getRejectReasons() != null ? request.getRejectReasons() : List.of();
+
+        if (!hasRejectedPortion && inputReasons.isEmpty()) {
+            return new RejectReasonBuildResult(List.of(), null);
+        }
+
+        if (hasRejectedPortion && inputReasons.isEmpty()) {
+            return new RejectReasonBuildResult(List.of(),
+                    "Reject reasons are required when claim has rejected amount.");
+        }
+
+        List<ApprovalWorkflowRejectReason> reasons = new ArrayList<>();
+        BigDecimal reasonTotal = BigDecimal.ZERO;
+
+        for (com.dtech.admin.dto.request.ApprovalRejectReasonDTO input : inputReasons) {
+            if (input == null || !hasText(input.getReasonCode())) {
+                return new RejectReasonBuildResult(List.of(), "Reject reason code is required.");
+            }
+            if (input.getAmount() == null || input.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                return new RejectReasonBuildResult(List.of(), "Reject reason amount must be greater than zero.");
+            }
+
+            String reasonCode = input.getReasonCode().trim();
+            boolean isOther = "OTHER".equalsIgnoreCase(reasonCode);
+            if (isOther && !hasText(input.getRemark())) {
+                return new RejectReasonBuildResult(List.of(), "Other reject reason remark is required.");
+            }
+
+            Remark remark = isOther ? null : remarkRepository
+                    .findFirstByCodeIgnoreCaseAndRemarkCategoryAndStatus(reasonCode, RemarkCategory.INSURANCE, Status.ACTIVE)
+                    .orElse(null);
+            if (!isOther && remark == null) {
+                return new RejectReasonBuildResult(List.of(), "Invalid reject reason code: " + reasonCode);
+            }
+
+            ApprovalWorkflowRejectReason reason = new ApprovalWorkflowRejectReason();
+            reason.setReasonCode(reasonCode.toUpperCase(Locale.ROOT));
+            reason.setReasonDescription(isOther ? "Other" : remark.getDescription());
+            reason.setReasonCategory(hasText(input.getReasonCategory()) ? input.getReasonCategory().trim() : (isOther ? "Other" : RemarkCategory.INSURANCE.name()));
+            reason.setAmount(input.getAmount());
+            reason.setRemark(hasText(input.getRemark()) ? input.getRemark().trim() : null);
+            reasons.add(reason);
+            reasonTotal = reasonTotal.add(input.getAmount());
+        }
+
+        if (reasonTotal.compareTo(rejectedAmount) != 0) {
+            return new RejectReasonBuildResult(List.of(),
+                    "Approved amount + reject reason amounts must equal requested amount.");
+        }
+
+        return new RejectReasonBuildResult(reasons, null);
+    }
+
+    private void replaceRejectReasons(ApprovalWorkFlow workFlow, List<ApprovalWorkflowRejectReason> rejectReasons) {
+        if (workFlow.getRejectReasons() == null) {
+            workFlow.setRejectReasons(new ArrayList<>());
+        }
+        workFlow.getRejectReasons().clear();
+        if (rejectReasons == null || rejectReasons.isEmpty()) {
+            return;
+        }
+        rejectReasons.forEach(reason -> {
+            reason.setApprovalWorkFlow(workFlow);
+            workFlow.getRejectReasons().add(reason);
+        });
+    }
+
     private String normalizeApprovalRemark(String remark) {
         return remark == null ? "" : remark.trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private record RejectReasonBuildResult(List<ApprovalWorkflowRejectReason> reasons, String error) {
     }
 
     private boolean isParentClaimBlockedForMedical(String staffCategoryCode, com.dtech.admin.enums.MaritalStatus maritalStatus) {

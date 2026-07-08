@@ -9,6 +9,7 @@ package com.dtech.admin.mapper.entityToDto;
 
 import com.dtech.admin.dto.SimpleBaseDTO;
 import com.dtech.admin.dto.response.ApprovalWorkFlowResponseDTO;
+import com.dtech.admin.dto.response.ApprovalRejectReasonResponseDTO;
 import com.dtech.admin.dto.response.ClaimsRequestResponseDTO;
 import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.dto.response.EmployeeRejoinDetailsResponseDTO;
@@ -21,6 +22,7 @@ import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.UserPersonalDetailsRepository;
+import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -29,6 +31,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,7 +85,10 @@ public class ClaimsApprovalEntityToDto {
                 approvalWorkFlowResponseDTO.setApprovalLevelDescription(ap.getApprovalLevel().getDescription());
                 approvalWorkFlowResponseDTO.setStatus(ap.getStatus().name());
                 approvalWorkFlowResponseDTO.setStatusDescription(Workflow.valueOf(ap.getStatus().name()).getDescription());
-                approvalWorkFlowResponseDTO.setRejectedRemark(ap.getRejectedRemark());
+                approvalWorkFlowResponseDTO.setRejectReasons(mapRejectReasons(ap));
+                approvalWorkFlowResponseDTO.setRejectedAmount(sumRejectAmounts(approvalWorkFlowResponseDTO.getRejectReasons()));
+                String rejectRemark = ApprovalRemarkUtil.resolveWorkflowRemark(ap);
+                approvalWorkFlowResponseDTO.setRejectedRemark(rejectRemark != null ? rejectRemark : ap.getRejectedRemark());
                 approvalWorkFlowResponseDTO.setApprovedAmount(ap.getApprovedAmount());
                 approvalWorkFlowResponseDTO.setPolicyId(ap.getPolicy() != null ? ap.getPolicy().getId() : null);
                 approvalWorkFlowResponseDTO.setPolicyDescription(ap.getPolicy() != null
@@ -133,6 +139,32 @@ public class ClaimsApprovalEntityToDto {
         }
         dto.setStaffCategoryCode(staffCategory.getCode());
         dto.setStaffCategoryDescription(staffCategory.getDescription());
+    }
+
+    private List<ApprovalRejectReasonResponseDTO> mapRejectReasons(ApprovalWorkFlow workflow) {
+        if (workflow.getRejectReasons() == null || workflow.getRejectReasons().isEmpty()) {
+            return List.of();
+        }
+        return workflow.getRejectReasons().stream().map(reason -> {
+            ApprovalRejectReasonResponseDTO dto = new ApprovalRejectReasonResponseDTO();
+            dto.setId(reason.getId());
+            dto.setReasonCode(reason.getReasonCode());
+            dto.setReasonDescription(reason.getReasonDescription());
+            dto.setReasonCategory(reason.getReasonCategory());
+            dto.setAmount(reason.getAmount());
+            dto.setRemark(reason.getRemark());
+            return dto;
+        }).toList();
+    }
+
+    private BigDecimal sumRejectAmounts(List<ApprovalRejectReasonResponseDTO> reasons) {
+        if (reasons == null || reasons.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return reasons.stream()
+                .map(ApprovalRejectReasonResponseDTO::getAmount)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private StaffCategories resolveClaimStaffCategory(InsuranceClaimsRequest claim) {

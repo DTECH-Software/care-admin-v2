@@ -16,6 +16,8 @@ import com.dtech.admin.enums.Status;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.enums.Workflow;
+import com.dtech.admin.model.ApprovalWorkFlow;
+import com.dtech.admin.model.ApprovalWorkflowRejectReason;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsDetails;
 import com.dtech.admin.model.InsuranceClaimsRequest;
@@ -228,8 +230,12 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             if (isRejectedOrPartiallyRejected(claim)) {
                 bucket.rejectedClaims++;
                 periodBucket.totalRejectedClaims++;
-                String reason = resolveReturnReason(ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim), remarkDictionary);
-                bucket.reasonCounts.merge(reason, 1L, Long::sum);
+                List<ReasonAmount> reasons = resolveReturnReasons(claim, remarkDictionary);
+                for (ReasonAmount reason : reasons) {
+                    bucket.reasonCounts
+                            .computeIfAbsent(reason.reason(), key -> new ReasonBucket())
+                            .add(reason.amount());
+                }
             }
         }
 
@@ -390,7 +396,9 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                 bucket.rejectedClaims += company.getRejectedClaims();
                 for (RejectedClaimReportReasonDTO reason : Objects.requireNonNullElse(company.getReasons(),
                         List.<RejectedClaimReportReasonDTO>of())) {
-                    bucket.reasonCounts.merge(reason.getReturnReason(), reason.getRejectedClaims(), Long::sum);
+                    bucket.reasonCounts
+                            .computeIfAbsent(reason.getReturnReason(), key -> new ReasonBucket())
+                            .add(reason.getRejectedClaims(), reason.getRejectedAmount());
                 }
             }
         }
@@ -402,20 +410,26 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                         bucket.receivedClaims,
                         bucket.rejectedClaims,
                         bucket.reasonCounts.entrySet().stream()
-                                .map(entry -> new RejectedClaimReportReasonDTO(entry.getValue(), entry.getKey()))
+                                .map(entry -> new RejectedClaimReportReasonDTO(
+                                        entry.getValue().count,
+                                        entry.getKey(),
+                                        entry.getValue().amount))
                                 .toList()
                 ))
                 .toList();
     }
 
-    private List<RejectedClaimReportReasonDTO> toReasonRows(Map<String, Long> reasonCounts,
+    private List<RejectedClaimReportReasonDTO> toReasonRows(Map<String, ReasonBucket> reasonCounts,
                                                             RemarkDictionary remarkDictionary) {
         return reasonCounts.entrySet().stream()
                 .sorted(Comparator
-                        .comparingInt((Map.Entry<String, Long> entry) -> remarkDictionary.order()
+                        .comparingInt((Map.Entry<String, ReasonBucket> entry) -> remarkDictionary.order()
                                 .getOrDefault(entry.getKey(), Integer.MAX_VALUE))
                         .thenComparing(Map.Entry::getKey))
-                .map(entry -> new RejectedClaimReportReasonDTO(entry.getValue(), entry.getKey()))
+                .map(entry -> new RejectedClaimReportReasonDTO(
+                        entry.getValue().count,
+                        entry.getKey(),
+                        entry.getValue().amount))
                 .toList();
     }
 
@@ -454,6 +468,59 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         String trimmedRemark = finalRemark.trim();
         String configuredReason = remarkDictionary.aliases().get(normalizeReason(trimmedRemark));
         return configuredReason != null ? configuredReason : trimmedRemark;
+    }
+
+    private List<ReasonAmount> resolveReturnReasons(InsuranceClaimsRequest claim, RemarkDictionary remarkDictionary) {
+        ApprovalWorkFlow workflow = resolveLatestDisplayWorkflow(claim);
+        if (workflow != null && workflow.getRejectReasons() != null && !workflow.getRejectReasons().isEmpty()) {
+            return workflow.getRejectReasons().stream()
+                    .filter(reason -> reason != null && reason.getAmount() != null)
+                    .map(reason -> new ReasonAmount(resolveRejectReasonName(reason, remarkDictionary), reason.getAmount()))
+                    .toList();
+        }
+
+        String reason = resolveReturnReason(ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim), remarkDictionary);
+        return List.of(new ReasonAmount(reason, calculateRejectedAmount(claim)));
+    }
+
+    private ApprovalWorkFlow resolveLatestDisplayWorkflow(InsuranceClaimsRequest claim) {
+        if (claim == null || claim.getApprovalWorkFlows() == null) {
+            return null;
+        }
+        return claim.getApprovalWorkFlows().stream()
+                .filter(workflow -> workflow != null && workflow.getApprovalLevel() != null)
+                .filter(workflow -> workflow.getApprovalLevel() == com.dtech.admin.enums.ApprovalLevel.LEVEL02
+                        || workflow.getApprovalLevel() == com.dtech.admin.enums.ApprovalLevel.LEVEL03)
+                .filter(workflow -> hasText(ApprovalRemarkUtil.resolveWorkflowRemark(workflow)))
+                .max(Comparator.comparing(ApprovalWorkFlow::getApprovedDate, Comparator.nullsLast(Date::compareTo)))
+                .orElse(null);
+    }
+
+    private String resolveRejectReasonName(ApprovalWorkflowRejectReason reason, RemarkDictionary remarkDictionary) {
+        if (reason == null) {
+            return OTHER_REASON;
+        }
+        String resolvedReason;
+        if (hasText(reason.getReasonDescription())) {
+            resolvedReason = reason.getReasonDescription().trim();
+        } else if (hasText(reason.getReasonCode())) {
+            resolvedReason = resolveReturnReason(reason.getReasonCode(), remarkDictionary);
+        } else {
+            resolvedReason = OTHER_REASON;
+        }
+        if (hasText(reason.getRemark())) {
+            return resolvedReason + " - " + reason.getRemark().trim();
+        }
+        return resolvedReason;
+    }
+
+    private BigDecimal calculateRejectedAmount(InsuranceClaimsRequest claim) {
+        if (claim == null || claim.getRequestAmount() == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal approved = claim.getApprovedAmount() != null ? claim.getApprovedAmount() : BigDecimal.ZERO;
+        BigDecimal rejected = claim.getRequestAmount().subtract(approved);
+        return rejected.compareTo(BigDecimal.ZERO) > 0 ? rejected : BigDecimal.ZERO;
     }
 
     private List<SimpleBaseDTO> buildCompanyReference() {
@@ -578,7 +645,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
 
             for (RejectedClaimReportPeriodDTO period : Objects.requireNonNullElse(report.getPolicyPeriods(),
                     List.<RejectedClaimReportPeriodDTO>of())) {
-                writeMergedCell(sheet, rowIndex++, 0, 3,
+                writeMergedCell(sheet, rowIndex++, 0, 4,
                         "POLICY PERIOD: " + Objects.requireNonNullElse(period.getPeriodDescription(), "UNKNOWN"),
                         staffHeaderStyle);
                 rowIndex = writeCompanyTable(sheet, rowIndex, period.getCompanies(), headerStyle, bodyStyle, totalStyle);
@@ -591,8 +658,9 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             writeTextCell(percentageRow, 1, formatPercentage(report.getRejectedPercentage()), percentageStyle);
             writeTextCell(percentageRow, 2, "", percentageStyle);
             writeTextCell(percentageRow, 3, "", percentageStyle);
+            writeTextCell(percentageRow, 4, "", percentageStyle);
 
-            int[] widths = {20, 22, 24, 55};
+            int[] widths = {20, 22, 24, 20, 55};
             for (int i = 0; i < widths.length; i++) {
                 sheet.setColumnWidth(i, widths[i] * 256);
             }
@@ -611,7 +679,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                                   CellStyle bodyStyle,
                                   CellStyle totalStyle) {
         Row headerRow = sheet.createRow(rowIndex++);
-        String[] headers = {"COMPANY", "NO. OF RECEIVED", "NO. OF REJECTED CLAIMS", "RETURN REASON"};
+        String[] headers = {"COMPANY", "NO. OF RECEIVED", "NO. OF REJECTED CLAIMS", "REJECTED AMOUNT", "RETURN REASON"};
         for (int i = 0; i < headers.length; i++) {
             writeTextCell(headerRow, i, headers[i], headerStyle);
         }
@@ -626,7 +694,8 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                 writeTextCell(row, 0, company.getCompanyCode(), bodyStyle);
                 writeNumberCell(row, 1, company.getReceivedClaims(), bodyStyle);
                 writeNumberCell(row, 2, 0L, bodyStyle);
-                writeTextCell(row, 3, "", bodyStyle);
+                writeAmountCell(row, 3, BigDecimal.ZERO, bodyStyle);
+                writeTextCell(row, 4, "", bodyStyle);
                 continue;
             }
 
@@ -636,7 +705,8 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                 writeTextCell(row, 0, firstReason ? company.getCompanyCode() : "", bodyStyle);
                 writeNumberCell(row, 1, firstReason ? company.getReceivedClaims() : null, bodyStyle);
                 writeNumberCell(row, 2, reason.getRejectedClaims(), bodyStyle);
-                writeTextCell(row, 3, reason.getReturnReason(), bodyStyle);
+                writeAmountCell(row, 3, reason.getRejectedAmount(), bodyStyle);
+                writeTextCell(row, 4, reason.getReturnReason(), bodyStyle);
                 firstReason = false;
             }
 
@@ -644,7 +714,11 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             writeTextCell(totalRow, 0, "", totalStyle);
             writeTextCell(totalRow, 1, "", totalStyle);
             writeNumberCell(totalRow, 2, company.getRejectedClaims(), totalStyle);
-            writeTextCell(totalRow, 3, "", totalStyle);
+            writeAmountCell(totalRow, 3, reasons.stream()
+                    .map(RejectedClaimReportReasonDTO::getRejectedAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add), totalStyle);
+            writeTextCell(totalRow, 4, "", totalStyle);
             rowIndex++;
         }
 
@@ -674,6 +748,14 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         Cell cell = row.createCell(index);
         if (value != null) {
             cell.setCellValue(value);
+        }
+        cell.setCellStyle(style);
+    }
+
+    private void writeAmountCell(Row row, int index, BigDecimal value, CellStyle style) {
+        Cell cell = row.createCell(index);
+        if (value != null) {
+            cell.setCellValue(value.doubleValue());
         }
         cell.setCellStyle(style);
     }
@@ -842,6 +924,9 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     private record RemarkDictionary(Map<String, String> aliases, Map<String, Integer> order) {
     }
 
+    private record ReasonAmount(String reason, BigDecimal amount) {
+    }
+
     private static class PeriodBucket {
         private final Long periodId;
         private final String periodDescription;
@@ -860,11 +945,27 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         private final String companyDescription;
         private long receivedClaims;
         private long rejectedClaims;
-        private final Map<String, Long> reasonCounts = new LinkedHashMap<>();
+        private final Map<String, ReasonBucket> reasonCounts = new LinkedHashMap<>();
 
         private CompanyBucket(String companyCode, String companyDescription) {
             this.companyCode = companyCode;
             this.companyDescription = companyDescription;
+        }
+    }
+
+    private static class ReasonBucket {
+        private long count;
+        private BigDecimal amount = BigDecimal.ZERO;
+
+        private void add(BigDecimal rejectedAmount) {
+            add(1L, rejectedAmount);
+        }
+
+        private void add(long rejectedClaims, BigDecimal rejectedAmount) {
+            this.count += rejectedClaims;
+            if (rejectedAmount != null) {
+                this.amount = this.amount.add(rejectedAmount);
+            }
         }
     }
 }

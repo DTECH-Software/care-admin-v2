@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -36,7 +37,17 @@ public class ClaimRequestRequestValidatorDTO extends ChannelRequestValidatorDTO 
     @NotBlank(message = "Status is required",groups = {OnUpdate.class,OnDeath.class})
     @ValidEnum(enumClass = Workflow.class, message = "Status is invalid",groups = {OnUpdate.class,OnDeath.class})
     private String status;
-   // @NotBlank(message = "Remark is required ",groups = {OnUpdate.class})
+    // @NotBlank(message = "Remark is required ",groups = {OnUpdate.class})
     private String remark;
     private BigDecimal approvedAmount;
+    private List<ApprovalRejectReasonValidatorDTO> rejectReasons;
+
+    @Data
+    public static class ApprovalRejectReasonValidatorDTO {
+        private String reasonCode;
+        private String reasonDescription;
+        private String reasonCategory;
+        private BigDecimal amount;
+        private String remark;
+    }
 }
