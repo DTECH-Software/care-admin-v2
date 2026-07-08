@@ -53,6 +53,7 @@ public class CommonPrivilegeGetter {
                             case "ADD" -> authorizationTaskResponseDTO.setAdd(true);
                             case "UPDATE" -> authorizationTaskResponseDTO.setUpdate(true);
                             case "DELETE" -> authorizationTaskResponseDTO.setDelete(true);
+                            case "DEACTIVATE" -> authorizationTaskResponseDTO.setDeactivate(true);
                             case "VIEW" -> authorizationTaskResponseDTO.setView(true);
                             case "SEARCH", "FILTER_LIST" -> authorizationTaskResponseDTO.setSearch(true);
                             case "ASSIGNED_UNASSIGNED_TASK_RETRIEVED" -> authorizationTaskResponseDTO.setUserRolePrivilegeAssign(true);

@@ -16,6 +16,7 @@ public class AuthorizationTaskResponseDTO {
     private boolean view;
     private boolean search;
     private boolean delete;
+    private boolean deactivate;
     private boolean userRolePrivilegeAssign;
     private boolean passwordReset;
     private boolean fileUpload;
