@@ -710,8 +710,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             if (input == null || !hasText(input.getReasonCode())) {
                 return new RejectReasonBuildResult(List.of(), "Reject reason code is required.");
             }
-            if (input.getAmount() == null || input.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-                return new RejectReasonBuildResult(List.of(), "Reject reason amount must be greater than zero.");
+            if (input.getAmount() == null || input.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                return new RejectReasonBuildResult(List.of(), "Reject reason amount cannot be negative.");
             }
 
             String reasonCode = input.getReasonCode().trim();
