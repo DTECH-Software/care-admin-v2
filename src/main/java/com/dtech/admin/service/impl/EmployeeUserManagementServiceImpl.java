@@ -639,8 +639,17 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                 }
 
                 if (hasText(employeeManagementRequestDTO.getUserStatus())) {
+                    Status requestedUserStatus = Status.valueOf(employeeManagementRequestDTO.getUserStatus());
                     if (applicationUser.getUserPersonalDetails() != null) {
-                        applicationUser.getUserPersonalDetails().setUserStatus(Status.valueOf(employeeManagementRequestDTO.getUserStatus()));
+                        applicationUser.getUserPersonalDetails().setUserStatus(requestedUserStatus);
+                        UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
+                        if (companyDetails != null) {
+                            if (Status.ACTIVE.equals(requestedUserStatus)) {
+                                companyDetails.setTerminateDate(null);
+                            } else if (Status.INACTIVE.equals(requestedUserStatus) && companyDetails.getTerminateDate() == null) {
+                                companyDetails.setTerminateDate(DateTimeUtil.getCurrentDateTime());
+                            }
+                        }
                     }
                     changed = true;
                 }
