@@ -34,7 +34,6 @@ import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -608,6 +607,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     workflow.getStatus();
                     workflow.getApprovedAmount();
                     workflow.getRejectedRemark();
+                    if (workflow.getRejectReasons() != null) {
+                        workflow.getRejectReasons().forEach(reason -> {
+                            reason.getReasonCode();
+                            reason.getReasonDescription();
+                            reason.getAmount();
+                            reason.getRemark();
+                        });
+                    }
                     if (workflow.getPolicy() != null) {
                         workflow.getPolicy().getId();
                     }
@@ -619,15 +626,32 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         }
     }
 
-    @Async
     protected void notifyMessage(String mobile, String requestId, MessageType messageType, String otherMark) {
-        try {
-            messageService.sendMessage(messageType, requestId, otherMark, mobile);
-            log.info("Sent OTP, waiting for response... sent password reset");
-        } catch (RuntimeException e) {
-            log.error(e);
-            throw e;
+        if (!hasText(mobile)) {
+            log.warn("Skipping claim SMS notification. Mobile not found for claim {}", requestId);
+            return;
         }
+
+        Runnable safeTask = () -> {
+            try {
+                messageService.sendMessage(messageType, requestId, otherMark, mobile);
+                log.info("Claim SMS notification sent for claim {}", requestId);
+            } catch (Exception e) {
+                log.error("Failed to send claim SMS notification for claim {}", requestId, e);
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            CompletableFuture.runAsync(safeTask);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                CompletableFuture.runAsync(safeTask);
+            }
+        });
     }
 
     private String resolveClaimNotificationMobile(InsuranceClaimsRequest claim) {
