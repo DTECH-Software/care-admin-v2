@@ -36,7 +36,7 @@ public class ApprovalWorkFlow extends Audit implements Serializable {
     @Column(name = "approved_user")
     private String approvedUser;
 
-    @Column(name = "rejected_remak")
+    @Column(name = "rejected_remak", columnDefinition = "TEXT")
     private String rejectedRemark;
 
     @Column(name = "status",nullable = false)
