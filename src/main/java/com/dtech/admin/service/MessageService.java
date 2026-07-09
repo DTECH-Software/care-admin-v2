@@ -61,7 +61,11 @@ public class MessageService {
             return notificationTemplateRepository
                     .findByType(messageType).map((template) -> {
 
-                        String formatMessage = MessageFormat.format(template.getMessageBody(), message,otherMessage);
+                        String templateBody = template.getMessageBody();
+                        String formatMessage = MessageFormat.format(templateBody, message, otherMessage);
+                        if (hasText(otherMessage) && !templateBody.contains("{1}")) {
+                            formatMessage = formatMessage + " " + otherMessage.trim();
+                        }
                         HttpHeaders headers = new HttpHeaders();
                         headers.set(HttpHeaders.CONTENT_TYPE, "application/json");
                         headers.set(HttpHeaders.AUTHORIZATION, "Basic " + apiKey);
@@ -117,6 +121,10 @@ public class MessageService {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     @Transactional

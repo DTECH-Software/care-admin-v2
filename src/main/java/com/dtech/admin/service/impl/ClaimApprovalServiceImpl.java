@@ -449,11 +449,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         claim.setApprovedAmount(workFlow.getApprovedAmount());
 
                         MessageType messageType = MessageType.INSURANCE_REJECTED;
-                        String otherMark = workFlow.getRejectedRemark() != null ? workFlow.getRejectedRemark() : "";
+                        String otherMark = buildRejectedReasonMessage(workFlow);
 
                         if (claim.getRequestStatus().equals(Workflow.APPROVED)) {
                             messageType = MessageType.INSURANCE_APPROVAL;
-                            otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), workFlow.getRejectedRemark());
+                            otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), buildRejectedReasonMessage(workFlow));
                             claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
 
                             List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
@@ -487,12 +487,12 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     claim.setApprovedAmount(workFlow.getApprovedAmount());
 
                     MessageType messageType = MessageType.INSURANCE_REJECTED;
-                    String otherMark = workFlow.getRejectedRemark() != null ? workFlow.getRejectedRemark() : "";
+                    String otherMark = buildRejectedReasonMessage(workFlow);
 
                     if (claim.getRequestStatus().equals(Workflow.APPROVED)) {
                         claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
                         messageType = MessageType.INSURANCE_APPROVAL;
-                        otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), workFlow.getRejectedRemark());
+                        otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), buildRejectedReasonMessage(workFlow));
                     } else {
                         applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
                     }
@@ -645,6 +645,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         }
 
         return amountText;
+    }
+
+    private String buildRejectedReasonMessage(ApprovalWorkFlow workFlow) {
+        String remark = ApprovalRemarkUtil.resolveWorkflowRemark(workFlow);
+        return remark != null ? remark.trim() : "";
     }
 
     private BigDecimal resolveEffectiveApprovedAmount(ClaimRequestDTO claimRequestDTO) {
