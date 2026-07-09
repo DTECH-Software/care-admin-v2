@@ -737,6 +737,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             reasonTotal = reasonTotal.add(input.getAmount());
         }
 
+        if (!hasRejectedPortion) {
+            if (reasonTotal.compareTo(BigDecimal.ZERO) == 0) {
+                return new RejectReasonBuildResult(reasons, null);
+            }
+            return new RejectReasonBuildResult(List.of(),
+                    "Reject reason amounts must be zero when approved amount equals requested amount.");
+        }
+
         if (reasonTotal.compareTo(rejectedAmount) != 0) {
             return new RejectReasonBuildResult(List.of(),
                     "Approved amount + reject reason amounts must equal requested amount.");
