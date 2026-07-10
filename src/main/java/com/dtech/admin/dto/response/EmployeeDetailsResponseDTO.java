@@ -31,4 +31,8 @@ public class EmployeeDetailsResponseDTO extends CommonAuditResponseDTO {
     private String userStatusDescription;
     private int age;
     private EmployeeRejoinDetailsResponseDTO rejoinDetails;
+    private Date promotionDate;
+    private DocumentDownloadResponseDTO promotionDoc;
+    private Date transferDate;
+    private DocumentDownloadResponseDTO transferDoc;
 }

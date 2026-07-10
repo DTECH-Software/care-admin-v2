@@ -616,6 +616,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
                 EmployeeDetailsResponseDTO employeeDetailsResponseDTO = employeeDetailsMapperEntityToDto.mapEmployeeDetails(userPersonalDetails);
                 populateRejoinDetails(employeeDetailsResponseDTO, userPersonalDetails);
+                populatePromotionTransferDetails(employeeDetailsResponseDTO, userPersonalDetails);
                 List<String> newAuditList = employeeDetailsAuditMapper.mapToDTOAudit(List.of(userPersonalDetails));
                 auditLogService.log(WebPage.EMPM.name(), WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(), employeeDetailsRequestDTO.getIp(), employeeDetailsRequestDTO.getUserAgent(), gson.toJson(newAuditList), null, employeeDetailsRequestDTO.getUsername());
                 return ResponseEntity.ok().body(responseUtil.success((Object) employeeDetailsResponseDTO, messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_DETAILS_RETRIEVE_SUCCESSFULLY, null, locale)));
@@ -629,6 +630,39 @@ public class EmployeeServiceImpl implements EmployeeService {
             log.error(e);
             throw e;
         }
+    }
+
+    private void populatePromotionTransferDetails(EmployeeDetailsResponseDTO responseDTO, UserPersonalDetails employee) {
+        if (responseDTO == null || employee == null || employee.getUserCompanyDetails() == null) {
+            return;
+        }
+        UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
+        DocumentDownloadResponseDTO promotionDoc = mapDocument(companyDetails.getPromoDocs());
+        DocumentDownloadResponseDTO transferDoc = mapDocument(companyDetails.getTransferDocs());
+
+        responseDTO.setPromotionDate(companyDetails.getPermanentDate());
+        responseDTO.setPromotionDoc(promotionDoc);
+        responseDTO.setTransferDate(companyDetails.getTransferDate());
+        responseDTO.setTransferDoc(transferDoc);
+
+        if (responseDTO.getUserCompanyDetails() != null) {
+            responseDTO.getUserCompanyDetails().setPromotionDate(companyDetails.getPermanentDate());
+            responseDTO.getUserCompanyDetails().setPromoDoc(promotionDoc);
+            responseDTO.getUserCompanyDetails().setTransferDate(companyDetails.getTransferDate());
+            responseDTO.getUserCompanyDetails().setTransferDoc(transferDoc);
+        }
+    }
+
+    private DocumentDownloadResponseDTO mapDocument(Document document) {
+        if (document == null) {
+            return null;
+        }
+        return new DocumentDownloadResponseDTO(
+                document.getType() != null ? document.getType().name() : null,
+                document.getFileName(),
+                document.getFileType(),
+                document.getDoc()
+        );
     }
 
     private void populateRejoinDetails(EmployeeDetailsResponseDTO responseDTO, UserPersonalDetails currentUser) {

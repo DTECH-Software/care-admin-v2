@@ -15,6 +15,7 @@ public class UserCompanyDetailsResponseDTO {
     private String designation;
     private Date permanentDate;
     private Date previousPermanentDate;
+    private Date promotionDate;
     private Date terminateDate;
     private SimpleBaseDTO insurancePolicy;
     private String facility;
