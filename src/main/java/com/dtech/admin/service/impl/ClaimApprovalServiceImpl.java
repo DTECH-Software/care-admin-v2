@@ -693,6 +693,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 || Workflow.REJECTED.name().equals(request.getStatus());
         List<com.dtech.admin.dto.request.ApprovalRejectReasonDTO> inputReasons =
                 request.getRejectReasons() != null ? request.getRejectReasons() : List.of();
+        if (!hasRejectedPortion) {
+            inputReasons = inputReasons.stream()
+                    .filter(input -> !isEmptyZeroRejectReason(input))
+                    .toList();
+        }
 
         if (!hasRejectedPortion && inputReasons.isEmpty()) {
             return new RejectReasonBuildResult(List.of(), null);
@@ -769,6 +774,18 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private boolean isEmptyZeroRejectReason(com.dtech.admin.dto.request.ApprovalRejectReasonDTO input) {
+        if (input == null) {
+            return true;
+        }
+        boolean noReasonText = !hasText(input.getReasonCode())
+                && !hasText(input.getReasonDescription())
+                && !hasText(input.getReasonCategory())
+                && !hasText(input.getRemark());
+        boolean noAmount = input.getAmount() == null || input.getAmount().compareTo(BigDecimal.ZERO) == 0;
+        return noReasonText && noAmount;
     }
 
     private record RejectReasonBuildResult(List<ApprovalWorkflowRejectReason> reasons, String error) {
