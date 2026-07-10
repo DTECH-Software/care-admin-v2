@@ -697,12 +697,13 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         try {
             log.info("Staff category {} request {}", transferOnly ? "transfer" : "update", employeeManagementRequestDTO);
 
-            return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(applicationUser -> {
+            return resolveStaffCategoryTarget(employeeManagementRequestDTO.getId()).map(target -> {
                 log.info("Employee details staff category old audit start");
                 return staffCategoriesRepository.findByCodeAndStatus(employeeManagementRequestDTO.getStaffCategory(), Status.ACTIVE).map(staffCategories -> {
                     log.info("Employee details staff category old audit end");
                     return insurancePolicyRepository.findByCodeAndStatus(employeeManagementRequestDTO.getPolicy(), Status.ACTIVE).map(in -> {
-                        UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();
+                        UserPersonalDetails employee = target.employee();
+                        UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
                         StaffCategories previousStaffCategory = companyDetails.getStaffCategories();
 
                         if (transferOnly) {
@@ -734,13 +735,13 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                               companyDetails.setPermanentDate(employeeManagementRequestDTO.getEffectiveDate());
                               companyDetails.setPromoDocs(t);
                           }
-                          applicationUserRepository.saveAndFlush(applicationUser);
-                        notifyAdminTeamOnStaffCategoryTransferAsync(applicationUser,
+                          userPersonalDetailsRepository.saveAndFlush(employee);
+                        notifyAdminTeamOnStaffCategoryTransferAsync(employee,
                                 previousStaffCategory,
                                 staffCategories,
                                 employeeManagementRequestDTO.getEffectiveDate(),
                                 employeeManagementRequestDTO.getUsername());
-                        ApplicationUserResponseDTO responseDTO = buildEmployeeResponse(applicationUser);
+                        ApplicationUserResponseDTO responseDTO = target.applicationUser() != null ? buildEmployeeResponse(target.applicationUser()) : null;
                         return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO,
                                 transferOnly ? "Employee staff category transfer successful"
                                         : messageSource.getMessage(ResponseMessageUtil.STAFF_CATEGORY_UPDATE_SUCCESS, null, locale)));
@@ -797,16 +798,25 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         return Optional.empty();
     }
 
-    private Optional<ApplicationUser> resolveApplicationUserForStaffCategoryAction(Long id) {
+    private Optional<StaffCategoryTarget> resolveStaffCategoryTarget(Long id) {
         if (id == null) {
             return Optional.empty();
         }
         Optional<ApplicationUser> applicationUser = applicationUserRepository.findById(id);
         if (applicationUser.isPresent()) {
-            return applicationUser;
+            return Optional.of(new StaffCategoryTarget(applicationUser.get(), applicationUser.get().getUserPersonalDetails()));
         }
         return userPersonalDetailsRepository.findById(id)
-                .flatMap(applicationUserRepository::findByUserPersonalDetails);
+                .map(employee -> new StaffCategoryTarget(applicationUserRepository.findByUserPersonalDetails(employee).orElse(null), employee));
+    }
+
+    private Optional<ApplicationUser> resolveApplicationUserForStaffCategoryAction(Long id) {
+        return resolveStaffCategoryTarget(id)
+                .map(StaffCategoryTarget::applicationUser)
+                .filter(Objects::nonNull);
+    }
+
+    private record StaffCategoryTarget(ApplicationUser applicationUser, UserPersonalDetails employee) {
     }
 
     private Optional<InsurancePolicyStaffCategoryGroup> findStaffCategoryGroup(InsurancePolicy policy,
@@ -831,12 +841,11 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                 .findFirst();
     }
 
-    private void notifyAdminTeamOnStaffCategoryTransferAsync(ApplicationUser applicationUser,
+    private void notifyAdminTeamOnStaffCategoryTransferAsync(UserPersonalDetails employee,
                                                              StaffCategories previousStaffCategory,
                                                              StaffCategories newStaffCategory,
                                                              Date effectiveDate,
                                                              String hrUsername) {
-        UserPersonalDetails employee = applicationUser != null ? applicationUser.getUserPersonalDetails() : null;
         String employeeCompanyCode = employee != null
                 && employee.getUserCompanyDetails() != null
                 && employee.getUserCompanyDetails().getCompanyTypes() != null
