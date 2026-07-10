@@ -61,6 +61,7 @@ public class CommonPrivilegeGetter {
                             case "FILE_UPLOAD" -> authorizationTaskResponseDTO.setFileUpload(true);
                             case "FINANCIAL_APP" -> authorizationTaskResponseDTO.setFinancialApp(true);
                             case "STAFF_CAT_UPDATE" -> authorizationTaskResponseDTO.setStaffCategoryUpdate(true);
+                            case "STAFF_CAT_TRANSFER" -> authorizationTaskResponseDTO.setStaffCategoryTransfer(true);
                         }
                     });
 

@@ -2,12 +2,15 @@ package com.dtech.admin.controller;
 
 import com.dtech.admin.dto.request.ChannelRequestDTO;
 import com.dtech.admin.dto.request.EmployeeDetailsRequestDTO;
+import com.dtech.admin.dto.request.EmployeeManagementRequestDTO;
 import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.request.validator.ChannelRequestValidatorDTO;
 import com.dtech.admin.dto.request.validator.EmployeeDetailsRequestValidatorDTO;
+import com.dtech.admin.dto.request.validator.EmployeeManagementRequestValidatorDTO;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.search.EmployeeSearchDTO;
 import com.dtech.admin.service.EmployeeService;
+import com.dtech.admin.service.EmployeeUserManagementService;
 import com.dtech.admin.validator.*;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -33,6 +36,9 @@ public class EmployeeController {
 
     @Autowired
     private final EmployeeService employeeService;
+
+    @Autowired
+    private final EmployeeUserManagementService employeeUserManagementService;
 
     @Autowired
     private final Gson gson;
@@ -71,6 +77,20 @@ public class EmployeeController {
     public ResponseEntity<ApiResponse<Object>> update(@RequestBody @Validated(OnUpdate.class) @Valid EmployeeDetailsRequestValidatorDTO employeeDetailsRequestValidatorDTO, Locale locale) {
         log.info("pages update request  controller {} ", employeeDetailsRequestValidatorDTO);
         return employeeService.update(gson.fromJson(gson.toJson(employeeDetailsRequestValidatorDTO), EmployeeDetailsRequestDTO.class), locale);
+    }
+
+    @PostMapping(path = "/staff-category-update",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Handle employee staff category update request request ",notes = "Employee staff category update request success or failed")
+    public ResponseEntity<ApiResponse<Object>> staffCategoryUpdate(@RequestBody @Validated(OnStaffCategoryUpdate.class) @Valid EmployeeManagementRequestValidatorDTO employeeManagementRequestValidatorDTO, Locale locale) {
+        log.info("Employee staff category update request controller {} ", employeeManagementRequestValidatorDTO);
+        return employeeUserManagementService.staffCategoryUpdate(gson.fromJson(gson.toJson(employeeManagementRequestValidatorDTO), EmployeeManagementRequestDTO.class), locale);
+    }
+
+    @PostMapping(path = "/staff-category-transfer",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Handle employee staff category transfer request request ",notes = "Employee staff category transfer request success or failed")
+    public ResponseEntity<ApiResponse<Object>> staffCategoryTransfer(@RequestBody @Validated(OnStaffCategoryUpdate.class) @Valid EmployeeManagementRequestValidatorDTO employeeManagementRequestValidatorDTO, Locale locale) {
+        log.info("Employee staff category transfer request controller {} ", employeeManagementRequestValidatorDTO);
+        return employeeUserManagementService.staffCategoryTransfer(gson.fromJson(gson.toJson(employeeManagementRequestValidatorDTO), EmployeeManagementRequestDTO.class), locale);
     }
 
     @PostMapping(path = "/delete",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)

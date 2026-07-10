@@ -21,6 +21,7 @@ public class AuthorizationTaskResponseDTO {
     private boolean passwordReset;
     private boolean fileUpload;
     private boolean staffCategoryUpdate;
+    private boolean staffCategoryTransfer;
     private boolean financialApp;
     private boolean isApprovalL1;
     private boolean isApprovalL2;
