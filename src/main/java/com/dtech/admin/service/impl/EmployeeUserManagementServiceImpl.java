@@ -413,7 +413,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     public ResponseEntity<ApiResponse<Object>> view(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
         try {
             log.info("Employee management view details request: {}", employeeManagementRequestDTO.toString());
-            return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(applicationUser -> {
+            return resolveApplicationUserForStaffCategoryAction(employeeManagementRequestDTO.getId()).map(applicationUser -> {
 
                 ApplicationUserResponseDTO applicationUserResponseDTO = buildEmployeeResponse(applicationUser);
 
@@ -795,6 +795,18 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         }
 
         return Optional.empty();
+    }
+
+    private Optional<ApplicationUser> resolveApplicationUserForStaffCategoryAction(Long id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        Optional<ApplicationUser> applicationUser = applicationUserRepository.findById(id);
+        if (applicationUser.isPresent()) {
+            return applicationUser;
+        }
+        return userPersonalDetailsRepository.findById(id)
+                .flatMap(applicationUserRepository::findByUserPersonalDetails);
     }
 
     private Optional<InsurancePolicyStaffCategoryGroup> findStaffCategoryGroup(InsurancePolicy policy,
