@@ -9,8 +9,9 @@ services:
       - "8090:8090"
     environment:
       SPRING_PROFILES_ACTIVE: uat
-      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m"
-      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/caresystem?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      TZ: Asia/Colombo
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -Duser.timezone=Asia/Colombo"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/caresystem?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Colombo"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
