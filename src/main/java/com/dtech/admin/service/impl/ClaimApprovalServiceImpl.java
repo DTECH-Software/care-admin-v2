@@ -450,7 +450,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         String otherMark = buildRejectedReasonMessage(workFlow);
 
                         if (claim.getRequestStatus().equals(Workflow.APPROVED)) {
-                            messageType = MessageType.INSURANCE_APPROVAL;
+                            messageType = resolveApprovalMessageType(claim);
                             otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), buildRejectedReasonMessage(workFlow));
                             claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
 
@@ -489,7 +489,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
                     if (claim.getRequestStatus().equals(Workflow.APPROVED)) {
                         claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
-                        messageType = MessageType.INSURANCE_APPROVAL;
+                        messageType = resolveApprovalMessageType(claim);
                         otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), buildRejectedReasonMessage(workFlow));
                     } else {
                         applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
@@ -661,13 +661,25 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     }
 
     private String buildApprovedAmountMessage(BigDecimal requestAmount, BigDecimal approvedAmount, String remark) {
-        String amountText = String.valueOf(approvedAmount != null ? approvedAmount : BigDecimal.ZERO);
+        BigDecimal amount = approvedAmount != null ? approvedAmount : BigDecimal.ZERO;
+        String amountText = "Rs. " + amount.stripTrailingZeros().toPlainString();
 
         if (remark != null && !remark.trim().isEmpty()) {
             return amountText + " (Remark: " + remark.trim() + ")";
         }
 
         return amountText;
+    }
+
+    private MessageType resolveApprovalMessageType(InsuranceClaimsRequest claim) {
+        if (claim != null
+                && claim.getRequestAmount() != null
+                && claim.getApprovedAmount() != null
+                && claim.getApprovedAmount().compareTo(BigDecimal.ZERO) > 0
+                && claim.getApprovedAmount().compareTo(claim.getRequestAmount()) < 0) {
+            return MessageType.INSURANCE_PARTIAL_APPROVAL;
+        }
+        return MessageType.INSURANCE_APPROVAL;
     }
 
     private String buildRejectedReasonMessage(ApprovalWorkFlow workFlow) {

@@ -21,7 +21,7 @@ class ApprovalRemarkUtilTest {
                 List.of(nonZeroReason, zeroReason));
 
         assertEquals(
-                "No prescription - test remark - 500, Limit exceed - zero remark",
+                "No prescription - test remark - Rs. 500, Limit exceed - zero remark",
                 result);
     }
 

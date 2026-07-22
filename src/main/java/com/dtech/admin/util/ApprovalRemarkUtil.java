@@ -97,6 +97,7 @@ public final class ApprovalRemarkUtil {
         if (omitZeroAmounts && reason.getAmount().compareTo(BigDecimal.ZERO) == 0) {
             return description;
         }
-        return description + " - " + reason.getAmount().stripTrailingZeros().toPlainString();
+        String amount = reason.getAmount().stripTrailingZeros().toPlainString();
+        return description + " - " + (omitZeroAmounts ? "Rs. " : "") + amount;
     }
 }
