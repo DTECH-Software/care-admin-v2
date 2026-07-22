@@ -500,18 +500,13 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         if (reason == null) {
             return OTHER_REASON;
         }
-        String resolvedReason;
         if (hasText(reason.getReasonDescription())) {
-            resolvedReason = reason.getReasonDescription().trim();
-        } else if (hasText(reason.getReasonCode())) {
-            resolvedReason = resolveReturnReason(reason.getReasonCode(), remarkDictionary);
-        } else {
-            resolvedReason = OTHER_REASON;
+            return reason.getReasonDescription().trim();
         }
-        if (hasText(reason.getRemark())) {
-            return resolvedReason + " - " + reason.getRemark().trim();
+        if (hasText(reason.getReasonCode())) {
+            return resolveReturnReason(reason.getReasonCode(), remarkDictionary);
         }
-        return resolvedReason;
+        return OTHER_REASON;
     }
 
     private BigDecimal calculateRejectedAmount(InsuranceClaimsRequest claim) {
