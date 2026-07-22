@@ -56,12 +56,21 @@ public final class ApprovalRemarkUtil {
     }
 
     public static String formatRejectReasons(List<ApprovalWorkflowRejectReason> rejectReasons) {
+        return formatRejectReasons(rejectReasons, false);
+    }
+
+    public static String formatRejectReasonsForNotification(List<ApprovalWorkflowRejectReason> rejectReasons) {
+        return formatRejectReasons(rejectReasons, true);
+    }
+
+    private static String formatRejectReasons(List<ApprovalWorkflowRejectReason> rejectReasons,
+                                              boolean omitZeroAmounts) {
         if (CollectionUtils.isEmpty(rejectReasons)) {
             return null;
         }
         String text = rejectReasons.stream()
                 .filter(reason -> reason != null && reason.getAmount() != null)
-                .map(ApprovalRemarkUtil::formatRejectReason)
+                .map(reason -> formatRejectReason(reason, omitZeroAmounts))
                 .filter(StringUtils::hasText)
                 .collect(Collectors.joining(", "));
         return StringUtils.hasText(text) ? text : null;
@@ -78,12 +87,15 @@ public final class ApprovalRemarkUtil {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private static String formatRejectReason(ApprovalWorkflowRejectReason reason) {
+    private static String formatRejectReason(ApprovalWorkflowRejectReason reason, boolean omitZeroAmounts) {
         String description = StringUtils.hasText(reason.getReasonDescription())
                 ? reason.getReasonDescription().trim()
                 : reason.getReasonCode();
         if (StringUtils.hasText(reason.getRemark())) {
             description = description + " - " + reason.getRemark().trim();
+        }
+        if (omitZeroAmounts && reason.getAmount().compareTo(BigDecimal.ZERO) == 0) {
+            return description;
         }
         return description + " - " + reason.getAmount().stripTrailingZeros().toPlainString();
     }

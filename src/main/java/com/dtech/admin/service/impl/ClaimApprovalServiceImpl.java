@@ -671,7 +671,10 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     }
 
     private String buildRejectedReasonMessage(ApprovalWorkFlow workFlow) {
-        String remark = ApprovalRemarkUtil.resolveWorkflowRemark(workFlow);
+        String remark = ApprovalRemarkUtil.formatRejectReasonsForNotification(workFlow.getRejectReasons());
+        if (!hasText(remark)) {
+            remark = workFlow.getRejectedRemark();
+        }
         return remark != null ? remark.trim() : "";
     }
 
