@@ -723,6 +723,10 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                             throw new RuntimeException(e);
                         }
 
+                          if (previousStaffCategory != null
+                                  && !previousStaffCategory.getCode().equalsIgnoreCase(staffCategories.getCode())) {
+                              companyDetails.setPreviousStaffCategories(previousStaffCategory);
+                          }
                           companyDetails.setStaffCategories(staffCategories);
                           companyDetails.setInsurancePolicy(in);
                           if (transferOnly) {

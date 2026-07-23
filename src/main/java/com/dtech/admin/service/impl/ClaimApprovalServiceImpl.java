@@ -45,6 +45,7 @@ import java.text.ParseException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 @Log4j2
@@ -1210,10 +1211,11 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 ClaimsRequestResponseDTO claimsRequestResponseDTO = claimsApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
 
                 Date currentDate = DateTimeUtil.getCurrentDateTime();
-                String staffCode = claimsRequest.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
+                UserCompanyDetails companyDetails = claimsRequest.getEmployee().getUserPersonalDetails().getUserCompanyDetails();
                 Date permanentDate = rejoinCarryForwardService.resolveEffectivePermanentDateForLimit(claimsRequest.getEmployee());
 
-                List<InsuranceStaffCategoryPeriod> policyPeriods = resolvePolicyPeriods(currentDate, permanentDate, staffCode);
+                List<InsuranceStaffCategoryPeriod> policyPeriods =
+                        resolvePolicyPeriods(currentDate, permanentDate, companyDetails);
                 Map<String, Object> limit = new LinkedHashMap<>();
                 List<SimpleBaseDTO> policyList = new ArrayList<>();
 
@@ -1264,7 +1266,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         }
     }
 
-    private List<InsuranceStaffCategoryPeriod> resolvePolicyPeriods(Date currentDate, Date permanentDate, String staffCode) {
+    private List<InsuranceStaffCategoryPeriod> resolvePolicyPeriods(Date currentDate,
+                                                                    Date permanentDate,
+                                                                    UserCompanyDetails companyDetails) {
+        if (companyDetails == null || companyDetails.getStaffCategories() == null) {
+            return Collections.emptyList();
+        }
+
+        String staffCode = companyDetails.getStaffCategories().getCode();
         Optional<InsuranceStaffCategoryPeriod> currentPeriodOpt = insuranceStaffCategoryPeriodRepository
                 .findByDateWithinRange(currentDate, staffCode)
                 .filter(period -> period.getStatus() == Status.ACTIVE);
@@ -1291,15 +1300,50 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         Date startDate = startPeriodOpt.map(InsuranceStaffCategoryPeriod::getFromDate)
                 .orElse(currentPeriod.getFromDate());
 
-        List<InsuranceStaffCategoryPeriod> periods = insuranceStaffCategoryPeriodRepository
+        List<InsuranceStaffCategoryPeriod> periods = new ArrayList<>(insuranceStaffCategoryPeriodRepository
                 .findByStaffCategories_CodeAndStatusAndFromDateGreaterThanEqualAndFromDateLessThanEqualOrderByFromDateAsc(
-                        staffCode, Status.ACTIVE, startDate, currentPeriod.getFromDate());
+                        staffCode, Status.ACTIVE, startDate, currentPeriod.getFromDate()));
+
+        StaffCategories previousStaffCategory = companyDetails.getPreviousStaffCategories();
+        Date transferDate = companyDetails.getTransferDate();
+        if (previousStaffCategory != null && transferDate != null) {
+            String previousStaffCode = previousStaffCategory.getCode();
+            Date previousStartDate = permanentDate != null
+                    ? insuranceStaffCategoryPeriodRepository
+                    .findByDateWithinRangeExclusiveEnd(permanentDate, previousStaffCode)
+                    .filter(period -> period.getStatus() == Status.ACTIVE)
+                    .map(InsuranceStaffCategoryPeriod::getFromDate)
+                    .orElseGet(() -> insuranceStaffCategoryPeriodRepository
+                            .findFirstByStaffCategories_CodeAndStatusAndFromDateAfterOrderByFromDateAsc(
+                                    previousStaffCode, Status.ACTIVE, permanentDate)
+                            .map(InsuranceStaffCategoryPeriod::getFromDate)
+                            .orElse(startDate))
+                    : startDate;
+            Date previousPeriodEnd = new Date(Math.min(
+                    currentPeriod.getFromDate().getTime(),
+                    transferDate.getTime() - 1
+            ));
+            if (!previousPeriodEnd.before(previousStartDate)) {
+                periods.addAll(insuranceStaffCategoryPeriodRepository
+                        .findByStaffCategories_CodeAndStatusAndFromDateGreaterThanEqualAndFromDateLessThanEqualOrderByFromDateAsc(
+                                previousStaffCode, Status.ACTIVE, previousStartDate, previousPeriodEnd));
+            }
+        }
 
         if (periods.isEmpty()) {
             return List.of(currentPeriod);
         }
 
-        return periods;
+        return periods.stream()
+                .collect(Collectors.toMap(
+                        InsuranceStaffCategoryPeriod::getId,
+                        period -> period,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new))
+                .values()
+                .stream()
+                .sorted(Comparator.comparing(InsuranceStaffCategoryPeriod::getFromDate))
+                .toList();
     }
 
     @Transactional(readOnly = true)

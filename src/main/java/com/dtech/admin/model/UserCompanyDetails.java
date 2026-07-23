@@ -46,6 +46,10 @@ public class UserCompanyDetails extends AdminAudit implements Serializable {
     @JoinColumn(name = "staff_category",nullable = false,referencedColumnName = "code")
     private StaffCategories staffCategories;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "previous_staff_category", referencedColumnName = "code")
+    private StaffCategories previousStaffCategories;
+
     @ManyToOne(fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     @JoinColumn(name = "staff_type",nullable = false,referencedColumnName = "code")
     private StaffTypes staffTypes;
