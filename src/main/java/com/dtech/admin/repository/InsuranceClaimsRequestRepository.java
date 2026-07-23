@@ -19,6 +19,8 @@ import java.util.List;
 @Repository
 public interface InsuranceClaimsRequestRepository extends JpaRepository<InsuranceClaimsRequest, Long>, JpaSpecificationExecutor<InsuranceClaimsRequest> {
 
+    List<InsuranceClaimsRequest> findAllByEmployee(ApplicationUser employee);
+
     @Query("SELECT SUM(ic.requestAmount) FROM InsuranceClaimsRequest ic " +
             "LEFT OUTER JOIN InsuranceClaimsDetails icd ON ic.insuranceClaimsDetails.id = icd.id " +
             "LEFT OUTER JOIN InsuranceDetailsLimit idl ON idl.id = ic.insuranceDetailsLimit.id " +

@@ -1219,7 +1219,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 Map<String, Object> limit = new LinkedHashMap<>();
                 List<SimpleBaseDTO> policyList = new ArrayList<>();
 
-                InsurancePolicy insurancePolicy = claimsRequest.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getInsurancePolicy();
+                Map<Long, InsurancePolicy> claimPolicyByPeriod =
+                        resolveClaimPolicyByPeriod(claimsRequest.getEmployee());
                 Treatment treatment = claimsRequest.getInsuranceClaimsDetails().getTreatment();
 
                 for (InsuranceStaffCategoryPeriod period : policyPeriods) {
@@ -1228,6 +1229,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     policyList.add(periodDto);
 
                     Map<String, AvailableInsuranceLimitDTO> periodLimits = new HashMap<>();
+                    InsurancePolicy insurancePolicy =
+                            resolveInsurancePolicyForPeriod(companyDetails, period, claimPolicyByPeriod);
                     Optional<InsuranceDetailsLimit> insuranceDetailsLimits = insuranceDetailsLimitRepository
                             .findByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment(
                                     insurancePolicy,
@@ -1307,6 +1310,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         StaffCategories previousStaffCategory = companyDetails.getPreviousStaffCategories();
         Date transferDate = companyDetails.getTransferDate();
         if (previousStaffCategory != null && transferDate != null) {
+            periods.removeIf(period -> period.getFromDate().before(transferDate));
             String previousStaffCode = previousStaffCategory.getCode();
             Date previousStartDate = permanentDate != null
                     ? insuranceStaffCategoryPeriodRepository
@@ -1344,6 +1348,40 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 .stream()
                 .sorted(Comparator.comparing(InsuranceStaffCategoryPeriod::getFromDate))
                 .toList();
+    }
+
+    private Map<Long, InsurancePolicy> resolveClaimPolicyByPeriod(ApplicationUser employee) {
+        if (employee == null) {
+            return Map.of();
+        }
+        Map<Long, InsurancePolicy> policies = new HashMap<>();
+        for (InsuranceClaimsRequest claim : insuranceClaimsRequestRepository.findAllByEmployee(employee)) {
+            InsuranceDetailsLimit detailsLimit = claim.getInsuranceDetailsLimit();
+            if (detailsLimit == null
+                    || detailsLimit.getInsuranceStaffCategoryPeriod() == null
+                    || detailsLimit.getInsurancePolicy() == null) {
+                continue;
+            }
+            policies.putIfAbsent(
+                    detailsLimit.getInsuranceStaffCategoryPeriod().getId(),
+                    detailsLimit.getInsurancePolicy());
+        }
+        return policies;
+    }
+
+    private InsurancePolicy resolveInsurancePolicyForPeriod(UserCompanyDetails companyDetails,
+                                                            InsuranceStaffCategoryPeriod period,
+                                                            Map<Long, InsurancePolicy> claimPolicyByPeriod) {
+        Date transferDate = companyDetails.getTransferDate();
+        boolean previousPeriod = transferDate != null && period.getFromDate().before(transferDate);
+        if (previousPeriod && companyDetails.getPreviousInsurancePolicy() != null) {
+            return companyDetails.getPreviousInsurancePolicy();
+        }
+        InsurancePolicy claimPolicy = claimPolicyByPeriod.get(period.getId());
+        if (previousPeriod && claimPolicy != null) {
+            return claimPolicy;
+        }
+        return companyDetails.getInsurancePolicy();
     }
 
     @Transactional(readOnly = true)

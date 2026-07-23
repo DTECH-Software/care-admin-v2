@@ -705,6 +705,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                         UserPersonalDetails employee = target.employee();
                         UserCompanyDetails companyDetails = employee.getUserCompanyDetails();
                         StaffCategories previousStaffCategory = companyDetails.getStaffCategories();
+                        InsurancePolicy previousInsurancePolicy = companyDetails.getInsurancePolicy();
 
                         if (transferOnly) {
                             Optional<String> transferValidationError = validateStaffCategoryTransfer(companyDetails, in, staffCategories);
@@ -726,6 +727,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                           if (previousStaffCategory != null
                                   && !previousStaffCategory.getCode().equalsIgnoreCase(staffCategories.getCode())) {
                               companyDetails.setPreviousStaffCategories(previousStaffCategory);
+                              companyDetails.setPreviousInsurancePolicy(previousInsurancePolicy);
                           }
                           companyDetails.setStaffCategories(staffCategories);
                           companyDetails.setInsurancePolicy(in);

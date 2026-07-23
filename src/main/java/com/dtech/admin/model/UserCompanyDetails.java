@@ -76,6 +76,10 @@ public class UserCompanyDetails extends AdminAudit implements Serializable {
     @JoinColumn(name = "insurance_policy",referencedColumnName = "code")
     private InsurancePolicy insurancePolicy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "previous_insurance_policy", referencedColumnName = "code")
+    private InsurancePolicy previousInsurancePolicy;
+
     @Column(name = "facility",nullable = false)
     @Enumerated(EnumType.STRING)
     private Facility facility;
