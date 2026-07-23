@@ -317,15 +317,26 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     return ResponseEntity.ok(responseUtil.error(null, 1046,
                             messageSource.getMessage(ResponseMessageUtil.INSURANCE_PERIOD_NOT_FOUND, null, locale)));
                 }
+                UserCompanyDetails companyDetails = claim.getEmployee()
+                        .getUserPersonalDetails()
+                        .getUserCompanyDetails();
+                InsurancePolicy selectedInsurancePolicy = resolveInsurancePolicyForPeriod(
+                        companyDetails,
+                        insuranceStaffCategoryPeriod,
+                        resolveClaimPolicyByPeriod(claim.getEmployee()));
                 byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment = insuranceDetailsLimitRepository.findByInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment(
-                        claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getInsurancePolicy(),
+                        selectedInsurancePolicy,
                         Status.ACTIVE, insuranceStaffCategoryPeriod, claim.getInsuranceClaimsDetails().getTreatment());
 
                 if (byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.isEmpty()) {
-                    log.info("Insurance details limit not found for selected period {}", claimRequestDTO.getPolicyId());
+                    log.info("Insurance details limit not found for selected period {} and policy {}",
+                            claimRequestDTO.getPolicyId(),
+                            selectedInsurancePolicy != null ? selectedInsurancePolicy.getCode() : null);
                     return ResponseEntity.ok(responseUtil.error(null, 1046,
                             messageSource.getMessage(ResponseMessageUtil.INSURANCE_PERIOD_NOT_FOUND, null, locale)));
                 }
+                applySelectedInsuranceDetailsLimit(
+                        claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
             }
 
             if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
