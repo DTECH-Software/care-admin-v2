@@ -167,8 +167,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             List<SimpleBaseDTO> treatmentCategory = treatmentCategoryRepository.findAllByStatus(Status.ACTIVE)
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
-            List<SimpleBaseDTO> remarks = remarkRepository.findAllByRemarkCategoryAndStatus(RemarkCategory.INSURANCE, Status.ACTIVE)
-                    .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
+            List<RemarkReferenceDTO> remarks = remarkRepository
+                    .findAllByRemarkCategoryAndStatus(RemarkCategory.INSURANCE, Status.ACTIVE)
+                    .stream()
+                    .map(val -> new RemarkReferenceDTO(
+                            val.getCode(),
+                            val.getDescription(),
+                            val.isIncludeInRejectedClaimReport()))
+                    .toList();
 
             List<SimpleBaseDTO> treatment = treatmentRepository.findAllByStatus(Status.ACTIVE)
                     .stream().map(val -> new SimpleBaseDTO(val.getTreatmentCode(), val.getTreatmentDescription())).toList();

@@ -37,4 +37,7 @@ public class Remark extends AdminAudit implements Serializable {
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    @Column(name = "include_in_rejected_claim_report", nullable = false)
+    private boolean includeInRejectedClaimReport = true;
+
 }

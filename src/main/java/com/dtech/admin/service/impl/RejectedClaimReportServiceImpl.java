@@ -137,6 +137,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             responseMap.put("staffCategories", buildStaffCategoryReference());
             responseMap.put("policyPeriods", buildPolicyPeriodReference());
             responseMap.put("returnReasons", remarkRepository.findAllByRemarkCategoryAndStatus(RemarkCategory.INSURANCE, Status.ACTIVE).stream()
+                    .filter(Remark::isIncludeInRejectedClaimReport)
                     .map(remark -> new SimpleBaseDTO(remark.getCode(), remark.getDescription()))
                     .toList());
 
@@ -445,12 +446,20 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     private RemarkDictionary loadRemarkDictionary() {
         Map<String, String> aliases = new HashMap<>();
         Map<String, Integer> order = new LinkedHashMap<>();
+        java.util.Set<String> excludedAliases = new java.util.HashSet<>();
         int index = 0;
         for (Remark remark : remarkRepository.findAllByRemarkCategoryAndStatus(RemarkCategory.INSURANCE, Status.ACTIVE)) {
             if (remark == null || !hasText(remark.getDescription())) {
                 continue;
             }
             String description = remark.getDescription();
+            if (!remark.isIncludeInRejectedClaimReport()) {
+                if (hasText(remark.getCode())) {
+                    excludedAliases.add(normalizeReason(remark.getCode()));
+                }
+                excludedAliases.add(normalizeReason(description));
+                continue;
+            }
             if (hasText(remark.getCode())) {
                 aliases.put(normalizeReason(remark.getCode()), description);
             }
@@ -458,7 +467,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
             order.putIfAbsent(description, index++);
         }
         order.putIfAbsent(OTHER_REASON, Integer.MAX_VALUE);
-        return new RemarkDictionary(aliases, order);
+        return new RemarkDictionary(aliases, order, excludedAliases);
     }
 
     private String resolveReturnReason(String finalRemark, RemarkDictionary remarkDictionary) {
@@ -475,12 +484,34 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         if (workflow != null && workflow.getRejectReasons() != null && !workflow.getRejectReasons().isEmpty()) {
             return workflow.getRejectReasons().stream()
                     .filter(reason -> reason != null && reason.getAmount() != null)
+                    .filter(reason -> isReportIncluded(reason, remarkDictionary))
                     .map(reason -> new ReasonAmount(resolveRejectReasonName(reason, remarkDictionary), reason.getAmount()))
                     .toList();
         }
 
-        String reason = resolveReturnReason(ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim), remarkDictionary);
+        String legacyRemark = ApprovalRemarkUtil.resolveLevelTwoOrThreeRemark(claim);
+        if (!isReportIncluded(legacyRemark, remarkDictionary)) {
+            return List.of();
+        }
+        String reason = resolveReturnReason(legacyRemark, remarkDictionary);
         return List.of(new ReasonAmount(reason, calculateRejectedAmount(claim)));
+    }
+
+    private boolean isReportIncluded(ApprovalWorkflowRejectReason reason,
+                                     RemarkDictionary remarkDictionary) {
+        return reason != null
+                && isReportIncluded(reason.getReasonCode(), remarkDictionary)
+                && isReportIncluded(reason.getReasonDescription(), remarkDictionary);
+    }
+
+    private boolean isReportIncluded(String reason, RemarkDictionary remarkDictionary) {
+        if (!hasText(reason)) {
+            return true;
+        }
+        String normalizedReason = normalizeReason(reason);
+        return remarkDictionary.excludedAliases().stream()
+                .noneMatch(excluded -> normalizedReason.equals(excluded)
+                        || normalizedReason.startsWith(excluded + " "));
     }
 
     private ApprovalWorkFlow resolveLatestDisplayWorkflow(InsuranceClaimsRequest claim) {
@@ -916,7 +947,9 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     private record PeriodInfo(String key, Long periodId, String description) {
     }
 
-    private record RemarkDictionary(Map<String, String> aliases, Map<String, Integer> order) {
+    private record RemarkDictionary(Map<String, String> aliases,
+                                    Map<String, Integer> order,
+                                    java.util.Set<String> excludedAliases) {
     }
 
     private record ReasonAmount(String reason, BigDecimal amount) {
