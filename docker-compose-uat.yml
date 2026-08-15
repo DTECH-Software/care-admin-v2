@@ -4,6 +4,8 @@ services:
       context: .
     image: care/care-admin:uat
     container_name: care-admin
+    env_file:
+      - /opt/wecare/secrets/care-admin-object-storage.env
     mem_limit: 1g
     ports:
       - "8090:8090"
