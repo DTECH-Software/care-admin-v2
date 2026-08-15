@@ -69,6 +69,10 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
     @Override
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Object>> filter(PaginationRequest<AuditLogSearchDTO> request, Locale locale) {
+        AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter.getPrivileges(request.getUsername(), PAGE_CODE);
+        if (privileges == null || !privileges.isSearch()) {
+            return unauthorized();
+        }
         normalizeSort(request);
         Page<AuditLog> page = auditLogRepository.findAll(
                 AuditLogSpecification.getSpecification(request.getSearch()), PaginationUtil.getPageable(request));
@@ -80,7 +84,11 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
 
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<ApiResponse<Object>> view(Long id, Locale locale) {
+    public ResponseEntity<ApiResponse<Object>> view(Long id, String username, Locale locale) {
+        AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter.getPrivileges(username, PAGE_CODE);
+        if (privileges == null || !privileges.isView()) {
+            return unauthorized();
+        }
         return auditLogRepository.findById(id)
                 .map(log -> ResponseEntity.ok(responseUtil.success((Object) map(log), "Audit log retrieved successfully")))
                 .orElseGet(() -> ResponseEntity.ok(responseUtil.error(null, 1043, "Audit log not found")));
@@ -102,7 +110,13 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
     }
 
     private void normalizeSort(PaginationRequest<AuditLogSearchDTO> request) {
-        if (!List.of("id", "createdDate", "source", "createdBy", "ipAddress").contains(request.getSortColumn()))
+        if (!List.of("id", "createdDate", "source", "module", "action", "result", "responseStatus",
+                "durationMs", "createdBy", "ipAddress").contains(request.getSortColumn()))
             request.setSortColumn("createdDate");
+    }
+
+    private ResponseEntity<ApiResponse<Object>> unauthorized() {
+        return ResponseEntity.ok(responseUtil.error(null, 1003,
+                "You are not authorized to access audit logs"));
     }
 }

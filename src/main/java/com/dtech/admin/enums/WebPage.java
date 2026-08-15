@@ -47,5 +47,7 @@ public enum WebPage {
     RPRT_CSR, //Claim status report
     RPRT_RCR, //Rejected claim report
     RPRT_DTR, //Daily task report
-    ADIT_ALL //Audit logs - all activity
+    ADIT_ALL, //Audit logs - all activity
+    ADIT_ADMIN, //Audit logs - WeCare Admin activity
+    ADIT_APP //Audit logs - WeCare App activity
 }

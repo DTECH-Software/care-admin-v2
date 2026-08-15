@@ -11,5 +11,5 @@ import java.util.Locale;
 public interface AllActivityAuditService {
     ResponseEntity<ApiResponse<Object>> getReferenceData(ChannelRequestDTO request, Locale locale);
     ResponseEntity<ApiResponse<Object>> filter(PaginationRequest<AuditLogSearchDTO> request, Locale locale);
-    ResponseEntity<ApiResponse<Object>> view(Long id, Locale locale);
+    ResponseEntity<ApiResponse<Object>> view(Long id, String username, Locale locale);
 }

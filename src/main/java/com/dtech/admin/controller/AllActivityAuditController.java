@@ -43,6 +43,6 @@ public class AllActivityAuditController {
     public ResponseEntity<ApiResponse<Object>> view(
             @RequestBody @Validated(OnGet.class) @Valid AuditLogViewRequestValidatorDTO request,
             Locale locale) {
-        return service.view(request.getId(), locale);
+        return service.view(request.getId(), request.getUsername(), locale);
     }
 }

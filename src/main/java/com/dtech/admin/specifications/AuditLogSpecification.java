@@ -21,8 +21,12 @@ public final class AuditLogSpecification {
                 predicates.add(cb.equal(cb.lower(root.get("module")), filter.getModule().toLowerCase()));
             if (hasText(filter.getAction()))
                 predicates.add(cb.like(cb.lower(root.get("action")), "%" + filter.getAction().toLowerCase() + "%"));
-            if (hasText(filter.getResult()))
-                predicates.add(cb.equal(root.get("result"), filter.getResult().toUpperCase()));
+            if (hasText(filter.getResult())) {
+                if ("SUCCESS".equalsIgnoreCase(filter.getResult()))
+                    predicates.add(cb.or(cb.equal(root.get("result"), "SUCCESS"), cb.isNull(root.get("result"))));
+                else
+                    predicates.add(cb.equal(root.get("result"), filter.getResult().toUpperCase()));
+            }
             if (hasText(filter.getPageCode()))
                 predicates.add(cb.equal(root.join("page").get("code"), filter.getPageCode()));
             if (hasText(filter.getTaskCode()))
