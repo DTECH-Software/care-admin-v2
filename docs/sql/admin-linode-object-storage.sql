@@ -1,8 +1,6 @@
 -- Phase 1: WeCare Admin documents in Linode Object Storage.
 -- Run before enabling WECARE_ADMIN_OBJECT_STORAGE_WRITE_ENABLED.
 -- Keep WECARE_OBJECT_STORAGE_RETAIN_DATABASE_COPY=true during the Admin-only phase
--- so the current Care-App can continue reading document.doc without any change.
-
 ALTER TABLE document
     MODIFY COLUMN doc LONGTEXT NULL,
     ADD COLUMN storage_provider VARCHAR(30) NOT NULL DEFAULT 'DATABASE' AFTER file_type,
