@@ -5,6 +5,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -35,7 +37,11 @@ public class LinodeObjectStorageConfig {
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKey, secretKey)))
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+                // Linode currently does not support the newer automatic S3 CRC32
+                // integrity headers enabled by AWS SDK Java 2.30 and later.
+                .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+                .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
+                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(false).build())
                 .build();
     }
 
