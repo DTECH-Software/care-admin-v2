@@ -21,17 +21,17 @@ public class LinodeObjectStorageConfig {
     @ConditionalOnProperty(name = "wecare.object-storage.enabled", havingValue = "true")
     public S3Client linodeS3Client(
             @Value("${wecare.object-storage.endpoint}") String endpoint,
-            @Value("${wecare.object-storage.region}") String region,
+            @Value("${wecare.object-storage.signing-region:us-east-1}") String signingRegion,
             @Value("${wecare.object-storage.access-key}") String accessKey,
             @Value("${wecare.object-storage.secret-key}") String secretKey) {
         requireValue(endpoint, "LINODE_OBJECT_STORAGE_ENDPOINT");
-        requireValue(region, "LINODE_OBJECT_STORAGE_REGION");
+        requireValue(signingRegion, "LINODE_OBJECT_STORAGE_SIGNING_REGION");
         requireValue(accessKey, "LINODE_OBJECT_STORAGE_ACCESS_KEY");
         requireValue(secretKey, "LINODE_OBJECT_STORAGE_SECRET_KEY");
 
         return S3Client.builder()
                 .endpointOverride(URI.create(endpoint))
-                .region(Region.of(region))
+                .region(Region.of(signingRegion))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKey, secretKey)))
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
