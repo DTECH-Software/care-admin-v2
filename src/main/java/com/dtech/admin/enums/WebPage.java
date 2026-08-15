@@ -46,5 +46,6 @@ public enum WebPage {
     RPRT_RCTR, //Received claim total report
     RPRT_CSR, //Claim status report
     RPRT_RCR, //Rejected claim report
-    RPRT_DTR //Daily task report
+    RPRT_DTR, //Daily task report
+    ADIT_ALL //Audit logs - all activity
 }

@@ -45,6 +45,7 @@ public class AuditLogServiceImpl implements AuditLogService {
 
           log.info("Start audit log");
           AuditLog auditLog = new AuditLog();
+          auditLog.setSource("WECARE_ADMIN");
           auditLog.setTask(webTask);
           auditLog.setTaskDescription(taskDescription);
           auditLog.setPage(webPage);

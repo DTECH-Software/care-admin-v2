@@ -28,6 +28,9 @@ public class AuditLog extends AdminAudit implements Serializable {
     @Column(name = "id",nullable = false,updatable = false,unique = true)
     private Long id;
 
+    @Column(name = "source", nullable = false, updatable = false, length = 20)
+    private String source = "WECARE_ADMIN";
+
     @Column(columnDefinition = "json")
     private String oldValue;
 
