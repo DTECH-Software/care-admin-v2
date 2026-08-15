@@ -22,6 +22,7 @@ import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.UserPersonalDetailsRepository;
+import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.DateTimeUtil;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class ClaimsApprovalEntityToDto {
 
     private final ModelMapper modelMapper;
     private final UserPersonalDetailsRepository userPersonalDetailsRepository;
+    private final DocumentStorageService documentStorageService;
 
     public ClaimsRequestResponseDTO mapClaimsApproval(InsuranceClaimsRequest insuranceClaimsRequest, boolean isDocument) {
         try {
@@ -117,7 +119,7 @@ public class ClaimsApprovalEntityToDto {
 
             if (isDocument) {
                 List<DocumentDownloadResponseDTO> collect = insuranceClaimsRequest.getInsuranceClaimsDetails().getDocuments().stream().map((document -> {
-                    return new DocumentDownloadResponseDTO(String.valueOf(document.getType()), document.getFileName(), document.getFileType(), document.getDoc());
+                    return new DocumentDownloadResponseDTO(String.valueOf(document.getType()), document.getFileName(), document.getFileType(), documentStorageService.getBase64(document));
                 })).collect(Collectors.toList());
                 dto.getInsuranceClaimsDetails().setDocuments(collect);
             } else if (dto.getInsuranceClaimsDetails() != null) {

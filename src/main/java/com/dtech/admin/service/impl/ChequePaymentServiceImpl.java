@@ -21,9 +21,9 @@ import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.Document;
 import com.dtech.admin.repository.ChequePaymentRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
-import com.dtech.admin.repository.DocumentRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ChequePaymentService;
+import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.ChequePaymentSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
@@ -87,7 +87,7 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
     private final CompanyTypeRepository companyTypeRepository;
 
     @Autowired
-    private final DocumentRepository documentRepository;
+    private final DocumentStorageService documentStorageService;
 
     @Autowired
     private final MessageSource messageSource;
@@ -355,8 +355,7 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
 
             Document document = gson.fromJson(gson.toJson(dto), Document.class);
             document.setType(docType);
-            document.setDoc(doc.getFile());
-            document = documentRepository.saveAndFlush(document);
+            document = documentStorageService.saveAdminDocument(document, doc.getFile());
             return document;
         } catch (Exception e) {
             log.error("Failed to upload cheque document {}", doc.getFileName(), e);
@@ -403,7 +402,7 @@ public class ChequePaymentServiceImpl implements ChequePaymentService {
     private ChequePaymentDocumentResponseDTO mapDocument(Document document) {
         ChequePaymentDocumentResponseDTO dto = new ChequePaymentDocumentResponseDTO();
         dto.setType(document.getType() != null ? document.getType().name() : null);
-        dto.setDoc(document.getDoc());
+        dto.setDoc(documentStorageService.getBase64(document));
         dto.setFileName(document.getFileName());
         dto.setFileType(document.getFileType());
         return dto;

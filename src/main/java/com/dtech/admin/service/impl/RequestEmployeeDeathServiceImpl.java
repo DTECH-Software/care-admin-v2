@@ -15,6 +15,7 @@ import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.RequestEmployeeDeathService;
+import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.DeathApprovalSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
@@ -69,7 +70,7 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
     private WebUserRepository webUserRepository;
 
     @Autowired
-    private DocumentRepository documentRepository;
+    private final DocumentStorageService documentStorageService;
     @Autowired
     private ApprovalWorkFlowRepository approvalWorkFlowRepository;
 
@@ -216,8 +217,7 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
             dto.setFileType(multipartFile.getContentType());
             Document document = gson.fromJson(gson.toJson(dto), Document.class);
             String baseConvert = Base64.getEncoder().encodeToString(dto.getDocument());
-            document.setDoc(baseConvert);
-            document = documentRepository.saveAndFlush(document);
+            document = documentStorageService.saveAdminDocument(document, baseConvert);
             log.info("image upload success id={} type={} fileName={} fileType={}",
                     document.getId(), document.getType(), document.getFileName(), document.getFileType());
             return document;

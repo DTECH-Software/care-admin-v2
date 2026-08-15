@@ -24,6 +24,7 @@ import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeService;
+import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
@@ -74,6 +75,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private final CommonPrivilegeGetter commonPrivilegeGetter;
+
+    @Autowired
+    private final DocumentStorageService documentStorageService;
 
     @Autowired
     private final CompanyTypeRepository companyTypeRepository;
@@ -661,7 +665,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 document.getType() != null ? document.getType().name() : null,
                 document.getFileName(),
                 document.getFileType(),
-                document.getDoc()
+                documentStorageService.getBase64(document)
         );
     }
 

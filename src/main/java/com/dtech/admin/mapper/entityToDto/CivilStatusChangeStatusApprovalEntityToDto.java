@@ -4,6 +4,7 @@ import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.dto.response.MaritalStatusApprovalResponseDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.model.MaritalStatus;
+import com.dtech.admin.service.DocumentStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 public class CivilStatusChangeStatusApprovalEntityToDto {
 
     private final ModelMapper modelMapper;
+    private final DocumentStorageService documentStorageService;
 
     public MaritalStatusApprovalResponseDTO mapCivilStatusApproval(MaritalStatus maritalStatus) {
         try {
@@ -53,7 +55,7 @@ public class CivilStatusChangeStatusApprovalEntityToDto {
             log.info("mapCivilStatusApproval death mapper {} ", maritalStatus.getId());
 
                 return maritalStatus.getDocuments().stream().map((document -> {
-                    return new DocumentDownloadResponseDTO(String.valueOf(document.getType()), document.getFileName(), document.getFileType(), document.getDoc());
+                    return new DocumentDownloadResponseDTO(String.valueOf(document.getType()), document.getFileName(), document.getFileType(), documentStorageService.getBase64(document));
                 })).collect(Collectors.toList());
 
         } catch (Exception e) {

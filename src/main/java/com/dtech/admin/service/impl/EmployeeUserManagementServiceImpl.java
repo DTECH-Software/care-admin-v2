@@ -17,6 +17,7 @@ import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeUserManagementService;
+import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeUserSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
@@ -121,7 +122,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     @Autowired
     private final DeathBeneficiaryRepository deathBeneficiaryRepository;
     @Autowired
-    private DocumentRepository documentRepository;
+    private final DocumentStorageService documentStorageService;
     @Autowired
     private final EmailNotificationService emailNotificationService;
 
@@ -718,7 +719,6 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                         Document t = null;
                         try {
                             t = uploadImage(employeeManagementRequestDTO.getDocuments().getType(), employeeManagementRequestDTO.getDocuments().getFile(), employeeManagementRequestDTO.getDocuments().getFileType(), employeeManagementRequestDTO.getDocuments().getFileName());
-                            documentRepository.saveAndFlush(t);
                         } catch (IOException e) {
                             log.error(e);
                             throw new RuntimeException(e);
@@ -944,8 +944,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             dto.setFileType(multipartFile.getContentType());
             Document document = gson.fromJson(gson.toJson(dto), Document.class);
             document.setType(resolveDocType(tye));
-            document.setDoc(file);
-            document = documentRepository.saveAndFlush(document);
+            document = documentStorageService.saveAdminDocument(document, file);
             log.info("image upload success id={} type={} fileName={} fileType={}",
                     document.getId(), document.getType(), document.getFileName(), document.getFileType());
             return document;
@@ -1062,7 +1061,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         dto.setType(document.getType() != null ? document.getType().name() : null);
         dto.setFileName(document.getFileName());
         dto.setFileType(document.getFileType());
-        dto.setDoc(document.getDoc());
+        dto.setDoc(documentStorageService.getBase64(document));
         return dto;
     }
 

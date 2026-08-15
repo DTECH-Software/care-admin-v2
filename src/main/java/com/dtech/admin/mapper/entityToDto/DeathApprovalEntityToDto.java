@@ -15,6 +15,7 @@ import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.DeathClaimRequest;
 import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.util.DateTimeUtil;
+import com.dtech.admin.service.DocumentStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class DeathApprovalEntityToDto {
 
     private final ModelMapper modelMapper;
+    private final DocumentStorageService documentStorageService;
 
     public DeathRequestResponseDTO mapClaimsApproval(DeathClaimRequest deathClaimRequest, boolean isDocument) {
         try {
@@ -90,7 +92,7 @@ public class DeathApprovalEntityToDto {
 
             if (isDocument) {
                 List<DocumentDownloadResponseDTO> collect = deathClaimRequest.getDocuments().stream().map((document -> {
-                    return new DocumentDownloadResponseDTO(String.valueOf(document.getType()), document.getFileName(), document.getFileType(), document.getDoc());
+                    return new DocumentDownloadResponseDTO(String.valueOf(document.getType()), document.getFileName(), document.getFileType(), documentStorageService.getBase64(document));
                 })).collect(Collectors.toList());
                 dto.setDocuments(collect);
             }

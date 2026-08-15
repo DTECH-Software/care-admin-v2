@@ -19,6 +19,7 @@ import com.dtech.admin.model.UserAddress;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.util.DateTimeUtil;
+import com.dtech.admin.service.DocumentStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -33,6 +34,7 @@ import java.util.List;
 public class DependentDetailsMapperEntityToDto {
 
     private final ModelMapper modelMapper;
+    private final DocumentStorageService documentStorageService;
 
     public DependentDetailsResponseDTO mapDependentDetails(ClaimsDependents claimsDependents) {
         try {
@@ -157,7 +159,7 @@ public class DependentDetailsMapperEntityToDto {
         dto.setType(enumName(document.getType()));
         dto.setFileName(document.getFileName());
         dto.setFileType(document.getFileType());
-        dto.setDoc(document.getDoc());
+        dto.setDoc(documentStorageService.getBase64(document));
         return dto;
     }
 
