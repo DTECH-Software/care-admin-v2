@@ -11,6 +11,14 @@ public class AuditLogResponseDTO {
     private Long id;
     private Date dateTime;
     private String source;
+    private String module;
+    private String action;
+    private String result;
+    private Integer responseStatus;
+    private String requestPath;
+    private String httpMethod;
+    private Long durationMs;
+    private String correlationId;
     private String pageCode;
     private String pageDescription;
     private String taskCode;

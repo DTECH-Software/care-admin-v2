@@ -7,6 +7,9 @@ import java.util.Date;
 @Data
 public class AuditLogSearchDTO {
     private String source;
+    private String module;
+    private String action;
+    private String result;
     private String pageCode;
     private String taskCode;
     private String username;

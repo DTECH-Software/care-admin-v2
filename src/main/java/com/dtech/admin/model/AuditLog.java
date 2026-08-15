@@ -31,6 +31,30 @@ public class AuditLog extends AdminAudit implements Serializable {
     @Column(name = "source", nullable = false, updatable = false, length = 20)
     private String source = "WECARE_ADMIN";
 
+    @Column(name = "module", updatable = false, length = 50)
+    private String module;
+
+    @Column(name = "action", updatable = false, length = 100)
+    private String action;
+
+    @Column(name = "result", updatable = false, length = 20)
+    private String result;
+
+    @Column(name = "response_status", updatable = false)
+    private Integer responseStatus;
+
+    @Column(name = "request_path", updatable = false, length = 255)
+    private String requestPath;
+
+    @Column(name = "http_method", updatable = false, length = 10)
+    private String httpMethod;
+
+    @Column(name = "duration_ms", updatable = false)
+    private Long durationMs;
+
+    @Column(name = "correlation_id", updatable = false, length = 64)
+    private String correlationId;
+
     @Column(columnDefinition = "json")
     private String oldValue;
 

@@ -21,6 +21,17 @@ AND NOT EXISTS (
 
 -- Assign these read-only tasks to the required auditor/admin roles using the
 -- existing role-page-task privilege screen. Do not assign ADD/UPDATE/DELETE.
+-- Example (replace YOUR_AUDITOR_ROLE with the actual authorized role code):
+-- INSERT INTO web_user_role_page_task (role_code, page_code, task_code)
+-- SELECT 'YOUR_AUDITOR_ROLE', 'ADIT_ALL', task_code
+-- FROM web_page_task
+-- WHERE page_code = 'ADIT_ALL'
+--   AND NOT EXISTS (
+--       SELECT 1 FROM web_user_role_page_task assigned
+--       WHERE assigned.role_code = 'YOUR_AUDITOR_ROLE'
+--         AND assigned.page_code = 'ADIT_ALL'
+--         AND assigned.task_code = web_page_task.task_code
+--   );
 
 CREATE INDEX idx_audit_log_source_created_date ON audit_log (source, created_date);
 CREATE INDEX idx_audit_log_created_user ON audit_log (created_user);

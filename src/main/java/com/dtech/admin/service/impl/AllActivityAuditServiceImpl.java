@@ -6,6 +6,8 @@ import com.dtech.admin.dto.request.ChannelRequestDTO;
 import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.response.AuditLogResponseDTO;
+import com.dtech.admin.dto.response.AuditLogPrivilegeResponseDTO;
+import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
 import com.dtech.admin.dto.search.AuditLogSearchDTO;
 import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.model.AuditLog;
@@ -42,10 +44,21 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Object>> getReferenceData(ChannelRequestDTO request, Locale locale) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("privileges", commonPrivilegeGetter.getPrivileges(request.getUsername(), PAGE_CODE));
+        AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter.getPrivileges(request.getUsername(), PAGE_CODE);
+        data.put("privileges", new AuditLogPrivilegeResponseDTO(
+                privileges != null && privileges.isSearch(),
+                privileges != null && privileges.isView()));
         data.put("sources", List.of(new SimpleBaseDTO("ALL", "All"),
                 new SimpleBaseDTO("WECARE_ADMIN", "WeCare Admin"),
                 new SimpleBaseDTO("WECARE_APP", "WeCare App")));
+        data.put("modules", List.of(
+                new SimpleBaseDTO("login-service", "Login"),
+                new SimpleBaseDTO("auth-service", "Profile and Authentication"),
+                new SimpleBaseDTO("claim-service", "Claims"),
+                new SimpleBaseDTO("document-service", "Documents"),
+                new SimpleBaseDTO("notification-service", "Notifications")));
+        data.put("results", List.of(new SimpleBaseDTO("SUCCESS", "Success"),
+                new SimpleBaseDTO("FAILED", "Failed")));
         data.put("pages", webPageRepository.findAll().stream()
                 .map(p -> new SimpleBaseDTO(p.getCode(), p.getDescription())).toList());
         data.put("tasks", webTaskRepository.findAll().stream()
@@ -76,6 +89,10 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
     private AuditLogResponseDTO map(AuditLog log) {
         return AuditLogResponseDTO.builder()
                 .id(log.getId()).dateTime(log.getCreatedDate()).source(log.getSource())
+                .module(log.getModule()).action(log.getAction()).result(log.getResult())
+                .responseStatus(log.getResponseStatus()).requestPath(log.getRequestPath())
+                .httpMethod(log.getHttpMethod()).durationMs(log.getDurationMs())
+                .correlationId(log.getCorrelationId())
                 .pageCode(log.getPage() == null ? null : log.getPage().getCode())
                 .pageDescription(log.getPage() == null ? null : log.getPage().getDescription())
                 .taskCode(log.getTask() == null ? null : log.getTask().getCode())
