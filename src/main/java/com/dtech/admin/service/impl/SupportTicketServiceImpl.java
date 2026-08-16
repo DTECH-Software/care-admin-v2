@@ -284,7 +284,9 @@ public class SupportTicketServiceImpl implements SupportTicketService {
         if (!hasAttachments(attachments)) return;
         for (SupportTicketAttachmentRequestDTO value : attachments) {
             Document document = new Document();
-            document.setType(DocType.SUPPORT_TICKET);
+            // The existing document.type column is a restricted database enum.
+            // Support-ticket files are ordinary documents, so reuse the compatible value.
+            document.setType(DocType.DOCUMENT);
             document.setFileName(safeFileName(value.getFileName()));
             document.setFileType(value.getFileType().trim().toLowerCase());
             document = documentStorageService.saveAdminDocument(document, value.getFile());
