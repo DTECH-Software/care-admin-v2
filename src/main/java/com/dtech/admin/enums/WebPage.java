@@ -49,5 +49,7 @@ public enum WebPage {
     RPRT_DTR, //Daily task report
     ADIT_ALL, //Audit logs - all activity
     ADIT_ADMIN, //Audit logs - WeCare Admin activity
-    ADIT_APP //Audit logs - WeCare App activity
+    ADIT_APP, //Audit logs - WeCare App activity
+    SUP_ADMIN, //Support tickets - WeCare Admin issues
+    SUP_APP //Support tickets - WeCare App issues
 }

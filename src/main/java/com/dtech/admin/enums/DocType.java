@@ -9,7 +9,8 @@ public enum DocType implements DescribableEnum{
     TREATMENT_BILL("Treatment bill"),
     DEATH_CERTIFICATE("Death certificate"),
     DOCUMENT("Document"),
-    OTHER_CERTIFICATE("Other certificate");
+    OTHER_CERTIFICATE("Other certificate"),
+    SUPPORT_TICKET("Support ticket attachment");
 
     private final String description;
     DocType(String description) {
