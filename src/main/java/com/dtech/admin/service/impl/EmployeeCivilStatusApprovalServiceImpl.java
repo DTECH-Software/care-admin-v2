@@ -11,15 +11,14 @@ import com.dtech.admin.dto.response.MaritalStatusApprovalResponseDTO;
 import com.dtech.admin.dto.search.CivilStatusChangeSearchDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.mapper.entityToDto.CivilStatusChangeStatusApprovalEntityToDto;
-import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.MaritalStatusRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
-import com.dtech.admin.repository.WebUserRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
+import com.dtech.admin.service.CivilStatusEmailRecipientService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeCivilStatusApprovalService;
 import com.dtech.admin.service.MessageService;
@@ -46,10 +45,6 @@ import java.util.*;
 @Log4j2
 @RequiredArgsConstructor
 public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStatusApprovalService {
-
-    private static final Set<String> CIVIL_STATUS_APPROVAL_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
-    );
 
     @Autowired
     private final CommonPrivilegeGetter commonPrivilegeGetter;
@@ -78,9 +73,10 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     @Autowired
     private ApplicationUserRepository applicationUserRepository;
     @Autowired
-    private WebUserRepository webUserRepository;
-    @Autowired
     private CompanyAccessService companyAccessService;
+
+    @Autowired
+    private CivilStatusEmailRecipientService civilStatusEmailRecipientService;
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
@@ -236,27 +232,8 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     }
 
     private void notifyAdminTeamOnCivilStatusApproval(com.dtech.admin.model.MaritalStatus maritalStatus, String hrUsername) {
-        UserPersonalDetails employee = maritalStatus.getApplicationUser() != null
-                ? maritalStatus.getApplicationUser().getUserPersonalDetails()
-                : null;
-        CompanyTypes company = employee != null
-                && employee.getUserCompanyDetails() != null
-                ? employee.getUserCompanyDetails().getCompanyTypes()
-                : null;
-        String employeeCompanyCode = company != null ? company.getCode() : null;
-
-        List<WebUser> recipients = webUserRepository.findAllByStatus(Status.ACTIVE).stream()
-                .filter(user -> user.getUserRole() != null
-                        && org.springframework.util.StringUtils.hasText(user.getUserRole().getCode()))
-                .filter(user -> CIVIL_STATUS_APPROVAL_ADMIN_ROLE_CODES.stream()
-                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
-                .filter(user -> !org.springframework.util.StringUtils.hasText(employeeCompanyCode)
-                        || user.getCompanies() == null
-                        || user.getCompanies().isEmpty()
-                        || user.getCompanies().stream()
-                        .anyMatch(assignedCompany -> Status.ACTIVE.equals(assignedCompany.getStatus())
-                                && employeeCompanyCode.equalsIgnoreCase(assignedCompany.getCode())))
-                .toList();
+        List<WebUser> recipients = civilStatusEmailRecipientService.resolve(
+                CivilStatusEmailEvent.CIVIL_STATUS_APPROVED, maritalStatus);
 
         emailNotificationService.notifyCivilStatusApprovedByHr(recipients, maritalStatus, hrUsername);
     }
