@@ -15,11 +15,12 @@ import com.dtech.admin.enums.WebPage;
 import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.repository.UserPersonalDetailsRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmployeeCountReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.EmployeeCountReportSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.ResponseMessageUtil;
@@ -37,6 +38,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.io.ByteArrayOutputStream;
 import java.util.*;
@@ -64,7 +66,7 @@ public class EmployeeCountReportServiceImpl implements EmployeeCountReportServic
     private final Gson gson;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -82,7 +84,7 @@ public class EmployeeCountReportServiceImpl implements EmployeeCountReportServic
             AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter
                     .getPrivileges(channelRequestDTO.getUsername(), PAGE_EMPLOYEE_COUNT_REPORT);
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
@@ -110,7 +112,7 @@ public class EmployeeCountReportServiceImpl implements EmployeeCountReportServic
     public ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<EmployeeCountReportSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Employee count report filter list {}", paginationRequest);
-            List<EmployeeCountReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<EmployeeCountReportRowDTO> rows = resolveRows(paginationRequest.getSearch(), paginationRequest.getUsername());
             List<EmployeeCountReportRowDTO> sortedRows = sortRows(rows, paginationRequest);
             PagingResult<EmployeeCountReportRowDTO> result = buildPagingResult(sortedRows, paginationRequest);
 
@@ -136,7 +138,7 @@ public class EmployeeCountReportServiceImpl implements EmployeeCountReportServic
             search.setStaffCategory(employeeCountReportRequestDTO.getStaffCategory());
             search.setStatus(List.of(employeeCountReportRequestDTO.getStatus()));
 
-            List<EmployeeCountReportRowDTO> rows = resolveRows(search);
+            List<EmployeeCountReportRowDTO> rows = resolveRows(search, employeeCountReportRequestDTO.getUsername());
             if (rows.isEmpty()) {
                 return ResponseEntity.ok().body(responseUtil.error(null, 1050,
                         messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_COUNT_REPORT_NOT_FOUND, null, locale)));
@@ -160,7 +162,7 @@ public class EmployeeCountReportServiceImpl implements EmployeeCountReportServic
     public ResponseEntity<byte[]> export(PaginationRequest<EmployeeCountReportSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Employee count report export {}", paginationRequest);
-            List<EmployeeCountReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<EmployeeCountReportRowDTO> rows = resolveRows(paginationRequest.getSearch(), paginationRequest.getUsername());
             rows = sortRows(rows, paginationRequest);
 
             byte[] excelBytes = buildExcel(rows);
@@ -179,10 +181,13 @@ public class EmployeeCountReportServiceImpl implements EmployeeCountReportServic
         }
     }
 
-    private List<EmployeeCountReportRowDTO> resolveRows(EmployeeCountReportSearchDTO search) {
-        List<UserPersonalDetails> employees = Objects.nonNull(search)
-                ? userPersonalDetailsRepository.findAll(EmployeeCountReportSpecification.getSpecification(search))
-                : userPersonalDetailsRepository.findAll(EmployeeCountReportSpecification.getSpecification());
+    private List<EmployeeCountReportRowDTO> resolveRows(EmployeeCountReportSearchDTO search, String username) {
+        Specification<UserPersonalDetails> requested = search == null
+                ? EmployeeCountReportSpecification.getSpecification()
+                : EmployeeCountReportSpecification.getSpecification(search);
+        List<UserPersonalDetails> employees = userPersonalDetailsRepository.findAll(requested.and(
+                CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                        "userCompanyDetails", "companyTypes", "code")));
         return buildCounts(employees);
     }
 

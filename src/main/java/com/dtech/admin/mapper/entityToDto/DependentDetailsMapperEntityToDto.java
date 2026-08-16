@@ -50,6 +50,10 @@ public class DependentDetailsMapperEntityToDto {
     }
 
     private void fillDependentFields(DependentDetailsResponseDTO dto, ClaimsDependents dependent) {
+        // Keep the dependent audit dates explicit in the API response. These are
+        // displayed in the UI as Create Date and Modification Date.
+        dto.setCreatedDate(dependent.getCreatedDate());
+        dto.setLastModifiedDate(dependent.getLastModifiedDate());
         dto.setDependentCategory(enumName(dependent.getDependentCategory()));
         dto.setDependentCategoryDescription(description(dependent.getDependentCategory()));
         dto.setGender(enumName(dependent.getGender()));

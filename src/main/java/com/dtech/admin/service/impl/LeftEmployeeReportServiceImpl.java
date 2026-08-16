@@ -17,11 +17,12 @@ import com.dtech.admin.enums.WebTask;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.mapper.entityToDto.EmployeeDetailsMapperEntityToDto;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.repository.UserPersonalDetailsRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.LeftEmployeeReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.LeftEmployeeReportSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
@@ -36,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -69,7 +71,7 @@ public class LeftEmployeeReportServiceImpl implements LeftEmployeeReportService 
     private final Gson gson;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -94,7 +96,7 @@ public class LeftEmployeeReportServiceImpl implements LeftEmployeeReportService 
                     .map(val -> new SimpleBaseDTO(val.name(), val.getDescription()))
                     .toList();
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
@@ -127,13 +129,9 @@ public class LeftEmployeeReportServiceImpl implements LeftEmployeeReportService 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
             LeftEmployeeReportSearchDTO search = paginationRequest.getSearch();
-            Page<UserPersonalDetails> employeePage = Objects.nonNull(search)
-                    ? userPersonalDetailsRepository.findAll(LeftEmployeeReportSpecification.getSpecification(search), pageable)
-                    : userPersonalDetailsRepository.findAll(LeftEmployeeReportSpecification.getSpecification(), pageable);
-
-            long totalElements = Objects.nonNull(search)
-                    ? userPersonalDetailsRepository.count(LeftEmployeeReportSpecification.getSpecification(search))
-                    : userPersonalDetailsRepository.count(LeftEmployeeReportSpecification.getSpecification());
+            Specification<UserPersonalDetails> specification = scopedSpecification(search, paginationRequest.getUsername());
+            Page<UserPersonalDetails> employeePage = userPersonalDetailsRepository.findAll(specification, pageable);
+            long totalElements = userPersonalDetailsRepository.count(specification);
 
             List<EmployeeDetailsResponseDTO> rows = employeePage.stream()
                     .map(employeeDetailsMapperEntityToDto::mapEmployeeDetails)
@@ -160,9 +158,8 @@ public class LeftEmployeeReportServiceImpl implements LeftEmployeeReportService 
             log.info("Left employee report export {}", paginationRequest);
             LeftEmployeeReportSearchDTO search = paginationRequest.getSearch();
 
-            List<UserPersonalDetails> employees = Objects.nonNull(search)
-                    ? userPersonalDetailsRepository.findAll(LeftEmployeeReportSpecification.getSpecification(search))
-                    : userPersonalDetailsRepository.findAll(LeftEmployeeReportSpecification.getSpecification());
+            List<UserPersonalDetails> employees = userPersonalDetailsRepository.findAll(
+                    scopedSpecification(search, paginationRequest.getUsername()));
 
             List<LeftEmployeeReportRowDTO> rows = employees.stream()
                     .map(this::mapRow)
@@ -209,6 +206,14 @@ public class LeftEmployeeReportServiceImpl implements LeftEmployeeReportService 
             dto.setTerminateDate(companyDetails.getTerminateDate());
         }
         return dto;
+    }
+
+    private Specification<UserPersonalDetails> scopedSpecification(LeftEmployeeReportSearchDTO search, String username) {
+        Specification<UserPersonalDetails> requested = search == null
+                ? LeftEmployeeReportSpecification.getSpecification()
+                : LeftEmployeeReportSpecification.getSpecification(search);
+        return requested.and(CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                "userCompanyDetails", "companyTypes", "code"));
     }
 
     private void normalizeSortColumn(PaginationRequest<LeftEmployeeReportSearchDTO> paginationRequest) {

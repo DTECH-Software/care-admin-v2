@@ -14,6 +14,7 @@ import com.dtech.admin.mapper.entityToDto.DeathApprovalEntityToDto;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.RequestEmployeeDeathService;
 import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.DeathApprovalSpecification;
@@ -61,13 +62,13 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
     private StaffCategoriesRepository staffCategoriesRepository;
 
     @Autowired
-    private CompanyTypeRepository companyTypeRepository;
-
-    @Autowired
     private ApplicationUserRepository applicationUserRepository;
 
     @Autowired
     private WebUserRepository webUserRepository;
+
+    @Autowired
+    private CompanyAccessService companyAccessService;
 
     @Autowired
     private final DocumentStorageService documentStorageService;
@@ -128,7 +129,9 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
     public ResponseEntity<ApiResponse<Object>> request(EmployeeDeathRequestDTO employeeDeathRequestDTO, Locale locale) {
         try {
             log.info("Request death request {} ", employeeDeathRequestDTO);
-            return applicationUserRepository.findById(employeeDeathRequestDTO.getId()).map(user -> {
+            return applicationUserRepository.findById(employeeDeathRequestDTO.getId())
+                    .filter(user -> canAccess(user, employeeDeathRequestDTO.getUsername()))
+                    .map(user -> {
 
                 List<Document> uploadSupportingDocument = employeeDeathRequestDTO.getDocuments().stream().map(doc -> {
                     log.info("Upload supporting document from death request employeeId={}", employeeDeathRequestDTO.getId());
@@ -259,7 +262,9 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
 
     @Override
     public ResponseEntity<ApiResponse<Object>> view(ClaimRequestDTO claimRequestDTO, Locale locale) {
-        return deathClaimRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
+        return deathClaimRequestRepository.findById(claimRequestDTO.getId())
+                .filter(claimsRequest -> canAccess(claimsRequest.getEmployee(), claimRequestDTO.getUsername()))
+                .map(claimsRequest -> {
             DeathRequestResponseDTO deathRequestResponseDTO = deathApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
 
             com.dtech.admin.model.DeathBeneficiary deathBeneficiary = deathBeneficiaryRepository.
@@ -276,27 +281,21 @@ public class RequestEmployeeDeathServiceImpl implements RequestEmployeeDeathServ
     }
 
     private List<SimpleBaseDTO> getEligibleCompanies(String username) {
-        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+        return companyAccessService.activeCompanies(username).stream()
                 .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
                 .toList();
-
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
-                        .toList())
-                .orElse(defaultCompanies);
     }
 
     private Set<String> getEligibleCompanyCodes(String username) {
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> company.getCode())
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                        .map(company -> company.getCode())
-                        .collect(Collectors.toCollection(LinkedHashSet::new)));
+        return companyAccessService.activeCompanyCodes(username);
+    }
+
+    private boolean canAccess(ApplicationUser applicationUser, String username) {
+        return applicationUser != null
+                && applicationUser.getUserPersonalDetails() != null
+                && applicationUser.getUserPersonalDetails().getUserCompanyDetails() != null
+                && applicationUser.getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                applicationUser.getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 }

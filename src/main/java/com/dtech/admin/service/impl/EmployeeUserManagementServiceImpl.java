@@ -15,6 +15,7 @@ import com.dtech.admin.mapper.entityToDto.EmployeeUserMapperEntityToDto;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeUserManagementService;
 import com.dtech.admin.service.DocumentStorageService;
@@ -70,6 +71,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
 
     @Autowired
     private final CompanyTypeRepository companyTypeRepository;
+
+    @Autowired
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -214,28 +218,12 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     }
 
     private List<SimpleBaseDTO> getEligibleCompanies(String username) {
-        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                .toList();
-
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
-                        .toList())
-                .orElse(defaultCompanies);
+        return companyAccessService.activeCompanies(username).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription())).toList();
     }
 
     private Set<String> getEligibleCompanyCodes(String username) {
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> company.getCode())
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                        .map(company -> company.getCode())
-                        .collect(Collectors.toCollection(LinkedHashSet::new)));
+        return companyAccessService.activeCompanyCodes(username);
     }
 
 
@@ -244,7 +232,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     public ResponseEntity<ApiResponse<Object>> getDependents(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
         try {
             log.info("Get employee management dependent data {}", employeeManagementRequestDTO.getId());
-            return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(applicationUser -> {
+            return applicationUserRepository.findById(employeeManagementRequestDTO.getId())
+                    .filter(applicationUser -> canAccess(applicationUser, employeeManagementRequestDTO.getUsername()))
+                    .map(applicationUser -> {
 
                 List<DependentDetailsResponseDTO> dependentDetailsResponseDTOS = applicationUser.getClaimsDependents().stream()
                         .map(dependentDetailsMapperEntityToDto::mapDependentDetails).toList();
@@ -267,7 +257,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         try {
             log.info("Get fund limits data {}", employeeManagementRequestDTO.getId());
 
-            return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(user -> {
+            return applicationUserRepository.findById(employeeManagementRequestDTO.getId())
+                    .filter(user -> canAccess(user, employeeManagementRequestDTO.getUsername()))
+                    .map(user -> {
 
                 InsuranceStaffCategoryPeriod period = insuranceStaffCategoryPeriodRepository.findByDateWithinRange(
                         DateTimeUtil.getCurrentDateTime(),
@@ -414,7 +406,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     public ResponseEntity<ApiResponse<Object>> view(EmployeeManagementRequestDTO employeeManagementRequestDTO, Locale locale) {
         try {
             log.info("Employee management view details request: {}", employeeManagementRequestDTO.toString());
-            return resolveApplicationUserForStaffCategoryAction(employeeManagementRequestDTO.getId()).map(applicationUser -> {
+            return resolveApplicationUserForStaffCategoryAction(employeeManagementRequestDTO.getId())
+                    .filter(applicationUser -> canAccess(applicationUser, employeeManagementRequestDTO.getUsername()))
+                    .map(applicationUser -> {
 
                 ApplicationUserResponseDTO applicationUserResponseDTO = buildEmployeeResponse(applicationUser);
 
@@ -631,7 +625,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         try {
             log.info("Employee user status update request {}", employeeManagementRequestDTO);
 
-            return applicationUserRepository.findById(employeeManagementRequestDTO.getId()).map(applicationUser -> {
+            return applicationUserRepository.findById(employeeManagementRequestDTO.getId())
+                    .filter(applicationUser -> canAccess(applicationUser, employeeManagementRequestDTO.getUsername()))
+                    .map(applicationUser -> {
                 boolean changed = false;
 
                 if (hasText(employeeManagementRequestDTO.getLoginStatus())) {
@@ -698,7 +694,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         try {
             log.info("Staff category {} request {}", transferOnly ? "transfer" : "update", employeeManagementRequestDTO);
 
-            return resolveStaffCategoryTarget(employeeManagementRequestDTO.getId()).map(target -> {
+            return resolveStaffCategoryTarget(employeeManagementRequestDTO.getId())
+                    .filter(target -> canAccess(target.employee(), employeeManagementRequestDTO.getUsername()))
+                    .map(target -> {
                 log.info("Employee details staff category old audit start");
                 return staffCategoriesRepository.findByCodeAndStatus(employeeManagementRequestDTO.getStaffCategory(), Status.ACTIVE).map(staffCategories -> {
                     log.info("Employee details staff category old audit end");
@@ -820,6 +818,18 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         return resolveStaffCategoryTarget(id)
                 .map(StaffCategoryTarget::applicationUser)
                 .filter(Objects::nonNull);
+    }
+
+    private boolean canAccess(ApplicationUser applicationUser, String username) {
+        return applicationUser != null && canAccess(applicationUser.getUserPersonalDetails(), username);
+    }
+
+    private boolean canAccess(UserPersonalDetails employee, String username) {
+        return employee != null
+                && employee.getUserCompanyDetails() != null
+                && employee.getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                employee.getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private record StaffCategoryTarget(ApplicationUser applicationUser, UserPersonalDetails employee) {

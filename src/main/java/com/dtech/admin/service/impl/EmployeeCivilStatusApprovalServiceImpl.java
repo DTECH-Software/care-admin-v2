@@ -15,11 +15,11 @@ import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.ApplicationUserRepository;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.MaritalStatusRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.repository.WebUserRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeCivilStatusApprovalService;
 import com.dtech.admin.service.MessageService;
@@ -78,9 +78,9 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     @Autowired
     private ApplicationUserRepository applicationUserRepository;
     @Autowired
-    private CompanyTypeRepository companyTypeRepository;
-    @Autowired
     private WebUserRepository webUserRepository;
+    @Autowired
+    private CompanyAccessService companyAccessService;
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
@@ -160,28 +160,13 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     }
 
     private List<SimpleBaseDTO> getEligibleCompanies(String username) {
-        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+        return companyAccessService.activeCompanies(username).stream()
                 .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
                 .toList();
-
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
-                        .toList())
-                .orElse(defaultCompanies);
     }
 
     private Set<String> getEligibleCompanyCodes(String username) {
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> company.getCode())
-                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
-                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                        .map(company -> company.getCode())
-                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+        return companyAccessService.activeCompanyCodes(username);
     }
 
     @Override
@@ -190,7 +175,9 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
         try {
             log.info("Image request {} ", civilStatusApprovalRequestDTO);
 
-            return maritalStatusRepository.findById(civilStatusApprovalRequestDTO.getId()).map(maritalStatus -> {
+            return maritalStatusRepository.findById(civilStatusApprovalRequestDTO.getId())
+                    .filter(maritalStatus -> canAccess(maritalStatus, civilStatusApprovalRequestDTO.getUsername()))
+                    .map(maritalStatus -> {
 
                 MaritalStatusApprovalResponseDTO maritalStatusApprovalResponseDTO = civilStatusChangeStatusApprovalEntityToDto
                         .mapCivilStatusApproval(maritalStatus);
@@ -216,7 +203,9 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
        try {
            log.info("Update status request {} ", civilStatusApprovalRequestDTO);
 
-           return maritalStatusRepository.findById(civilStatusApprovalRequestDTO.getId()).map(maritalStatus -> {
+           return maritalStatusRepository.findById(civilStatusApprovalRequestDTO.getId())
+                   .filter(maritalStatus -> canAccess(maritalStatus, civilStatusApprovalRequestDTO.getUsername()))
+                   .map(maritalStatus -> {
                Workflow previousStatus = maritalStatus.getStatus();
 
                maritalStatus.setStatus(Workflow.valueOf(civilStatusApprovalRequestDTO.getStatus()));
@@ -313,6 +302,16 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
                     return personalDetails != null ? personalDetails.getMobileNo() : null;
                 })
                 .orElse(null);
+    }
+
+    private boolean canAccess(com.dtech.admin.model.MaritalStatus maritalStatus, String username) {
+        return maritalStatus != null
+                && maritalStatus.getApplicationUser() != null
+                && maritalStatus.getApplicationUser().getUserPersonalDetails() != null
+                && maritalStatus.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails() != null
+                && maritalStatus.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                maritalStatus.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
 

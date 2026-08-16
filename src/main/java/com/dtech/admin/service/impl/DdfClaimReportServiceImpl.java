@@ -19,10 +19,11 @@ import com.dtech.admin.model.ClaimsDependents;
 import com.dtech.admin.model.DeathClaimRequest;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.DeathClaimRequestRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DdfClaimReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.DdfClaimReportSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
@@ -37,6 +38,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -70,7 +72,7 @@ public class DdfClaimReportServiceImpl implements DdfClaimReportService {
     private final Gson gson;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final DeathClaimRequestRepository deathClaimRequestRepository;
@@ -93,7 +95,7 @@ public class DdfClaimReportServiceImpl implements DdfClaimReportService {
                     new SimpleBaseDTO(Workflow.REJECTED.name(), Workflow.REJECTED.getDescription())
             );
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(com.dtech.admin.enums.Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             responseMap.put("privileges", privileges);
@@ -122,13 +124,9 @@ public class DdfClaimReportServiceImpl implements DdfClaimReportService {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
             DdfClaimReportSearchDTO search = paginationRequest.getSearch();
-            Page<DeathClaimRequest> claimsPage = Objects.nonNull(search)
-                    ? deathClaimRequestRepository.findAll(DdfClaimReportSpecification.getSpecification(search), pageable)
-                    : deathClaimRequestRepository.findAll(DdfClaimReportSpecification.getSpecification(), pageable);
-
-            long totalElements = Objects.nonNull(search)
-                    ? deathClaimRequestRepository.count(DdfClaimReportSpecification.getSpecification(search))
-                    : deathClaimRequestRepository.count(DdfClaimReportSpecification.getSpecification());
+            Specification<DeathClaimRequest> specification = scopedSpecification(search, paginationRequest.getUsername());
+            Page<DeathClaimRequest> claimsPage = deathClaimRequestRepository.findAll(specification, pageable);
+            long totalElements = deathClaimRequestRepository.count(specification);
 
             List<DeathRequestResponseDTO> rows = claimsPage.stream()
                     .map(claim -> {
@@ -157,7 +155,8 @@ public class DdfClaimReportServiceImpl implements DdfClaimReportService {
     public ResponseEntity<ApiResponse<Object>> view(DdfClaimReportRequestDTO requestDTO, Locale locale) {
         try {
             log.info("DDF claim report view {}", requestDTO);
-            return deathClaimRequestRepository.findById(requestDTO.getId()).map(claim -> {
+            return deathClaimRequestRepository.findById(requestDTO.getId())
+                    .filter(claim -> canAccess(claim, requestDTO.getUsername())).map(claim -> {
                 DeathRequestResponseDTO row = deathApprovalEntityToDto.mapClaimsApproval(claim, false);
                 stripDocuments(row);
                 auditLogService.log(PAGE_DDF_CLAIM_REPORT, WebTask.VIEW.name(),
@@ -184,9 +183,8 @@ public class DdfClaimReportServiceImpl implements DdfClaimReportService {
             log.info("DDF claim report export {}", paginationRequest);
             DdfClaimReportSearchDTO search = paginationRequest.getSearch();
 
-            List<DeathClaimRequest> claims = Objects.nonNull(search)
-                    ? deathClaimRequestRepository.findAll(DdfClaimReportSpecification.getSpecification(search))
-                    : deathClaimRequestRepository.findAll(DdfClaimReportSpecification.getSpecification());
+            List<DeathClaimRequest> claims = deathClaimRequestRepository.findAll(
+                    scopedSpecification(search, paginationRequest.getUsername()));
 
             List<DdfClaimReportRowDTO> rows = claims.stream()
                     .map(this::mapRow)
@@ -238,6 +236,22 @@ public class DdfClaimReportServiceImpl implements DdfClaimReportService {
         dto.setCreatedDate(claim.getCreatedDate());
         dto.setApprovedAmount(claim.getApprovedAmount());
         return dto;
+    }
+
+    private Specification<DeathClaimRequest> scopedSpecification(DdfClaimReportSearchDTO search, String username) {
+        Specification<DeathClaimRequest> requested = search == null
+                ? DdfClaimReportSpecification.getSpecification()
+                : DdfClaimReportSpecification.getSpecification(search);
+        return requested.and(CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+    }
+
+    private boolean canAccess(DeathClaimRequest claim, String username) {
+        return claim.getEmployee() != null && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username, claim.getEmployee().getUserPersonalDetails()
+                .getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private void stripDocuments(DeathRequestResponseDTO dto) {

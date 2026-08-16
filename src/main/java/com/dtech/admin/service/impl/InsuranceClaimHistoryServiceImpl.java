@@ -17,8 +17,10 @@ import com.dtech.admin.mapper.entityToDto.ClaimsApprovalEntityToDto;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.InsuranceClaimHistoryService;
 import com.dtech.admin.specifications.ClaimsApprovalSpecification;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,7 +74,7 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
     private final RemarkRepository remarkRepository;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -103,7 +106,7 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
             List<SimpleBaseDTO> relationCategory = Arrays.stream(RelationCategory.values())
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream().map(
+            List<SimpleBaseDTO> companyTypes = companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream().map(
                     val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream().map(
@@ -135,13 +138,15 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
-            Page<InsuranceClaimsRequest> insuranceClaimsRequests = Objects.nonNull(paginationRequest.getSearch()) ?
-                    insuranceClaimsRequestRepository.findAll(ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(),true), pageable) :
-                    insuranceClaimsRequestRepository.findAll(ClaimsApprovalSpecification.getSpecification(true), pageable);
+            Specification<InsuranceClaimsRequest> specification = Objects.nonNull(paginationRequest.getSearch())
+                    ? ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(), true)
+                    : ClaimsApprovalSpecification.getSpecification(true);
+            specification = specification.and(CompanyScopeSpecification.companyCodeIn(
+                    companyAccessService.activeCompanyCodes(paginationRequest.getUsername()),
+                    "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+            Page<InsuranceClaimsRequest> insuranceClaimsRequests = insuranceClaimsRequestRepository.findAll(specification, pageable);
             log.info("Insurance claims  filter records {}", insuranceClaimsRequests);
-            long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    insuranceClaimsRequestRepository.count(ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(),true)) :
-                    insuranceClaimsRequestRepository.count(ClaimsApprovalSpecification.getSpecification(true));
+            long totalElements = insuranceClaimsRequestRepository.count(specification);
             log.info("Insurance claims filter records map start");
 
             List<ClaimsRequestResponseDTO> responseDTOList = insuranceClaimsRequests.stream()
@@ -163,7 +168,9 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
     public ResponseEntity<ApiResponse<Object>> view(ClaimRequestDTO claimRequestDTO, Locale locale) {
         try {
             log.info("Claims history request details view {}", claimRequestDTO);
-            return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
+            return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claimsRequest -> canAccess(claimsRequest, claimRequestDTO.getUsername()))
+                    .map(claimsRequest -> {
                 ClaimsRequestResponseDTO claimsRequestResponseDTO =
                         applyClaimStaffCategoryToEmployee(claimsApprovalEntityToDto.mapClaimsApproval(claimsRequest, true));
                 List<String> newAuditList = customerApprovalAuditMapper.mapToDTOAudit(List.of(claimsRequest));
@@ -196,5 +203,15 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
                 .getUserCompanyDetails()
                 .setStaffCategories(new SimpleBaseDTO(dto.getStaffCategoryCode(), dto.getStaffCategoryDescription()));
         return dto;
+    }
+
+    private boolean canAccess(InsuranceClaimsRequest claim, String username) {
+        return claim != null
+                && claim.getEmployee() != null
+                && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 }

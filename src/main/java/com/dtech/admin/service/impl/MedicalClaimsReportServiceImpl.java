@@ -35,7 +35,6 @@ import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.PaymentAdviceAttachmentRepository;
 import com.dtech.admin.repository.PaymentAttachmentClaimRepository;
@@ -45,7 +44,9 @@ import com.dtech.admin.repository.ThirdPartyIndoorClaimImportRowRepository;
 import com.dtech.admin.repository.TreatmentCategoryRepository;
 import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.MedicalClaimsReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.MedicalClaimsReportSpecification;
 import com.dtech.admin.util.DateTimeUtil;
 import com.dtech.admin.util.CommonPrivilegeGetter;
@@ -71,6 +72,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -133,7 +135,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
     private final RemarkRepository remarkRepository;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -176,7 +178,7 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
                     new SimpleBaseDTO("NOT_GENERATED", "Not Generated")
             );
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+            List<SimpleBaseDTO> companyTypes = companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream()
                     .map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream()
@@ -212,14 +214,9 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
             ClaimRequestSearchDTO search = paginationRequest.getSearch();
-
-            Page<InsuranceClaimsRequest> claimsPage = Objects.nonNull(search)
-                    ? insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification(search), pageable)
-                    : insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification(), pageable);
-
-            long totalElements = Objects.nonNull(search)
-                    ? insuranceClaimsRequestRepository.count(MedicalClaimsReportSpecification.getSpecification(search))
-                    : insuranceClaimsRequestRepository.count(MedicalClaimsReportSpecification.getSpecification());
+            Specification<InsuranceClaimsRequest> specification = scopedSpecification(search, paginationRequest.getUsername());
+            Page<InsuranceClaimsRequest> claimsPage = insuranceClaimsRequestRepository.findAll(specification, pageable);
+            long totalElements = insuranceClaimsRequestRepository.count(specification);
 
             List<InsuranceClaimsRequest> claims = claimsPage.getContent();
             Map<Long, String> paymentAdviceStatusMap = getPaymentAdviceStatusMap(claims);
@@ -256,7 +253,8 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
     public ResponseEntity<ApiResponse<Object>> view(ClaimRequestDTO claimRequestDTO, Locale locale) {
         try {
             log.info("Medical claims report view {}", claimRequestDTO);
-            return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
+            return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claim -> canAccess(claim, claimRequestDTO.getUsername())).map(claimsRequest -> {
                 boolean settled = paymentAttachmentClaimRepository
                         .existsByInsuranceClaimsRequestAndPaymentAttachment_Status(claimsRequest, PaymentAttachmentStatus.FINALIZED);
                 boolean thirdPartySettled = thirdPartyIndoorClaimImportRowRepository
@@ -297,9 +295,8 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             log.info("Medical claims report export {}", paginationRequest);
             ClaimRequestSearchDTO search = paginationRequest.getSearch();
 
-            List<InsuranceClaimsRequest> claims = Objects.nonNull(search)
-                    ? insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification(search))
-                    : insuranceClaimsRequestRepository.findAll(MedicalClaimsReportSpecification.getSpecification());
+            List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository.findAll(
+                    scopedSpecification(search, paginationRequest.getUsername()));
 
             byte[] excelBytes = buildExcel(claims);
 
@@ -316,6 +313,22 @@ public class MedicalClaimsReportServiceImpl implements MedicalClaimsReportServic
             log.error("Failed to export medical claims report", e);
             throw e;
         }
+    }
+
+    private Specification<InsuranceClaimsRequest> scopedSpecification(ClaimRequestSearchDTO search, String username) {
+        Specification<InsuranceClaimsRequest> requested = search == null
+                ? MedicalClaimsReportSpecification.getSpecification()
+                : MedicalClaimsReportSpecification.getSpecification(search);
+        return requested.and(CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+    }
+
+    private boolean canAccess(InsuranceClaimsRequest claim, String username) {
+        return claim.getEmployee() != null && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username, claim.getEmployee().getUserPersonalDetails()
+                .getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private byte[] buildExcel(List<InsuranceClaimsRequest> rows) {

@@ -20,10 +20,11 @@ import com.dtech.admin.model.ClaimsDependents;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
 import com.dtech.admin.repository.ClaimDependentsRepository;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DependentReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.DependentReportSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
@@ -39,6 +40,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -72,7 +74,7 @@ public class DependentReportServiceImpl implements DependentReportService {
     private final Gson gson;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -97,7 +99,7 @@ public class DependentReportServiceImpl implements DependentReportService {
                     .map(val -> new SimpleBaseDTO(val.name(), val.getDescription()))
                     .toList();
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(com.dtech.admin.enums.Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(com.dtech.admin.enums.Status.ACTIVE)
@@ -130,13 +132,9 @@ public class DependentReportServiceImpl implements DependentReportService {
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
             DependentReportSearchDTO search = paginationRequest.getSearch();
-            Page<ClaimsDependents> dependentsPage = Objects.nonNull(search)
-                    ? claimDependentsRepository.findAll(DependentReportSpecification.getSpecification(search), pageable)
-                    : claimDependentsRepository.findAll(DependentReportSpecification.getSpecification(), pageable);
-
-            long totalElements = Objects.nonNull(search)
-                    ? claimDependentsRepository.count(DependentReportSpecification.getSpecification(search))
-                    : claimDependentsRepository.count(DependentReportSpecification.getSpecification());
+            Specification<ClaimsDependents> specification = scopedSpecification(search, paginationRequest.getUsername());
+            Page<ClaimsDependents> dependentsPage = claimDependentsRepository.findAll(specification, pageable);
+            long totalElements = claimDependentsRepository.count(specification);
 
             List<DependentDetailsResponseDTO> rows = dependentsPage.stream()
                     .map(dependentDetailsMapperEntityToDto::mapDependentDetails)
@@ -162,7 +160,8 @@ public class DependentReportServiceImpl implements DependentReportService {
     public ResponseEntity<ApiResponse<Object>> view(DependentRequestDTO dependentRequestDTO, Locale locale) {
         try {
             log.info("Dependent report view {}", dependentRequestDTO);
-            return claimDependentsRepository.findById(dependentRequestDTO.getId()).map(dependent -> {
+            return claimDependentsRepository.findById(dependentRequestDTO.getId())
+                    .filter(dependent -> canAccess(dependent, dependentRequestDTO.getUsername())).map(dependent -> {
                 DependentDetailsResponseDTO responseDTO = dependentDetailsMapperEntityToDto.mapDependentDetails(dependent);
                 responseDTO = stripDependentDocuments(responseDTO);
                 auditLogService.log(PAGE_DEPENDENT_REPORT, WebTask.VIEW.name(),
@@ -189,9 +188,8 @@ public class DependentReportServiceImpl implements DependentReportService {
             log.info("Dependent report export {}", paginationRequest);
             DependentReportSearchDTO search = paginationRequest.getSearch();
 
-            List<ClaimsDependents> dependents = Objects.nonNull(search)
-                    ? claimDependentsRepository.findAll(DependentReportSpecification.getSpecification(search))
-                    : claimDependentsRepository.findAll(DependentReportSpecification.getSpecification());
+            List<ClaimsDependents> dependents = claimDependentsRepository.findAll(
+                    scopedSpecification(search, paginationRequest.getUsername()));
 
             List<DependentReportRowDTO> rows = dependents.stream()
                     .map(this::mapRow)
@@ -304,6 +302,23 @@ public class DependentReportServiceImpl implements DependentReportService {
                 // Keep provided sort column.
             }
         }
+    }
+
+    private Specification<ClaimsDependents> scopedSpecification(DependentReportSearchDTO search, String username) {
+        Specification<ClaimsDependents> requested = search == null
+                ? DependentReportSpecification.getSpecification()
+                : DependentReportSpecification.getSpecification(search);
+        return requested.and(CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                "applicationUser", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+    }
+
+    private boolean canAccess(ClaimsDependents dependent, String username) {
+        return dependent.getApplicationUser() != null
+                && dependent.getApplicationUser().getUserPersonalDetails() != null
+                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails() != null
+                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username, dependent.getApplicationUser().getUserPersonalDetails()
+                .getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private String buildEmployeeName(UserPersonalDetails details) {

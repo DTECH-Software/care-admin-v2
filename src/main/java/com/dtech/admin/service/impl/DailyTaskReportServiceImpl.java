@@ -38,6 +38,7 @@ import com.dtech.admin.repository.PaymentAdviceRepository;
 import com.dtech.admin.repository.PaymentAttachmentClaimRepository;
 import com.dtech.admin.repository.PaymentAttachmentRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DailyTaskReportService;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
@@ -142,6 +143,9 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
     @Autowired
     private final ChequePaymentDdfRepository chequePaymentDdfRepository;
 
+    @Autowired
+    private final CompanyAccessService companyAccessService;
+
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
@@ -176,7 +180,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                                                           Locale locale) {
         try {
             log.info("Daily task report filter list {}", paginationRequest);
-            DailyTaskReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
+            DailyTaskReportResponseDTO responseDTO = buildReport(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
 
             auditLogService.log(PAGE_DAILY_TASK_REPORT, WebTask.SEARCH.name(),
                     AuditTask.SEARCH_FILTER.getDescription(), paginationRequest.getIp(),
@@ -196,7 +201,8 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                                          Locale locale) {
         try {
             log.info("Daily task report export {}", paginationRequest);
-            DailyTaskReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
+            DailyTaskReportResponseDTO responseDTO = buildReport(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             byte[] excelBytes = buildExcel(responseDTO);
 
             auditLogService.log(PAGE_DAILY_TASK_REPORT, WebTask.VIEW.name(),
@@ -215,25 +221,25 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         }
     }
 
-    private DailyTaskReportResponseDTO buildReport(DailyTaskReportSearchDTO search) {
+    private DailyTaskReportResponseDTO buildReport(DailyTaskReportSearchDTO search, String username) {
         DateRange dateRange = resolveDateRange(search);
         String claimType = normalizeClaimType(search);
 
         DailyTaskReportResponseDTO dto = new DailyTaskReportResponseDTO();
         dto.setPeriod(dateRange.periodText());
-        dto.setMedical(CLAIM_TYPE_DEATH.equals(claimType) ? null : buildMedicalRow(dateRange, search));
-        dto.setDdf(CLAIM_TYPE_MEDICAL.equals(claimType) ? null : buildDdfRow(dateRange, search));
+        dto.setMedical(CLAIM_TYPE_DEATH.equals(claimType) ? null : buildMedicalRow(dateRange, search, username));
+        dto.setDdf(CLAIM_TYPE_MEDICAL.equals(claimType) ? null : buildDdfRow(dateRange, search, username));
         return dto;
     }
 
-    private DailyTaskMedicalRowDTO buildMedicalRow(DateRange dateRange, DailyTaskReportSearchDTO search) {
+    private DailyTaskMedicalRowDTO buildMedicalRow(DateRange dateRange, DailyTaskReportSearchDTO search, String username) {
         List<InsuranceClaimsRequest> receivedClaims = insuranceClaimsRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(claim -> matchesCompany(claim, search))
+                .filter(claim -> matchesCompany(claim, search, username))
                 .toList();
 
         List<InsuranceClaimsRequest> allClaims = insuranceClaimsRequestRepository.findAll().stream()
-                .filter(claim -> matchesCompany(claim, search))
+                .filter(claim -> matchesCompany(claim, search, username))
                 .toList();
 
         DailyTaskReportStageDTO firstCheckComplete = workflowStage(allClaims, ApprovalLevel.LEVEL01,
@@ -253,7 +259,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
 
         List<PaymentAttachmentClaim> createdAttachmentClaims = paymentAttachmentClaimRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search))
+                .filter(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search, username))
                 .toList();
         DailyTaskReportStageDTO preparePaymentAttachments = stagePaymentAttachments(createdAttachmentClaims);
 
@@ -261,13 +267,13 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
                 .filter(adviceAttachment -> PaymentAdviceType.MEDICAL.equals(adviceAttachment.getPaymentAdvice().getType()))
                 .filter(adviceAttachment -> adviceAttachment.getPaymentAttachment().getClaims().stream()
-                        .anyMatch(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search)))
+                        .anyMatch(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search, username)))
                 .toList();
         DailyTaskReportStageDTO paymentsCompleted = stagePaymentAdvices(adviceAttachments);
 
         List<PaymentAttachmentClaim> pendingPaymentClaims = paymentAttachmentClaimRepository.findAll().stream()
                 .filter(claim -> PaymentAttachmentClaimState.ACTIVE.equals(claim.getState()))
-                .filter(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search))
+                .filter(claim -> matchesCompany(claim.getInsuranceClaimsRequest(), search, username))
                 .filter(claim -> claim.getPaymentAttachment() != null)
                 .filter(claim -> !paymentAdviceAttachmentRepository.existsByPaymentAttachment(claim.getPaymentAttachment()))
                 .toList();
@@ -302,14 +308,14 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         return row;
     }
 
-    private DailyTaskDdfRowDTO buildDdfRow(DateRange dateRange, DailyTaskReportSearchDTO search) {
+    private DailyTaskDdfRowDTO buildDdfRow(DateRange dateRange, DailyTaskReportSearchDTO search, String username) {
         List<DeathClaimRequest> receivedClaims = deathClaimRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(claim -> matchesCompany(claim, search))
+                .filter(claim -> matchesCompany(claim, search, username))
                 .toList();
 
         List<DeathClaimRequest> allClaims = deathClaimRequestRepository.findAll().stream()
-                .filter(claim -> matchesCompany(claim, search))
+                .filter(claim -> matchesCompany(claim, search, username))
                 .toList();
 
         DailyTaskReportStageDTO firstCheckComplete = workflowStageDeath(allClaims, ApprovalLevel.LEVEL01,
@@ -341,7 +347,7 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
 
         List<PaymentAdviceDeathClaim> adviceClaims = paymentAdviceDeathClaimRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
-                .filter(adviceClaim -> matchesCompany(adviceClaim.getDeathClaim(), search))
+                .filter(adviceClaim -> matchesCompany(adviceClaim.getDeathClaim(), search, username))
                 .toList();
         DailyTaskReportStageDTO handoverToAuthorizedPerson = stageByUser(adviceClaims.stream()
                 .map(adviceClaim -> new StageEntry(resolveCreatedUser(adviceClaim.getPaymentAdvice()),
@@ -349,13 +355,15 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
                 .toList());
 
         List<PaymentAdvice> deathAdvices = paymentAdviceRepository
-                .findAllByCreatedDateBetweenAndType(dateRange.startOfDay(), dateRange.endOfDay(), PaymentAdviceType.DEATH);
+                .findAllByCreatedDateBetweenAndType(dateRange.startOfDay(), dateRange.endOfDay(), PaymentAdviceType.DEATH).stream()
+                .filter(advice -> matchesCompanyCode(advice.getCompanyCode(), search, username)).toList();
         DailyTaskReportStageDTO paymentAdviceChecked = stageByUser(deathAdvices.stream()
                 .map(advice -> new StageEntry(resolveCreatedUser(advice), advice.getAdviceNo()))
                 .toList());
 
         List<ChequePaymentDdf> ddfChequePayments = chequePaymentDdfRepository
-                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay());
+                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
+                .filter(payment -> matchesCompanyCode(payment.getCompanyCode(), search, username)).toList();
         DailyTaskReportStageDTO paymentsCompleted = stageDdfPaymentsCompleted(adviceClaims, rejectedPaymentPendingTotal);
 
         DailyTaskDdfRowDTO row = new DailyTaskDdfRowDTO();
@@ -723,28 +731,26 @@ public class DailyTaskReportServiceImpl implements DailyTaskReportService {
         return new DailyTaskReportStageDTO(0, "");
     }
 
-    private boolean matchesCompany(InsuranceClaimsRequest claim, DailyTaskReportSearchDTO search) {
-        if (claim == null || search == null || !hasText(search.getCompanyCode())) {
-            return true;
-        }
-        return claim.getEmployee() != null
-                && claim.getEmployee().getUserPersonalDetails() != null
+    private boolean matchesCompany(InsuranceClaimsRequest claim, DailyTaskReportSearchDTO search, String username) {
+        String code = claim != null && claim.getEmployee() != null && claim.getEmployee().getUserPersonalDetails() != null
                 && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
                 && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
-                && search.getCompanyCode().equalsIgnoreCase(
-                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
+                ? claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode() : null;
+        return matchesCompanyCode(code, search, username);
     }
 
-    private boolean matchesCompany(DeathClaimRequest claim, DailyTaskReportSearchDTO search) {
-        if (claim == null || search == null || !hasText(search.getCompanyCode())) {
-            return true;
-        }
-        return claim.getEmployee() != null
-                && claim.getEmployee().getUserPersonalDetails() != null
+    private boolean matchesCompany(DeathClaimRequest claim, DailyTaskReportSearchDTO search, String username) {
+        String code = claim != null && claim.getEmployee() != null && claim.getEmployee().getUserPersonalDetails() != null
                 && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
                 && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
-                && search.getCompanyCode().equalsIgnoreCase(
-                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
+                ? claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode() : null;
+        return matchesCompanyCode(code, search, username);
+    }
+
+    private boolean matchesCompanyCode(String companyCode, DailyTaskReportSearchDTO search, String username) {
+        if (!companyAccessService.canAccess(username, companyCode)) return false;
+        return search == null || !hasText(search.getCompanyCode())
+                || search.getCompanyCode().equalsIgnoreCase(companyCode);
     }
 
     private String resolveApprovedUser(ApprovalWorkFlow workflow) {

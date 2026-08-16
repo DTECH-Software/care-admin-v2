@@ -22,12 +22,12 @@ import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.TreatmentCategoryRepository;
 import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ClaimStatusReportService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
@@ -99,7 +99,7 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
     private final InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final TreatmentRepository treatmentRepository;
@@ -124,7 +124,7 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
             responseMap.put("claimStatus", Arrays.stream(Workflow.values())
                     .map(status -> new SimpleBaseDTO(status.name(), status.getDescription()))
                     .toList());
-            responseMap.put("company", companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+            responseMap.put("company", companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream()
                     .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
                     .toList());
             responseMap.put("staffCategories", staffCategoryResolver.loadReferenceCategories());
@@ -154,7 +154,8 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
                                                           Locale locale) {
         try {
             log.info("Claim status report filter list {}", paginationRequest);
-            List<ClaimStatusReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<ClaimStatusReportRowDTO> rows = resolveRows(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             List<ClaimStatusReportRowDTO> pagedRows = paginate(rows, paginationRequest);
             PagingResult<ClaimStatusReportRowDTO> result = new PagingResult<>(pagedRows, pagedRows.size(), rows.size());
 
@@ -175,7 +176,8 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
     public ResponseEntity<byte[]> export(PaginationRequest<ClaimStatusReportSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Claim status report export {}", paginationRequest);
-            List<ClaimStatusReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<ClaimStatusReportRowDTO> rows = resolveRows(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             byte[] excelBytes = buildExcel(rows);
 
             auditLogService.log(PAGE_CLAIM_STATUS_REPORT, WebTask.VIEW.name(),
@@ -193,14 +195,21 @@ public class ClaimStatusReportServiceImpl implements ClaimStatusReportService {
         }
     }
 
-    private List<ClaimStatusReportRowDTO> resolveRows(ClaimStatusReportSearchDTO search) {
+    private List<ClaimStatusReportRowDTO> resolveRows(ClaimStatusReportSearchDTO search, String username) {
         DateRange dateRange = resolveDateRange(search);
         Map<String, String> staffCategoryDescriptions = staffCategoryResolver.loadDescriptionMap();
         return insuranceClaimsRequestRepository.findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
+                .filter(claim -> companyAccessService.canAccess(username, resolveCompanyCode(claim)))
                 .filter(claim -> matchesFilters(claim, search))
                 .sorted(Comparator.comparing(InsuranceClaimsRequest::getCreatedDate, Comparator.nullsLast(Date::compareTo)))
                 .map(claim -> mapRow(claim, staffCategoryDescriptions))
                 .toList();
+    }
+
+    private String resolveCompanyCode(InsuranceClaimsRequest claim) {
+        return Optional.ofNullable(claim).map(InsuranceClaimsRequest::getEmployee)
+                .map(employee -> employee.getUserPersonalDetails()).map(UserPersonalDetails::getUserCompanyDetails)
+                .map(UserCompanyDetails::getCompanyTypes).map(CompanyTypes::getCode).orElse(null);
     }
 
     private boolean matchesFilters(InsuranceClaimsRequest claim, ClaimStatusReportSearchDTO search) {

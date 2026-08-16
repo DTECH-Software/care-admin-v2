@@ -28,14 +28,15 @@ import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.InsuranceDetailsLimit;
 import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.repository.ApplicationUserRepository;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.InsuranceDetailsLimitRepository;
 import com.dtech.admin.repository.InsuranceQuarterRepository;
 import com.dtech.admin.repository.InsuranceStaffCategoryPeriodRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmployeeSummaryService;
 import com.dtech.admin.specifications.EmployeeSummarySpecification;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
 import com.dtech.admin.util.ApprovalRemarkUtil;
@@ -48,6 +49,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,7 +90,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
     private final InsuranceQuarterRepository insuranceQuarterRepository;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final MessageSource messageSource;
@@ -118,7 +120,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
             AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter
                     .getPrivileges(channelRequestDTO.getUsername(), WebPage.SUMM_EMPV.name());
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+            List<SimpleBaseDTO> companyTypes = companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream()
                     .map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription()))
                     .toList();
 
@@ -148,7 +150,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
     public ResponseEntity<ApiResponse<Object>> getEmployeeName(EmployeeSummaryRequestDTO requestDTO, Locale locale) {
         try {
             log.info("Employee summary employee lookup {}", requestDTO);
-            Optional<ApplicationUser> employeeOpt = findEmployee(requestDTO.getCompany(), requestDTO.getEpfNo());
+            Optional<ApplicationUser> employeeOpt = companyAccessService.canAccess(requestDTO.getUsername(), requestDTO.getCompany())
+                    ? findEmployee(requestDTO.getCompany(), requestDTO.getEpfNo())
+                    : Optional.empty();
             if (employeeOpt.isEmpty()) {
                 return ResponseEntity.ok().body(responseUtil.error(null, 404,
                         messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_SUMMARY_EMPLOYEE_NOT_FOUND, null, locale)));
@@ -190,9 +194,12 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
             EmployeeSummarySearchDTO search = Optional.ofNullable(paginationRequest.getSearch())
                     .orElseGet(EmployeeSummarySearchDTO::new);
 
-            Page<InsuranceClaimsRequest> page = insuranceClaimsRequestRepository.findAll(
-                    EmployeeSummarySpecification.getSpecification(search), pageable);
-            long total = insuranceClaimsRequestRepository.count(EmployeeSummarySpecification.getSpecification(search));
+            Specification<InsuranceClaimsRequest> specification = EmployeeSummarySpecification.getSpecification(search)
+                    .and(CompanyScopeSpecification.companyCodeIn(
+                            companyAccessService.activeCompanyCodes(paginationRequest.getUsername()),
+                            "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+            Page<InsuranceClaimsRequest> page = insuranceClaimsRequestRepository.findAll(specification, pageable);
+            long total = insuranceClaimsRequestRepository.count(specification);
 
             List<EmployeeSummaryClaimRowDTO> rows = page.stream()
                     .map(this::mapClaimRow)
@@ -200,7 +207,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
 
             PagingResult<EmployeeSummaryClaimRowDTO> result = new PagingResult<>(rows, rows.size(), total);
 
-            List<EmployeeSummaryBalanceRowDTO> balances = resolveBalances(search);
+            List<EmployeeSummaryBalanceRowDTO> balances = resolveBalances(search, paginationRequest.getUsername());
             Map<String, Object> responseMap = new HashMap<>();
             responseMap.put("claims", result);
             responseMap.put("balances", balances);
@@ -222,7 +229,9 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
     public ResponseEntity<ApiResponse<Object>> getTreatmentBalances(EmployeeSummaryRequestDTO requestDTO, Locale locale) {
         try {
             log.info("Employee summary treatment balances {}", requestDTO);
-            Optional<ApplicationUser> employeeOpt = findEmployee(requestDTO.getCompany(), requestDTO.getEpfNo());
+            Optional<ApplicationUser> employeeOpt = companyAccessService.canAccess(requestDTO.getUsername(), requestDTO.getCompany())
+                    ? findEmployee(requestDTO.getCompany(), requestDTO.getEpfNo())
+                    : Optional.empty();
             if (employeeOpt.isEmpty()) {
                 return ResponseEntity.ok().body(responseUtil.error(null, 404,
                         messageSource.getMessage(ResponseMessageUtil.EMPLOYEE_SUMMARY_EMPLOYEE_NOT_FOUND, null, locale)));
@@ -256,6 +265,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         try {
             log.info("Employee summary view {}", requestDTO);
             InsuranceClaimsRequest claim = insuranceClaimsRequestRepository.findById(requestDTO.getId())
+                    .filter(value -> canAccess(value, requestDTO.getUsername()))
                     .orElse(null);
             if (claim == null) {
                 return ResponseEntity.ok().body(responseUtil.error(null, 404,
@@ -296,8 +306,11 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                         .thenComparing(ApplicationUser::getId, Comparator.nullsFirst(Comparator.naturalOrder())));
     }
 
-    private List<EmployeeSummaryBalanceRowDTO> resolveBalances(EmployeeSummarySearchDTO search) {
+    private List<EmployeeSummaryBalanceRowDTO> resolveBalances(EmployeeSummarySearchDTO search, String username) {
         if (search == null || !hasText(search.getCompany()) || !hasText(search.getEpfNo()) || search.getPeriodId() == null) {
+            return List.of();
+        }
+        if (!companyAccessService.canAccess(username, search.getCompany())) {
             return List.of();
         }
         Optional<ApplicationUser> employeeOpt = findEmployee(search.getCompany(), search.getEpfNo());
@@ -318,6 +331,16 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
             return List.of();
         }
         return buildBalanceRows(employee, period);
+    }
+
+    private boolean canAccess(InsuranceClaimsRequest claim, String username) {
+        return claim != null
+                && claim.getEmployee() != null
+                && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private EmployeeSummaryClaimRowDTO mapClaimRow(InsuranceClaimsRequest claim) {

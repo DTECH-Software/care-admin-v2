@@ -22,6 +22,7 @@ import com.dtech.admin.repository.DeathClaimRequestRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.ThirdPartyIndoorClaimImportRowRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.ReceivedClaimTotalReportService;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.DateTimeUtil;
@@ -108,6 +109,9 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
     @Autowired
     private final MedicalClaimStaffCategoryResolver staffCategoryResolver;
 
+    @Autowired
+    private final CompanyAccessService companyAccessService;
+
     @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> getReferenceDate(ChannelRequestDTO channelRequestDTO, Locale locale) {
@@ -143,7 +147,8 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                                                           Locale locale) {
         try {
             log.info("Received claim total report filter list {}", paginationRequest);
-            ReceivedClaimTotalReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
+            ReceivedClaimTotalReportResponseDTO responseDTO = buildReport(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
 
             auditLogService.log(PAGE_RECEIVED_CLAIM_TOTAL_REPORT, WebTask.SEARCH.name(),
                     AuditTask.SEARCH_FILTER.getDescription(), paginationRequest.getIp(),
@@ -163,7 +168,8 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
                                          Locale locale) {
         try {
             log.info("Received claim total report export {}", paginationRequest);
-            ReceivedClaimTotalReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
+            ReceivedClaimTotalReportResponseDTO responseDTO = buildReport(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             byte[] excelBytes = buildExcel(responseDTO);
 
             auditLogService.log(PAGE_RECEIVED_CLAIM_TOTAL_REPORT, WebTask.VIEW.name(),
@@ -184,21 +190,23 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         }
     }
 
-    private ReceivedClaimTotalReportResponseDTO buildReport(ReceivedClaimTotalReportSearchDTO search) {
+    private ReceivedClaimTotalReportResponseDTO buildReport(ReceivedClaimTotalReportSearchDTO search, String username) {
         DateRange dateRange = resolveDateRange(search);
         ReceivedClaimTotalReportResponseDTO dto = new ReceivedClaimTotalReportResponseDTO();
         dto.setPeriod(dateRange.periodText());
         dto.setMonthTitle(dateRange.monthTitle());
-        dto.setNormalStaffClaims(buildNormalStaffRows(dateRange, search));
-        dto.setWecareClaims(buildWecareRows(dateRange));
-        dto.setDdfClaims(buildDdfRows(dateRange));
+        dto.setNormalStaffClaims(buildNormalStaffRows(dateRange, search, username));
+        dto.setWecareClaims(buildWecareRows(dateRange, username));
+        dto.setDdfClaims(buildDdfRows(dateRange, username));
         return dto;
     }
 
     private ReceivedClaimTotalReportNormalStaffDTO buildNormalStaffRows(DateRange dateRange,
-                                                                        ReceivedClaimTotalReportSearchDTO search) {
+                                                                        ReceivedClaimTotalReportSearchDTO search,
+                                                                        String username) {
         List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
+                .filter(claim -> canAccess(claim, username))
                 .filter(claim -> claim.getId() == null
                         || !thirdPartyIndoorClaimImportRowRepository.existsByInsuranceClaim_Id(claim.getId()))
                 .filter(claim -> NORMAL_STAFF_CODES.contains(
@@ -241,13 +249,14 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         );
     }
 
-    private List<ReceivedClaimTotalReportRowDTO> buildThirdPartyRows(DateRange dateRange) {
+    private List<ReceivedClaimTotalReportRowDTO> buildThirdPartyRows(DateRange dateRange, String username) {
         Map<String, ClaimCount> counts = initialMedicalGroupCounts();
         List<ThirdPartyIndoorClaimImportRow> rows = thirdPartyIndoorClaimImportRowRepository
                 .findAllByIntimatedDateBetweenAndInsuranceClaimIsNotNull(dateRange.startOfDay(), dateRange.endOfDay());
 
         for (ThirdPartyIndoorClaimImportRow row : rows) {
             InsuranceClaimsRequest claim = row.getInsuranceClaim();
+            if (!canAccess(claim, username)) continue;
             String group = resolveMedicalGroup(claim);
             if (group == null) {
                 continue;
@@ -261,12 +270,13 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         return toMedicalRows(counts, dateRange.periodText());
     }
 
-    private List<ReceivedClaimTotalReportRowDTO> buildWecareRows(DateRange dateRange) {
+    private List<ReceivedClaimTotalReportRowDTO> buildWecareRows(DateRange dateRange, String username) {
         Map<String, ClaimCount> counts = initialMedicalGroupCounts();
         List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay());
 
         for (InsuranceClaimsRequest claim : claims) {
+            if (!canAccess(claim, username)) continue;
             if (claim.getId() != null && thirdPartyIndoorClaimImportRowRepository.existsByInsuranceClaim_Id(claim.getId())) {
                 continue;
             }
@@ -283,9 +293,10 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
         return toMedicalRows(counts, dateRange.periodText());
     }
 
-    private List<ReceivedClaimTotalReportRowDTO> buildDdfRows(DateRange dateRange) {
+    private List<ReceivedClaimTotalReportRowDTO> buildDdfRows(DateRange dateRange, String username) {
         List<DeathClaimRequest> claims = deathClaimRequestRepository
-                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay());
+                .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
+                .filter(claim -> canAccess(claim, username)).toList();
 
         long received = claims.size();
         long settled = claims.stream()
@@ -322,6 +333,22 @@ public class ReceivedClaimTotalReportServiceImpl implements ReceivedClaimTotalRe
 
     private boolean isSettledStatus(Workflow status) {
         return Workflow.APPROVED.equals(status) || Workflow.REJECTED.equals(status);
+    }
+
+    private boolean canAccess(InsuranceClaimsRequest claim, String username) {
+        if (claim == null || claim.getEmployee() == null || claim.getEmployee().getUserPersonalDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() == null) return false;
+        return companyAccessService.canAccess(username, claim.getEmployee().getUserPersonalDetails()
+                .getUserCompanyDetails().getCompanyTypes().getCode());
+    }
+
+    private boolean canAccess(DeathClaimRequest claim, String username) {
+        if (claim == null || claim.getEmployee() == null || claim.getEmployee().getUserPersonalDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() == null
+                || claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() == null) return false;
+        return companyAccessService.canAccess(username, claim.getEmployee().getUserPersonalDetails()
+                .getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private boolean hasLevelTwoOrThreeFinalDecision(InsuranceClaimsRequest claim) {

@@ -18,10 +18,12 @@ import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ClaimApprovalService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.LoginService;
 import com.dtech.admin.service.MessageService;
 import com.dtech.admin.specifications.ClaimsApprovalSpecification;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.util.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -132,7 +135,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     private final EmailNotificationService emailNotificationService;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final ObjectMapper objectMapper;
@@ -190,7 +193,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
             WebUser webUser = webUserRepository.findByUsername(channelRequestDTO.getUsername()).orElse(null);
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream().map(
+            List<SimpleBaseDTO> companyTypes = companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream().map(
                     val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             Optional.ofNullable(webUser)
@@ -229,13 +232,15 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
-            Page<InsuranceClaimsRequest> insuranceClaimsRequests = Objects.nonNull(paginationRequest.getSearch()) ?
-                    insuranceClaimsRequestRepository.findAll(ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(), false), pageable) :
-                    insuranceClaimsRequestRepository.findAll(ClaimsApprovalSpecification.getSpecification(false), pageable);
+            Specification<InsuranceClaimsRequest> specification = Objects.nonNull(paginationRequest.getSearch())
+                    ? ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(), false)
+                    : ClaimsApprovalSpecification.getSpecification(false);
+            specification = specification.and(CompanyScopeSpecification.companyCodeIn(
+                    companyAccessService.activeCompanyCodes(paginationRequest.getUsername()),
+                    "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+            Page<InsuranceClaimsRequest> insuranceClaimsRequests = insuranceClaimsRequestRepository.findAll(specification, pageable);
             log.info("Approval details filter records {}", insuranceClaimsRequests);
-            long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    insuranceClaimsRequestRepository.count(ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(), false)) :
-                    insuranceClaimsRequestRepository.count(ClaimsApprovalSpecification.getSpecification(false));
+            long totalElements = insuranceClaimsRequestRepository.count(specification);
             log.info("Approval details filter records map start");
 
             List<ClaimsRequestResponseDTO> responseDTOList = insuranceClaimsRequests.stream()
@@ -263,7 +268,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         try {
             log.info("Action event for claim request: {}", claimRequestDTO);
 
-            Optional<InsuranceClaimsRequest> optClaim = insuranceClaimsRequestRepository.findById(claimRequestDTO.getId());
+            Optional<InsuranceClaimsRequest> optClaim = insuranceClaimsRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claim -> canAccess(claim, claimRequestDTO.getUsername()));
             if (optClaim.isEmpty()) {
                 log.info("Insurance claim request does not exist: {}", claimRequestDTO.getId());
                 return ResponseEntity.ok(responseUtil.error(null, 1044,
@@ -1224,7 +1230,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
     public ResponseEntity<ApiResponse<Object>> view(ClaimRequestDTO claimRequestDTO, Locale locale) {
         try {
             log.info("Claims request details view {}", claimRequestDTO);
-            return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
+            return insuranceClaimsRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claimsRequest -> canAccess(claimsRequest, claimRequestDTO.getUsername()))
+                    .map(claimsRequest -> {
                 ClaimsRequestResponseDTO claimsRequestResponseDTO = claimsApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
 
                 Date currentDate = DateTimeUtil.getCurrentDateTime();
@@ -1862,6 +1870,16 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             tCategoryList.add(new SimpleBaseDTO(insuranceDetailsLimit.getTreatment().getTreatmentCode(),
                     insuranceDetailsLimit.getTreatment().getTreatmentDescription()));
         }
+    }
+
+    private boolean canAccess(InsuranceClaimsRequest claim, String username) {
+        return claim != null
+                && claim.getEmployee() != null
+                && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private void addIfNotPresentTreatmentCategory(List<SimpleBaseDTO> tCategoryList, InsuranceDetailsLimit insuranceDetailsLimit) {

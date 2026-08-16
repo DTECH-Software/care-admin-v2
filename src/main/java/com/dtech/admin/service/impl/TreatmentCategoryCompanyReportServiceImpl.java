@@ -22,13 +22,14 @@ import com.dtech.admin.model.Treatment;
 import com.dtech.admin.model.TreatmentCategory;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.repository.TreatmentCategoryRepository;
 import com.dtech.admin.repository.TreatmentRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.TreatmentCategoryCompanyReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.TreatmentCategoryCompanyReportSpecification;
 import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.CommonPrivilegeGetter;
@@ -89,7 +90,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
     private final Gson gson;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final TreatmentRepository treatmentRepository;
@@ -113,7 +114,7 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
             AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter
                     .getPrivileges(channelRequestDTO.getUsername(), PAGE_TCCR_REPORT);
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> treatment = treatmentRepository.findAllByStatus(Status.ACTIVE)
@@ -147,7 +148,8 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
     public ResponseEntity<ApiResponse<Object>> filterList(PaginationRequest<TreatmentCategoryCompanyReportSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Treatment category company report filter list {}", paginationRequest);
-            List<TreatmentCategoryCompanyReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<TreatmentCategoryCompanyReportRowDTO> rows = resolveRows(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             List<TreatmentCategoryCompanyReportRowDTO> sortedRows = sortRows(rows, paginationRequest);
             PagingResult<TreatmentCategoryCompanyReportRowDTO> result = buildPagingResult(sortedRows, paginationRequest);
 
@@ -168,7 +170,8 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
     public ResponseEntity<byte[]> export(PaginationRequest<TreatmentCategoryCompanyReportSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Treatment category company report export {}", paginationRequest);
-            List<TreatmentCategoryCompanyReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<TreatmentCategoryCompanyReportRowDTO> rows = resolveRows(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             rows = sortRows(rows, paginationRequest);
 
             byte[] excelBytes = buildExcel(rows);
@@ -187,9 +190,12 @@ public class TreatmentCategoryCompanyReportServiceImpl implements TreatmentCateg
         }
     }
 
-    private List<TreatmentCategoryCompanyReportRowDTO> resolveRows(TreatmentCategoryCompanyReportSearchDTO search) {
+    private List<TreatmentCategoryCompanyReportRowDTO> resolveRows(TreatmentCategoryCompanyReportSearchDTO search,
+                                                                   String username) {
         List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
-                .findAll(TreatmentCategoryCompanyReportSpecification.getSpecification(search));
+                .findAll(TreatmentCategoryCompanyReportSpecification.getSpecification(search).and(
+                        CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                                "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code")));
 
         Map<String, TreatmentCategoryCompanyReportRowDTO> summary = new LinkedHashMap<>();
         for (InsuranceClaimsRequest claim : claims) {

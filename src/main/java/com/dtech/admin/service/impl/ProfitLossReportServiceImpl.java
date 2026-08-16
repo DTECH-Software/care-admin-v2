@@ -32,6 +32,7 @@ import com.dtech.admin.repository.PaymentAdviceAttachmentRepository;
 import com.dtech.admin.repository.PaymentAdviceRepository;
 import com.dtech.admin.repository.ThirdPartyIndoorClaimImportRowRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.ProfitLossReportService;
 import com.dtech.admin.specifications.ChequePaymentDdfSpecification;
 import com.dtech.admin.specifications.ChequePaymentSpecification;
@@ -113,6 +114,9 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     private final CompanyTypeRepository companyTypeRepository;
 
     @Autowired
+    private final CompanyAccessService companyAccessService;
+
+    @Autowired
     private final PaymentAdviceRepository paymentAdviceRepository;
 
     @Autowired
@@ -140,7 +144,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter
                     .getPrivileges(channelRequestDTO.getUsername(), PAGE_PROFIT_LOSS_REPORT);
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
             List<SimpleBaseDTO> staffCategories = medicalClaimStaffCategoryResolver.loadReferenceCategories();
 
@@ -169,7 +173,8 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
                                                           Locale locale) {
         try {
             log.info("Profit and loss report filter list {}", paginationRequest);
-            List<ProfitLossReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<ProfitLossReportRowDTO> rows = resolveRows(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             List<ProfitLossReportRowDTO> sortedRows = sortRows(rows, paginationRequest);
             PagingResult<ProfitLossReportRowDTO> result = buildPagingResult(sortedRows, paginationRequest);
 
@@ -190,7 +195,8 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
     public ResponseEntity<byte[]> export(PaginationRequest<ProfitLossReportSearchDTO> paginationRequest, Locale locale) {
         try {
             log.info("Profit and loss report export {}", paginationRequest);
-            List<ProfitLossReportRowDTO> rows = resolveRows(paginationRequest.getSearch());
+            List<ProfitLossReportRowDTO> rows = resolveRows(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             rows = sortRows(rows, paginationRequest);
 
             byte[] excelBytes = buildExcel(rows);
@@ -210,7 +216,7 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
         }
     }
 
-    private List<ProfitLossReportRowDTO> resolveRows(ProfitLossReportSearchDTO search) {
+    private List<ProfitLossReportRowDTO> resolveRows(ProfitLossReportSearchDTO search, String username) {
         ProfitLossReportSearchDTO filter = search != null ? search : new ProfitLossReportSearchDTO();
         ReportType reportType = ReportType.from(filter.getReportType());
         Set<String> monthFilter = normalizeMonths(filter.getMonths());
@@ -265,7 +271,10 @@ public class ProfitLossReportServiceImpl implements ProfitLossReportService {
             }
         }
 
-        return rows;
+        Set<String> allowedCompanies = companyAccessService.activeCompanyCodes(username).stream()
+                .map(String::toUpperCase).collect(Collectors.toSet());
+        return rows.stream().filter(row -> hasText(row.getCompanyCode())
+                && allowedCompanies.contains(row.getCompanyCode().trim().toUpperCase())).toList();
     }
 
     private void addPaidAmounts(Map<String, ProfitLossReportRowDTO> summary,

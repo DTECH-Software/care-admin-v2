@@ -19,10 +19,12 @@ import com.dtech.admin.model.DeathClaimRequest;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DeathClaimHistoryService;
 import com.dtech.admin.service.InsuranceClaimHistoryService;
 import com.dtech.admin.specifications.ClaimsApprovalSpecification;
 import com.dtech.admin.specifications.DeathApprovalSpecification;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
 import com.dtech.admin.util.ResponseMessageUtil;
@@ -34,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,7 +73,7 @@ public class DeathClaimHistoryServiceImpl implements DeathClaimHistoryService {
     private final RemarkRepository remarkRepository;
 
     @Autowired
-    private CompanyTypeRepository companyTypeRepository;
+    private CompanyAccessService companyAccessService;
 
     @Autowired
     private StaffCategoriesRepository staffCategoriesRepository;
@@ -99,7 +102,7 @@ public class DeathClaimHistoryServiceImpl implements DeathClaimHistoryService {
             List<SimpleBaseDTO> relationCategory = Arrays.stream(RelationCategory.values())
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream().map(
+            List<SimpleBaseDTO> companyTypes = companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream().map(
                     val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategories = staffCategoriesRepository.findAllByStatus(Status.ACTIVE).stream().map(
@@ -129,13 +132,15 @@ public class DeathClaimHistoryServiceImpl implements DeathClaimHistoryService {
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
-            Page<DeathClaimRequest> deathClaimRequests = Objects.nonNull(paginationRequest.getSearch()) ?
-                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(),true,true,true,true), pageable) :
-                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(true,true,true,true), pageable);
+            Specification<DeathClaimRequest> specification = Objects.nonNull(paginationRequest.getSearch())
+                    ? DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), true, true, true, true)
+                    : DeathApprovalSpecification.getSpecification(true, true, true, true);
+            specification = specification.and(CompanyScopeSpecification.companyCodeIn(
+                    companyAccessService.activeCompanyCodes(paginationRequest.getUsername()),
+                    "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+            Page<DeathClaimRequest> deathClaimRequests = deathClaimRequestRepository.findAll(specification, pageable);
             log.info("Death claims  filter records {}", deathClaimRequests);
-            long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(),true,true,true,true)) :
-                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(true,true,true,true));
+            long totalElements = deathClaimRequestRepository.count(specification);
             log.info("Death claims filter records map start");
 
             List<DeathRequestResponseDTO> responseDTOList = deathClaimRequests.stream()
@@ -157,7 +162,9 @@ public class DeathClaimHistoryServiceImpl implements DeathClaimHistoryService {
     public ResponseEntity<ApiResponse<Object>> view(ClaimRequestDTO claimRequestDTO, Locale locale) {
         try {
             log.info("Claims history request details view {}", claimRequestDTO);
-            return deathClaimRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
+            return deathClaimRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claimsRequest -> canAccess(claimsRequest, claimRequestDTO.getUsername()))
+                    .map(claimsRequest -> {
                 DeathRequestResponseDTO deathRequestResponseDTO = deathApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
 //                List<String> newAuditList = deathApprovalAuditMapper.mapToDTOAudit(List.of(claimsRequest));
 //                auditLogService.log(WebPage.DDCH.name(), WebTask.VIEW.name(), AuditTask.VIEW_DATA.getDescription(), claimRequestDTO.getIp(), claimRequestDTO.getUserAgent(), gson.toJson(newAuditList), null, claimRequestDTO.getUsername());
@@ -172,5 +179,15 @@ public class DeathClaimHistoryServiceImpl implements DeathClaimHistoryService {
             log.error(e);
             throw e;
         }
+    }
+
+    private boolean canAccess(DeathClaimRequest claim, String username) {
+        return claim != null
+                && claim.getEmployee() != null
+                && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 }

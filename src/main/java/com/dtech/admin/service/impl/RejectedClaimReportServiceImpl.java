@@ -25,11 +25,11 @@ import com.dtech.admin.model.InsuranceStaffCategoryPeriod;
 import com.dtech.admin.model.Remark;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
 import com.dtech.admin.repository.InsuranceStaffCategoryPeriodRepository;
 import com.dtech.admin.repository.RemarkRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.RejectedClaimReportService;
 import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.CommonPrivilegeGetter;
@@ -111,7 +111,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
     private final InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final RemarkRepository remarkRepository;
@@ -133,7 +133,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                     .getPrivileges(channelRequestDTO.getUsername(), PAGE_REJECTED_CLAIM_REPORT);
 
             responseMap.put("privileges", privileges);
-            responseMap.put("company", buildCompanyReference());
+            responseMap.put("company", buildCompanyReference(channelRequestDTO.getUsername()));
             responseMap.put("staffCategories", buildStaffCategoryReference());
             responseMap.put("policyPeriods", buildPolicyPeriodReference());
             responseMap.put("returnReasons", remarkRepository.findAllByRemarkCategoryAndStatus(RemarkCategory.INSURANCE, Status.ACTIVE).stream()
@@ -159,7 +159,8 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                                                           Locale locale) {
         try {
             log.info("Rejected claim report filter list {}", paginationRequest);
-            RejectedClaimReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
+            RejectedClaimReportResponseDTO responseDTO = buildReport(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
 
             auditLogService.log(PAGE_REJECTED_CLAIM_REPORT, WebTask.SEARCH.name(),
                     AuditTask.SEARCH_FILTER.getDescription(), paginationRequest.getIp(),
@@ -179,7 +180,8 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
                                          Locale locale) {
         try {
             log.info("Rejected claim report export {}", paginationRequest);
-            RejectedClaimReportResponseDTO responseDTO = buildReport(paginationRequest.getSearch());
+            RejectedClaimReportResponseDTO responseDTO = buildReport(
+                    paginationRequest.getSearch(), paginationRequest.getUsername());
             byte[] excelBytes = buildExcel(responseDTO);
 
             auditLogService.log(PAGE_REJECTED_CLAIM_REPORT, WebTask.VIEW.name(),
@@ -200,7 +202,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         }
     }
 
-    private RejectedClaimReportResponseDTO buildReport(RejectedClaimReportSearchDTO search) {
+    private RejectedClaimReportResponseDTO buildReport(RejectedClaimReportSearchDTO search, String username) {
         DateRange dateRange = resolveDateRange(search);
         RemarkDictionary remarkDictionary = loadRemarkDictionary();
         Map<String, String> staffCategoryDescriptions = staffCategoryResolver.loadDescriptionMap();
@@ -208,6 +210,7 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
 
         List<InsuranceClaimsRequest> claims = insuranceClaimsRequestRepository
                 .findAllByCreatedDateBetween(dateRange.startOfDay(), dateRange.endOfDay()).stream()
+                .filter(claim -> companyAccessService.canAccess(username, resolveCompanyCode(claim)))
                 .filter(claim -> matchesFilters(claim, search, staffCategoryDescriptions))
                 .filter(claim -> matchesSelectedPeriod(claim, selectedPeriod))
                 .sorted(Comparator
@@ -549,10 +552,10 @@ public class RejectedClaimReportServiceImpl implements RejectedClaimReportServic
         return rejected.compareTo(BigDecimal.ZERO) > 0 ? rejected : BigDecimal.ZERO;
     }
 
-    private List<SimpleBaseDTO> buildCompanyReference() {
+    private List<SimpleBaseDTO> buildCompanyReference(String username) {
         List<SimpleBaseDTO> companies = new ArrayList<>();
         companies.add(new SimpleBaseDTO(ALL, ALL_COMPANIES_LABEL));
-        companies.addAll(companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
+        companies.addAll(companyAccessService.activeCompanies(username).stream()
                 .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
                 .toList());
         return companies;

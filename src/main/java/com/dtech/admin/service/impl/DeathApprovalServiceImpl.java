@@ -21,8 +21,10 @@ import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.DeathApprovalService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.MessageService;
 import com.dtech.admin.specifications.DeathApprovalSpecification;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -66,7 +69,7 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
     private final StaffCategoriesRepository staffCategoriesRepository;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final WebUserRepository webUserRepository;
@@ -118,7 +121,7 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
 
             WebUser webUser = webUserRepository.findByUsername(channelRequestDTO.getUsername()).orElse(null);
 
-            List<SimpleBaseDTO> companyTypes = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream().map(
+            List<SimpleBaseDTO> companyTypes = companyAccessService.activeCompanies(channelRequestDTO.getUsername()).stream().map(
                     val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
             Optional.ofNullable(webUser)
@@ -152,7 +155,8 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
         try {
             log.info("Approval death request {} ", claimRequestDTO);
 
-            Optional<DeathClaimRequest> optClaim = deathClaimRequestRepository.findById(claimRequestDTO.getId());
+            Optional<DeathClaimRequest> optClaim = deathClaimRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claim -> canAccess(claim, claimRequestDTO.getUsername()));
             if (optClaim.isEmpty()) {
                 log.info("Death claim request does not exist: {}", claimRequestDTO.getId());
                 return ResponseEntity.ok(responseUtil.error(null, 1044,
@@ -339,13 +343,15 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
 
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
 
-            Page<DeathClaimRequest> deathClaimRequests = Objects.nonNull(paginationRequest.getSearch()) ?
-                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false,true,false,true), pageable) :
-                    deathClaimRequestRepository.findAll(DeathApprovalSpecification.getSpecification(false,true,false,true), pageable);
+            Specification<DeathClaimRequest> specification = Objects.nonNull(paginationRequest.getSearch())
+                    ? DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false, true, false, true)
+                    : DeathApprovalSpecification.getSpecification(false, true, false, true);
+            specification = specification.and(CompanyScopeSpecification.companyCodeIn(
+                    companyAccessService.activeCompanyCodes(paginationRequest.getUsername()),
+                    "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+            Page<DeathClaimRequest> deathClaimRequests = deathClaimRequestRepository.findAll(specification, pageable);
             log.info("Approval death details filter records {}", deathClaimRequests);
-            long totalElements = Objects.nonNull(paginationRequest.getSearch()) ?
-                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(paginationRequest.getSearch(), false,true,false,true)) :
-                    deathClaimRequestRepository.count(DeathApprovalSpecification.getSpecification(false,true,false,true));
+            long totalElements = deathClaimRequestRepository.count(specification);
             log.info("Approval death details filter records map start");
 
             List<DeathRequestResponseDTO> responseDTOList = deathClaimRequests.stream()
@@ -368,7 +374,9 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
     public ResponseEntity<ApiResponse<Object>> view(ClaimRequestDTO claimRequestDTO, Locale locale) {
         try {
             log.info("Death approval view {} ", claimRequestDTO);
-            return deathClaimRequestRepository.findById(claimRequestDTO.getId()).map(claimsRequest -> {
+            return deathClaimRequestRepository.findById(claimRequestDTO.getId())
+                    .filter(claimsRequest -> canAccess(claimsRequest, claimRequestDTO.getUsername()))
+                    .map(claimsRequest -> {
                 DeathRequestResponseDTO deathRequestResponseDTO = deathApprovalEntityToDto.mapClaimsApproval(claimsRequest, true);
 
                 CommonParameter deathAge = commonParameterRepository.findByCode(CommonParam.DEATH_AGE.name()).orElse(null);
@@ -425,5 +433,15 @@ public class DeathApprovalServiceImpl implements DeathApprovalService {
             log.error(e);
             throw e;
         }
+    }
+
+    private boolean canAccess(DeathClaimRequest claim, String username) {
+        return claim != null
+                && claim.getEmployee() != null
+                && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 }

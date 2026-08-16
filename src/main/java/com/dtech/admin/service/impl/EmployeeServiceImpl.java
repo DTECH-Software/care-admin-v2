@@ -22,6 +22,7 @@ import com.dtech.admin.mapper.entityToDto.EmployeeDetailsMapperEntityToDto;
 import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeService;
 import com.dtech.admin.service.DocumentStorageService;
@@ -81,6 +82,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private final CompanyTypeRepository companyTypeRepository;
+
+    @Autowired
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
@@ -193,28 +197,18 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private List<SimpleBaseDTO> getEligibleCompanies(String username) {
-        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                .toList();
-
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
-                        .toList())
-                .orElse(defaultCompanies);
+        return companyAccessService.activeCompanies(username).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription())).toList();
     }
 
     private Set<String> getEligibleCompanyCodes(String username) {
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> company.getCode())
-                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
-                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                        .map(company -> company.getCode())
-                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+        return companyAccessService.activeCompanyCodes(username);
+    }
+
+    private boolean canAccess(UserPersonalDetails employee, String username) {
+        return employee != null && employee.getUserCompanyDetails() != null
+                && employee.getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username, employee.getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     @Override
@@ -225,6 +219,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         registerEmployeeAddLockRelease(addLockKeys, addLocks);
         try {
             log.info("Adding employee: {}", dto);
+
+            if (dto.getUserCompanyDetails() == null || !companyAccessService.canAccess(
+                    dto.getUsername(), dto.getUserCompanyDetails().getCompanyTypeCode())) {
+                return ResponseEntity.ok(responseUtil.error(null, 1003,
+                        "You are not authorized to manage employees for the selected company"));
+            }
 
             if (userPersonalDetailsRepository.existsByNicIgnoreCaseAndUserStatusIn(dto.getNic(), List.of(Status.ACTIVE))) {
                 return errorResponse(1041, ResponseMessageUtil.EMPLOYEE_NIC_ALREADY_EXISTED, dto.getNic(), locale);
@@ -617,7 +617,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     public ResponseEntity<ApiResponse<Object>> view(EmployeeDetailsRequestDTO employeeDetailsRequestDTO, Locale locale) {
         try {
             log.info("Employee details view {}", employeeDetailsRequestDTO);
-            return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
+            return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId())
+                    .filter(employee -> canAccess(employee, employeeDetailsRequestDTO.getUsername())).map(userPersonalDetails -> {
                 EmployeeDetailsResponseDTO employeeDetailsResponseDTO = employeeDetailsMapperEntityToDto.mapEmployeeDetails(userPersonalDetails);
                 populateRejoinDetails(employeeDetailsResponseDTO, userPersonalDetails);
                 populatePromotionTransferDetails(employeeDetailsResponseDTO, userPersonalDetails);
@@ -719,7 +720,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     public ResponseEntity<ApiResponse<Object>> update(EmployeeDetailsRequestDTO employeeDetailsRequestDTO, Locale locale) {
         try {
             log.info("Employee details update {}", employeeDetailsRequestDTO.getId());
-            return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
+            return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId())
+                    .filter(employee -> canAccess(employee, employeeDetailsRequestDTO.getUsername())).map(userPersonalDetails -> {
                 Status previousStatus = userPersonalDetails.getUserStatus();
                 String requestedPaymentCompanyCode = resolvePaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
                 String requestedDeathPaymentCompanyCode = resolveDeathPaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
@@ -917,7 +919,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         try {
             log.info("Employee details delete {}", employeeDetailsRequestDTO);
 
-            return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId()).map(userPersonalDetails -> {
+            return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId())
+                    .filter(employee -> canAccess(employee, employeeDetailsRequestDTO.getUsername())).map(userPersonalDetails -> {
                 log.info("Employee details delete old audit start");
                 List<String> oldAuditList = employeeDetailsAuditMapper.mapToDTOAudit(List.of(userPersonalDetails));
                 log.info("Employee details delete old audit end");

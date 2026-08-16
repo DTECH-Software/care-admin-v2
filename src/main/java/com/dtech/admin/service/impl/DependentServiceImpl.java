@@ -14,10 +14,10 @@ import com.dtech.admin.mapper.audit.DependentDetailsAuditMapper;
 import com.dtech.admin.mapper.entityToDto.DependentDetailsMapperEntityToDto;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.ClaimsDependents;
-import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DependentService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.MessageService;
@@ -74,13 +74,13 @@ public class DependentServiceImpl implements DependentService {
     private final DependentDetailsAuditMapper dependentDetailsAuditMapperEntityToDto;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
-
-    @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
 
     @Autowired
     private final WebUserRepository webUserRepository;
+
+    @Autowired
+    private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
@@ -140,17 +140,9 @@ public class DependentServiceImpl implements DependentService {
     }
 
     private List<SimpleBaseDTO> getEligibleCompanies(String username) {
-        List<SimpleBaseDTO> defaultCompanies = companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                .map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription()))
+        return companyAccessService.activeCompanies(username).stream()
+                .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
                 .toList();
-
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> new SimpleBaseDTO(company.getCode(), company.getDescription()))
-                        .sorted(Comparator.comparing(SimpleBaseDTO::getCode))
-                        .toList())
-                .orElse(defaultCompanies);
     }
 
     @Override
@@ -184,14 +176,7 @@ public class DependentServiceImpl implements DependentService {
     }
 
     private Set<String> getEligibleCompanyCodes(String username) {
-        return webUserRepository.findByUsername(username)
-                .map(user -> user.getCompanies().stream()
-                        .filter(company -> Status.ACTIVE.equals(company.getStatus()))
-                        .map(company -> company.getCode())
-                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)))
-                .orElseGet(() -> companyTypeRepository.findAllByStatus(Status.ACTIVE).stream()
-                        .map(company -> company.getCode())
-                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+        return companyAccessService.activeCompanyCodes(username);
     }
 
     @Override
@@ -200,7 +185,9 @@ public class DependentServiceImpl implements DependentService {
         try {
             log.info("Dependent details add data {}", dependentRequestDTO);
             return claimDependentsRepository
-                    .findById(dependentRequestDTO.getId()).map(de -> {
+                    .findById(dependentRequestDTO.getId())
+                    .filter(de -> canAccess(de, dependentRequestDTO.getUsername()))
+                    .map(de -> {
                         Workflow previousStatus = de.getStatus();
 
                         String newModel = new StringBuilder()
@@ -273,7 +260,9 @@ public class DependentServiceImpl implements DependentService {
     public ResponseEntity<ApiResponse<Object>> detailsUpdate(DependentRequestDTO dependentRequestDTO, Locale locale) {
         try {
             log.info("Dependent profile details update data {}", dependentRequestDTO);
-            return claimDependentsRepository.findById(dependentRequestDTO.getId()).map(dependent -> {
+            return claimDependentsRepository.findById(dependentRequestDTO.getId())
+                    .filter(dependent -> canAccess(dependent, dependentRequestDTO.getUsername()))
+                    .map(dependent -> {
                 List<String> oldAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(dependent));
 
                 ClaimsDependents updatedPreview = copyDependent(dependent);
@@ -668,7 +657,9 @@ public class DependentServiceImpl implements DependentService {
         try {
             log.info("Dependent details view {}", dependentRequestDTO);
             return claimDependentsRepository
-                    .findById(dependentRequestDTO.getId()).map(de -> {
+                    .findById(dependentRequestDTO.getId())
+                    .filter(de -> canAccess(de, dependentRequestDTO.getUsername()))
+                    .map(de -> {
 
                         DependentDetailsResponseDTO dependentDetailsResponseDTO = dependentDetailsMapperEntityToDto.mapDependentDetails(de);
                         List<String> newAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(de));
@@ -684,6 +675,16 @@ public class DependentServiceImpl implements DependentService {
             log.error(e);
             throw e;
         }
+    }
+
+    private boolean canAccess(ClaimsDependents dependent, String username) {
+        return dependent != null
+                && dependent.getApplicationUser() != null
+                && dependent.getApplicationUser().getUserPersonalDetails() != null
+                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails() != null
+                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username,
+                dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
 }

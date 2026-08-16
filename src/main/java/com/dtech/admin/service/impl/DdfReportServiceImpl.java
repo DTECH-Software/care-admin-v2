@@ -23,11 +23,12 @@ import com.dtech.admin.model.PaymentAdviceDeathClaim;
 import com.dtech.admin.model.PaymentAdvice;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.DeathClaimRequestRepository;
 import com.dtech.admin.repository.PaymentAdviceDeathClaimRepository;
 import com.dtech.admin.service.AuditLogService;
+import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DdfReportService;
+import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.specifications.DdfReportSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
@@ -51,6 +52,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -90,7 +92,7 @@ public class DdfReportServiceImpl implements DdfReportService {
     private final Gson gson;
 
     @Autowired
-    private final CompanyTypeRepository companyTypeRepository;
+    private final CompanyAccessService companyAccessService;
     @Autowired
     private final DeathClaimRequestRepository deathClaimRequestRepository;
 
@@ -120,7 +122,7 @@ public class DdfReportServiceImpl implements DdfReportService {
                     new SimpleBaseDTO("NOT_GENERATED", "Not Generated")
             );
 
-            List<SimpleBaseDTO> company = companyTypeRepository.findAllByStatus(Status.ACTIVE)
+            List<SimpleBaseDTO> company = companyAccessService.activeCompanies(channelRequestDTO.getUsername())
                     .stream().map(val -> new SimpleBaseDTO(val.getCode(), val.getDescription())).toList();
 
 
@@ -153,14 +155,9 @@ public class DdfReportServiceImpl implements DdfReportService {
             log.info("DDF report filter list {}", paginationRequest);
             Pageable pageable = PaginationUtil.getPageable(paginationRequest);
             DdfReportSearchDTO search = paginationRequest.getSearch();
-
-            Page<DeathClaimRequest> claimsPage = Objects.nonNull(search)
-                    ? deathClaimRequestRepository.findAll(DdfReportSpecification.getSpecification(search), pageable)
-                    : deathClaimRequestRepository.findAll(DdfReportSpecification.getSpecification(null), pageable);
-
-            long total = Objects.nonNull(search)
-                    ? deathClaimRequestRepository.count(DdfReportSpecification.getSpecification(search))
-                    : deathClaimRequestRepository.count(DdfReportSpecification.getSpecification(null));
+            Specification<DeathClaimRequest> specification = scopedSpecification(search, paginationRequest.getUsername());
+            Page<DeathClaimRequest> claimsPage = deathClaimRequestRepository.findAll(specification, pageable);
+            long total = deathClaimRequestRepository.count(specification);
 
             Set<Long> generatedIds = resolveGeneratedClaimIds(claimsPage.getContent());
             Map<Long, PaymentAdviceDeathClaim> adviceByClaimId = resolveAdviceByClaimId(claimsPage.getContent());
@@ -188,7 +185,8 @@ public class DdfReportServiceImpl implements DdfReportService {
     public ResponseEntity<ApiResponse<Object>> view(DdfReportRequestDTO requestDTO, Locale locale) {
         try {
             log.info("DDF report view {}", requestDTO);
-            return deathClaimRequestRepository.findById(requestDTO.getId()).map(claim -> {
+            return deathClaimRequestRepository.findById(requestDTO.getId())
+                    .filter(claim -> canAccess(claim, requestDTO.getUsername())).map(claim -> {
                 DeathRequestResponseDTO row = deathApprovalEntityToDto.mapClaimsApproval(claim, false);
                 stripDocuments(row);
 
@@ -223,9 +221,8 @@ public class DdfReportServiceImpl implements DdfReportService {
             log.info("DDF report export {}", paginationRequest);
             DdfReportSearchDTO search = paginationRequest.getSearch();
 
-            List<DeathClaimRequest> claims = Objects.nonNull(search)
-                    ? deathClaimRequestRepository.findAll(DdfReportSpecification.getSpecification(search))
-                    : deathClaimRequestRepository.findAll(DdfReportSpecification.getSpecification(null));
+            List<DeathClaimRequest> claims = deathClaimRequestRepository.findAll(
+                    scopedSpecification(search, paginationRequest.getUsername()));
 
             Set<Long> generatedIds = resolveGeneratedClaimIds(claims);
             Map<Long, PaymentAdviceDeathClaim> adviceByClaimId = resolveAdviceByClaimId(claims);
@@ -258,6 +255,20 @@ public class DdfReportServiceImpl implements DdfReportService {
         return adviceClaims.stream()
                 .map(advice -> advice.getDeathClaim().getId())
                 .collect(Collectors.toSet());
+    }
+
+    private Specification<DeathClaimRequest> scopedSpecification(DdfReportSearchDTO search, String username) {
+        return DdfReportSpecification.getSpecification(search).and(
+                CompanyScopeSpecification.companyCodeIn(companyAccessService.activeCompanyCodes(username),
+                        "employee", "userPersonalDetails", "userCompanyDetails", "companyTypes", "code"));
+    }
+
+    private boolean canAccess(DeathClaimRequest claim, String username) {
+        return claim.getEmployee() != null && claim.getEmployee().getUserPersonalDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails() != null
+                && claim.getEmployee().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
+                && companyAccessService.canAccess(username, claim.getEmployee().getUserPersonalDetails()
+                .getUserCompanyDetails().getCompanyTypes().getCode());
     }
 
     private Map<Long, PaymentAdviceDeathClaim> resolveAdviceByClaimId(List<DeathClaimRequest> claims) {
