@@ -81,6 +81,7 @@ public class ClaimEmailRecipientService {
                         : webUserRepository.findByUsernameIgnoreCaseAndStatus(recipientCode, Status.ACTIVE);
                 yield user.map(List::of).orElseGet(List::of);
             }
+            case EVENT_USER -> List.of();
         };
     }
 

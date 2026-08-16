@@ -13,6 +13,8 @@ import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.DocumentStorageService;
+import com.dtech.admin.service.EmailNotificationService;
+import com.dtech.admin.service.SupportTicketEmailRecipientService;
 import com.dtech.admin.service.SupportTicketService;
 import com.dtech.admin.specifications.SupportTicketSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
@@ -71,6 +73,8 @@ public class SupportTicketServiceImpl implements SupportTicketService {
     private final DocumentStorageService documentStorageService;
     private final CommonPrivilegeGetter commonPrivilegeGetter;
     private final AuditLogService auditLogService;
+    private final SupportTicketEmailRecipientService supportTicketEmailRecipientService;
+    private final EmailNotificationService emailNotificationService;
     private final ResponseUtil responseUtil;
     private final Gson gson;
 
@@ -148,6 +152,7 @@ public class SupportTicketServiceImpl implements SupportTicketService {
         addStatusHistory(ticket, null, SupportTicketStatus.OPEN, "Ticket created");
         saveAttachments(ticket, null, request.getAttachments());
         audit(request, systemType, WebTask.ADD, "Create support ticket", auditTicket(ticket));
+        notifyTicket(SupportTicketEmailEvent.SUPPORT_TICKET_CREATED, ticket, request.getUsername());
         return ResponseEntity.ok(responseUtil.success(mapSummary(ticket),
                 "Support ticket " + ticket.getTicketNo() + " created successfully"));
     }
@@ -195,6 +200,7 @@ public class SupportTicketServiceImpl implements SupportTicketService {
         supportTicketRepository.saveAndFlush(ticket);
         audit(request, systemType, WebTask.ADD, "Reply to support ticket",
                 Map.of("id", ticket.getId(), "ticketNo", ticket.getTicketNo(), "messageId", message.getId()));
+        notifyTicket(SupportTicketEmailEvent.SUPPORT_TICKET_UPDATED, ticket, request.getUsername());
         return ResponseEntity.ok(responseUtil.success(mapDetails(ticket), "Support ticket reply added successfully"));
     }
 
@@ -233,7 +239,18 @@ public class SupportTicketServiceImpl implements SupportTicketService {
         audit(request, systemType, WebTask.UPDATE, "Update support ticket status",
                 Map.of("id", ticket.getId(), "ticketNo", ticket.getTicketNo(),
                         "oldStatus", oldStatus.name(), "newStatus", newStatus.name()));
+        SupportTicketEmailEvent emailEvent = switch (newStatus) {
+            case RESOLVED -> SupportTicketEmailEvent.SUPPORT_TICKET_RESOLVED;
+            case REOPENED -> SupportTicketEmailEvent.SUPPORT_TICKET_REOPENED;
+            default -> SupportTicketEmailEvent.SUPPORT_TICKET_UPDATED;
+        };
+        notifyTicket(emailEvent, ticket, request.getUsername());
         return ResponseEntity.ok(responseUtil.success(mapDetails(ticket), "Support ticket status updated successfully"));
+    }
+
+    private void notifyTicket(SupportTicketEmailEvent event, SupportTicket ticket, String actorUsername) {
+        List<WebUser> recipients = supportTicketEmailRecipientService.resolve(event, ticket, actorUsername);
+        emailNotificationService.notifySupportTicketEvent(recipients, ticket, event, actorUsername);
     }
 
     private SupportTicketResponseDTO mapSummary(SupportTicket ticket) {

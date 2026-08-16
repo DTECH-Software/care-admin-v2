@@ -2,12 +2,14 @@ package com.dtech.admin.service;
 
 import com.dtech.admin.enums.ApprovalLevel;
 import com.dtech.admin.enums.RelationCategory;
+import com.dtech.admin.enums.SupportTicketEmailEvent;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApprovalWorkFlow;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.InsuranceClaimsRequest;
 import com.dtech.admin.model.ClaimsDependents;
 import com.dtech.admin.model.StaffCategories;
+import com.dtech.admin.model.SupportTicket;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.UserCompanyDetails;
 import com.dtech.admin.model.UserPersonalDetails;
@@ -323,6 +325,57 @@ public class EmailNotificationService {
         Set<String> processedEmails = new HashSet<>();
         for (WebUser recipient : adminRecipients) {
             sendHtmlMail(recipient, subject, body, "staff category transferred", processedEmails);
+        }
+    }
+
+    public void notifySupportTicketEvent(List<WebUser> recipients,
+                                         SupportTicket ticket,
+                                         SupportTicketEmailEvent event,
+                                         String actorUsername) {
+        if (CollectionUtils.isEmpty(recipients) || ticket == null || event == null) {
+            log.info("No recipients or ticket details available for support-ticket notification");
+            return;
+        }
+
+        String action = switch (event) {
+            case SUPPORT_TICKET_CREATED -> "created";
+            case SUPPORT_TICKET_UPDATED -> "updated";
+            case SUPPORT_TICKET_RESOLVED -> "resolved";
+            case SUPPORT_TICKET_REOPENED -> "reopened";
+        };
+        String subject = "[%s] Support ticket %s".formatted(safeValue(ticket.getTicketNo()), action);
+        String resolutionRow = StringUtils.hasText(ticket.getResolution())
+                ? "<tr><td><strong>Resolution</strong></td><td>%s</td></tr>".formatted(escapeHtml(ticket.getResolution()))
+                : "";
+        String body = """
+                <p>Dear Team,</p>
+                <p>Support ticket <strong>%s</strong> has been %s by %s.</p>
+                <table cellpadding="5" cellspacing="0" border="1" style="border-collapse:collapse">
+                    <tr><td><strong>System</strong></td><td>%s</td></tr>
+                    <tr><td><strong>Company</strong></td><td>%s</td></tr>
+                    <tr><td><strong>Category</strong></td><td>%s</td></tr>
+                    <tr><td><strong>Priority</strong></td><td>%s</td></tr>
+                    <tr><td><strong>Status</strong></td><td>%s</td></tr>
+                    <tr><td><strong>Subject</strong></td><td>%s</td></tr>
+                    %s
+                </table>
+                <p>Please log into the WeCare Admin portal to review the ticket.</p>
+                <p>Thanks &amp; Best Regards!!,<br>WeCare Team.</p>
+                """.formatted(
+                escapeHtml(safeValue(ticket.getTicketNo())),
+                escapeHtml(action),
+                escapeHtml(safeValue(actorUsername)),
+                escapeHtml(ticket.getSystemType() != null ? ticket.getSystemType().getDescription() : "-"),
+                escapeHtml(ticket.getCompany() != null ? ticket.getCompany().getDescription() : "-"),
+                escapeHtml(safeValue(ticket.getCategory())),
+                escapeHtml(ticket.getPriority() != null ? ticket.getPriority().getDescription() : "-"),
+                escapeHtml(ticket.getStatus() != null ? ticket.getStatus().getDescription() : "-"),
+                escapeHtml(safeValue(ticket.getSubject())),
+                resolutionRow);
+
+        Set<String> processedEmails = new HashSet<>();
+        for (WebUser recipient : recipients) {
+            sendHtmlMail(recipient, subject, body, "support ticket " + action, processedEmails);
         }
     }
 

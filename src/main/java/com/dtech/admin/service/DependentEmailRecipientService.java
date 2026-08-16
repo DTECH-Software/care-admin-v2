@@ -57,6 +57,7 @@ public class DependentEmailRecipientService {
             case SPECIFIC_USER -> webUserRepository.findByUsernameIgnoreCaseAndStatus(code, Status.ACTIVE)
                     .map(List::of).orElseGet(List::of);
             case APPROVAL_LEVEL -> resolveApprovalLevel(code);
+            case EVENT_USER -> List.of();
         };
         return applyCompanyScope(candidates, rule.getCompanyScope(), companyCode);
     }

@@ -3,6 +3,7 @@ package com.dtech.admin.service;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.model.EmailNotificationEvent;
 import com.dtech.admin.model.EmailNotificationRecipientRule;
+import com.dtech.admin.model.SupportTicket;
 import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.EmailNotificationEventRepository;
 import com.dtech.admin.repository.EmailNotificationRecipientRuleRepository;
@@ -17,48 +18,63 @@ import java.util.*;
 @Service
 @Log4j2
 @RequiredArgsConstructor
-public class CivilStatusEmailRecipientService {
-    private static final Set<String> LEGACY_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
-    );
+public class SupportTicketEmailRecipientService {
+    public static final String TICKET_CREATOR = "TICKET_CREATOR";
 
     private final EmailNotificationEventRepository eventRepository;
     private final EmailNotificationRecipientRuleRepository ruleRepository;
     private final WebUserRepository webUserRepository;
 
-    public List<WebUser> resolve(CivilStatusEmailEvent event, com.dtech.admin.model.MaritalStatus civilStatus) {
-        String companyCode = resolveCompanyCode(civilStatus);
+    public List<WebUser> resolve(SupportTicketEmailEvent event, SupportTicket ticket, String actorUsername) {
         try {
             Optional<EmailNotificationEvent> configuredEvent = eventRepository.findByCode(event.name());
-            if (configuredEvent.isEmpty()) return legacyFallback(event, companyCode, "event is not configured");
+            if (configuredEvent.isEmpty()) {
+                log.warn("Support-ticket email event {} is not configured; notification was not sent", event);
+                return List.of();
+            }
             if (!Status.ACTIVE.equals(configuredEvent.get().getStatus())) return List.of();
 
             List<EmailNotificationRecipientRule> rules = ruleRepository
                     .findAllByEvent_CodeAndEvent_StatusAndStatus(event.name(), Status.ACTIVE, Status.ACTIVE);
-            if (rules.isEmpty()) return List.of();
-
             Map<String, WebUser> recipients = new LinkedHashMap<>();
             for (EmailNotificationRecipientRule rule : rules) {
-                resolveRule(rule, companyCode).forEach(user -> recipients.putIfAbsent(recipientKey(user), user));
+                resolveRule(rule, ticket).forEach(user -> recipients.putIfAbsent(recipientKey(user), user));
+            }
+            if (StringUtils.hasText(actorUsername)) {
+                recipients.values().removeIf(user -> user != null && StringUtils.hasText(user.getUsername())
+                        && actorUsername.trim().equalsIgnoreCase(user.getUsername().trim()));
             }
             return new ArrayList<>(recipients.values());
         } catch (RuntimeException ex) {
-            log.error("Unable to load DB recipients for civil-status email event {}. Using existing role routing.", event, ex);
-            return legacyFallback(event, companyCode, "configuration lookup failed");
+            log.error("Unable to load recipients for support-ticket email event {}; notification was not sent", event, ex);
+            return List.of();
         }
     }
 
-    private List<WebUser> resolveRule(EmailNotificationRecipientRule rule, String companyCode) {
-        if (rule == null || rule.getRecipientType() == null || !StringUtils.hasText(rule.getRecipientCode())) return List.of();
+    private List<WebUser> resolveRule(EmailNotificationRecipientRule rule, SupportTicket ticket) {
+        if (rule == null || rule.getRecipientType() == null || !StringUtils.hasText(rule.getRecipientCode())) {
+            return List.of();
+        }
         String code = rule.getRecipientCode().trim();
         List<WebUser> candidates = switch (rule.getRecipientType()) {
             case USER_ROLE -> webUserRepository.findAllByUserRole_CodeIgnoreCaseAndStatus(code, Status.ACTIVE);
-            case SPECIFIC_USER -> webUserRepository.findByUsernameIgnoreCaseAndStatus(code, Status.ACTIVE)
-                    .map(List::of).orElseGet(List::of);
+            case SPECIFIC_USER -> findActiveUser(code);
             case APPROVAL_LEVEL -> resolveApprovalLevel(code);
-            case EVENT_USER -> List.of();
+            case EVENT_USER -> resolveEventUser(code, ticket);
         };
-        return applyCompanyScope(candidates, rule.getCompanyScope(), companyCode);
+        return applyCompanyScope(candidates, rule.getCompanyScope(), companyCode(ticket));
+    }
+
+    private List<WebUser> resolveEventUser(String code, SupportTicket ticket) {
+        if (!TICKET_CREATOR.equalsIgnoreCase(code) || ticket == null || !StringUtils.hasText(ticket.getCreatedBy())) {
+            return List.of();
+        }
+        return findActiveUser(ticket.getCreatedBy());
+    }
+
+    private List<WebUser> findActiveUser(String username) {
+        return webUserRepository.findByUsernameIgnoreCaseAndStatus(username, Status.ACTIVE)
+                .map(List::of).orElseGet(List::of);
     }
 
     private List<WebUser> resolveApprovalLevel(String code) {
@@ -66,7 +82,7 @@ public class CivilStatusEmailRecipientService {
             return webUserRepository.findAllByApprovalLevelAndStatus(
                     ApprovalLevel.valueOf(code.toUpperCase(Locale.ROOT)), Status.ACTIVE);
         } catch (IllegalArgumentException ex) {
-            log.warn("Ignoring invalid civil-status email approval level {}", code);
+            log.warn("Ignoring invalid support-ticket email approval level {}", code);
             return List.of();
         }
     }
@@ -82,30 +98,9 @@ public class CivilStatusEmailRecipientService {
         }).toList();
     }
 
-    private List<WebUser> legacyFallback(CivilStatusEmailEvent event, String companyCode, String reason) {
-        log.warn("Using legacy recipient routing for civil-status email event {} because {}", event, reason);
-        return webUserRepository.findAllByStatus(Status.ACTIVE).stream()
-                .filter(user -> user.getUserRole() != null && StringUtils.hasText(user.getUserRole().getCode()))
-                .filter(user -> LEGACY_ADMIN_ROLE_CODES.stream()
-                        .anyMatch(role -> role.equalsIgnoreCase(user.getUserRole().getCode())))
-                .filter(user -> !StringUtils.hasText(companyCode)
-                        || user.getCompanies() == null
-                        || user.getCompanies().isEmpty()
-                        || user.getCompanies().stream().anyMatch(company -> company != null
-                        && Status.ACTIVE.equals(company.getStatus()) && companyCode.equalsIgnoreCase(company.getCode())))
-                .toList();
-    }
-
-    private String resolveCompanyCode(com.dtech.admin.model.MaritalStatus civilStatus) {
-        return Optional.ofNullable(civilStatus)
-                .map(com.dtech.admin.model.MaritalStatus::getApplicationUser)
-                .map(user -> user.getUserPersonalDetails())
-                .map(personal -> personal.getUserCompanyDetails())
-                .map(details -> details.getCompanyTypes())
-                .map(company -> company.getCode())
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .orElse(null);
+    private String companyCode(SupportTicket ticket) {
+        return Optional.ofNullable(ticket).map(SupportTicket::getCompany).map(company -> company.getCode())
+                .filter(StringUtils::hasText).map(String::trim).orElse(null);
     }
 
     private String recipientKey(WebUser user) {

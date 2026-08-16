@@ -43,6 +43,8 @@ class SupportTicketServiceImplTest {
     @Mock private DocumentStorageService documentStorageService;
     @Mock private CommonPrivilegeGetter privilegeGetter;
     @Mock private AuditLogService auditLogService;
+    @Mock private SupportTicketEmailRecipientService supportTicketEmailRecipientService;
+    @Mock private EmailNotificationService emailNotificationService;
 
     private SupportTicketServiceImpl service;
     private WebUser user;
@@ -52,7 +54,8 @@ class SupportTicketServiceImplTest {
     void setUp() {
         service = new SupportTicketServiceImpl(ticketRepository, messageRepository, attachmentRepository,
                 historyRepository, webUserRepository, documentStorageService, privilegeGetter,
-                auditLogService, new ResponseUtil(), new Gson());
+                auditLogService, supportTicketEmailRecipientService, emailNotificationService,
+                new ResponseUtil(), new Gson());
         company = new CompanyTypes();
         company.setId(1L);
         company.setCode("SGCS");
@@ -123,6 +126,8 @@ class SupportTicketServiceImplTest {
                         && "SGCS".equals(ticket.getCompany().getCode())));
         verify(auditLogService).log(eq(WebPage.SUP_APP.name()), eq(WebTask.ADD.name()),
                 anyString(), anyString(), anyString(), anyString(), isNull(), eq("admin.user"));
+        verify(supportTicketEmailRecipientService).resolve(
+                eq(SupportTicketEmailEvent.SUPPORT_TICKET_CREATED), any(SupportTicket.class), eq("admin.user"));
     }
 
     @Test

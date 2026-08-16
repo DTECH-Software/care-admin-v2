@@ -69,6 +69,7 @@ public class EmployeeEmailRecipientService {
             case USER_ROLE -> webUserRepository.findAllByUserRole_CodeIgnoreCaseAndStatus(recipientCode, Status.ACTIVE);
             case SPECIFIC_USER -> webUserRepository.findByUsernameIgnoreCaseAndStatus(recipientCode, Status.ACTIVE)
                     .map(List::of).orElseGet(List::of);
+            case EVENT_USER -> List.of();
         };
         return applyCompanyScope(candidates, rule.getCompanyScope(), companyCode);
     }
