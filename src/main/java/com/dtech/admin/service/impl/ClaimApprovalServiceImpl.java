@@ -18,6 +18,7 @@ import com.dtech.admin.model.*;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.ClaimApprovalService;
+import com.dtech.admin.service.ClaimEmailRecipientService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.LoginService;
@@ -133,6 +134,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    private final ClaimEmailRecipientService claimEmailRecipientService;
 
     @Autowired
     private final CompanyAccessService companyAccessService;
@@ -409,7 +413,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         notifyLevelTwoApprovers(claim, locale);
                     } else if (claimRequestDTO.getStatus().equals(Workflow.REJECTED.name())) {
                         // Notify Level 02 about the rejection with full details.
-                        List<WebUser> levelTwoApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL02, Status.ACTIVE);
+                        List<WebUser> levelTwoApprovers = claimEmailRecipientService.resolve(
+                                ClaimEmailEvent.CLAIM_L1_REJECTED, claim, ApprovalLevel.LEVEL02);
                         scheduleClaimEmailAfterCommit("level 02 info after level 01 rejection", claim, levelTwoApprovers,
                                 () -> emailNotificationService.notifyLevelTwoOnLevelOneRejection(levelTwoApprovers, claim, claimRequestDTO.getRemark(), locale));
                         applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
@@ -458,11 +463,13 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         claim.setApprovalLevel(ApprovalLevel.LEVEL03);
                         if (claimRequestDTO.getStatus().equals(Workflow.APPROVED.name())) {
                             // Notify Level 03 approvers to take action.
-                            List<WebUser> levelThreeApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL03, Status.ACTIVE);
+                            List<WebUser> levelThreeApprovers = claimEmailRecipientService.resolve(
+                                    ClaimEmailEvent.CLAIM_L2_DIFFERENT_DECISION, claim, ApprovalLevel.LEVEL03);
                             scheduleClaimEmailAfterCommit("level 03 escalation", claim, levelThreeApprovers,
                                     () -> emailNotificationService.notifyLevelThreePendingApproval(levelThreeApprovers, claim, locale));
                         } else if (levelTwoRejected && Workflow.REJECTED.equals(status1)) {
-                            List<WebUser> levelThreeApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL03, Status.ACTIVE);
+                            List<WebUser> levelThreeApprovers = claimEmailRecipientService.resolve(
+                                    ClaimEmailEvent.CLAIM_L2_DIFFERENT_DECISION, claim, ApprovalLevel.LEVEL03);
                             scheduleClaimEmailAfterCommit("level 03 escalation", claim, levelThreeApprovers,
                                     () -> emailNotificationService.notifyLevelThreePendingApproval(levelThreeApprovers, claim, locale));
                         }
@@ -478,7 +485,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                             otherMark = buildApprovedAmountMessage(claim.getRequestAmount(), claim.getApprovedAmount(), buildRejectedReasonMessage(workFlow));
                             claim.setInsuranceDetailsLimit(byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment.get());
 
-                            List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
+                            List<WebUser> levelOneApprovers = claimEmailRecipientService.resolve(
+                                    ClaimEmailEvent.CLAIM_L2_MATCHED_APPROVAL, claim, ApprovalLevel.LEVEL01);
                             scheduleClaimEmailAfterCommit("level 01 notification", claim, levelOneApprovers,
                                     () -> emailNotificationService.notifyLevelOneOnApproval(levelOneApprovers, claim, workFlow.getApprovedAmount(), ApprovalLevel.LEVEL02, locale));
                         } else {
@@ -492,12 +500,14 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                     if (levelTwoRejected) {
                         if (Workflow.REJECTED.equals(status1)) {
                             // Level 01 had already rejected; notify Level 01 only with details.
-                            List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
+                            List<WebUser> levelOneApprovers = claimEmailRecipientService.resolve(
+                                    ClaimEmailEvent.CLAIM_L2_REJECTED_AFTER_L1_REJECTED, claim, ApprovalLevel.LEVEL01);
                             scheduleClaimEmailAfterCommit("level 01 rejection after level 02", claim, levelOneApprovers,
                                     () -> emailNotificationService.notifyLevelOneOnLevelTwoRejection(levelOneApprovers, claim, workFlow.getRejectedRemark(), locale));
                         } else {
                             // Level 01 approved; escalate rejection details to Level 03 only.
-                            List<WebUser> levelThreeApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL03, Status.ACTIVE);
+                            List<WebUser> levelThreeApprovers = claimEmailRecipientService.resolve(
+                                    ClaimEmailEvent.CLAIM_L2_REJECTED_AFTER_L1_APPROVED, claim, ApprovalLevel.LEVEL03);
                             scheduleClaimEmailAfterCommit("level 02 rejection", claim, levelThreeApprovers,
                                     () -> emailNotificationService.notifyLevelTwoRejection(levelThreeApprovers, claim, workFlow.getRejectedRemark(), locale));
                         }
@@ -519,7 +529,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                         applySelectedInsuranceDetailsLimit(claim, byInsurancePolicyAndStatusAndInsuranceStaffCategoryPeriodAndTreatment);
                     }
 
-                    List<WebUser> levelOneApprovers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL01, Status.ACTIVE);
+                    List<WebUser> levelOneApprovers = claimEmailRecipientService.resolve(
+                            ClaimEmailEvent.CLAIM_L3_FINAL_DECISION, claim, ApprovalLevel.LEVEL01);
                     scheduleClaimEmailAfterCommit("level 01 final decision", claim, levelOneApprovers,
                             () -> emailNotificationService.notifyLevelOneFinalDecision(levelOneApprovers, claim, newStatus, workFlow.getRejectedRemark(), locale));
                     notifyMessage(resolveClaimNotificationMobile(claim), claim.getRequestId(), messageType, otherMark);
@@ -571,7 +582,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
     protected void notifyLevelTwoApprovers(InsuranceClaimsRequest claim, Locale locale) {
         try {
-            List<WebUser> approvers = webUserRepository.findAllByApprovalLevelAndStatus(ApprovalLevel.LEVEL02, Status.ACTIVE);
+            List<WebUser> approvers = claimEmailRecipientService.resolve(
+                    ClaimEmailEvent.CLAIM_L1_APPROVED, claim, ApprovalLevel.LEVEL02);
             if (approvers.isEmpty()) {
                 log.warn("No Level 02 approvers available to notify for claim {}", claim.getRequestId());
                 return;

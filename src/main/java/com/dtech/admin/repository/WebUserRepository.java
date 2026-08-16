@@ -19,4 +19,12 @@ public interface WebUserRepository extends JpaRepository<WebUser, Long> , JpaSpe
     boolean existsByUsernameEqualsIgnoreCaseAndStatusNot(String username,Status status);
     List<WebUser> findAllByStatus(Status status);
     List<WebUser> findAllByApprovalLevelAndStatus(ApprovalLevel approvalLevel, Status status);
+    List<WebUser> findAllByApprovalLevelAndStatusAndCompanies_CodeIgnoreCase(
+            ApprovalLevel approvalLevel, Status status, String companyCode);
+    List<WebUser> findAllByUserRole_CodeIgnoreCaseAndStatus(String roleCode, Status status);
+    List<WebUser> findAllByUserRole_CodeIgnoreCaseAndStatusAndCompanies_CodeIgnoreCase(
+            String roleCode, Status status, String companyCode);
+    Optional<WebUser> findByUsernameIgnoreCaseAndStatus(String username, Status status);
+    Optional<WebUser> findByUsernameIgnoreCaseAndStatusAndCompanies_CodeIgnoreCase(
+            String username, Status status, String companyCode);
 }
