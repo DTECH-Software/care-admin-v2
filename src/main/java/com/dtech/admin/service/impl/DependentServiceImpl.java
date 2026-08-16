@@ -19,6 +19,7 @@ import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DependentService;
+import com.dtech.admin.service.DependentEmailRecipientService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.MessageService;
 import com.dtech.admin.specifications.DependentSpecification;
@@ -44,10 +45,6 @@ import java.util.stream.Stream;
 @Log4j2
 @RequiredArgsConstructor
 public class DependentServiceImpl implements DependentService {
-
-    private static final Set<String> DEPENDENT_APPROVAL_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
-    );
 
     @Autowired
     private final MessageSource messageSource;
@@ -77,13 +74,13 @@ public class DependentServiceImpl implements DependentService {
     private final StaffCategoriesRepository staffCategoriesRepository;
 
     @Autowired
-    private final WebUserRepository webUserRepository;
-
-    @Autowired
     private final CompanyAccessService companyAccessService;
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    private final DependentEmailRecipientService dependentEmailRecipientService;
 
     @Autowired
     private final MessageService messageService;
@@ -415,24 +412,8 @@ public class DependentServiceImpl implements DependentService {
     }
 
     private void notifyAdminTeamOnDependentApproval(ClaimsDependents dependent, String hrUsername) {
-        String employeeCompanyCode = dependent.getApplicationUser() != null
-                && dependent.getApplicationUser().getUserPersonalDetails() != null
-                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails() != null
-                && dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes() != null
-                ? dependent.getApplicationUser().getUserPersonalDetails().getUserCompanyDetails().getCompanyTypes().getCode()
-                : null;
-
-        List<WebUser> recipients = webUserRepository.findAllByStatus(Status.ACTIVE).stream()
-                .filter(user -> user.getUserRole() != null && org.springframework.util.StringUtils.hasText(user.getUserRole().getCode()))
-                .filter(user -> DEPENDENT_APPROVAL_ADMIN_ROLE_CODES.stream()
-                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
-                .filter(user -> !org.springframework.util.StringUtils.hasText(employeeCompanyCode)
-                        || user.getCompanies() == null
-                        || user.getCompanies().isEmpty()
-                        || user.getCompanies().stream()
-                        .anyMatch(company -> Status.ACTIVE.equals(company.getStatus())
-                                && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
-                .toList();
+        List<WebUser> recipients = dependentEmailRecipientService.resolve(
+                DependentEmailEvent.DEPENDENT_APPROVED, dependent);
 
         emailNotificationService.notifyDependentApprovedByHr(recipients, dependent, hrUsername);
     }
