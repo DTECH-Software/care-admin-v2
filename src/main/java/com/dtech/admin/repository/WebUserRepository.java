@@ -5,6 +5,7 @@ import com.dtech.admin.enums.Status;
 import com.dtech.admin.model.WebUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,13 +18,17 @@ public interface WebUserRepository extends JpaRepository<WebUser, Long> , JpaSpe
     Optional<WebUser> findByUsernameAndStatusIn(String username,List<Status> statuses);
     Optional<WebUser> findByUsername(String username);
     boolean existsByUsernameEqualsIgnoreCaseAndStatusNot(String username,Status status);
+    @EntityGraph(attributePaths = {"userRole", "companies"})
     List<WebUser> findAllByStatus(Status status);
+    @EntityGraph(attributePaths = {"userRole", "companies"})
     List<WebUser> findAllByApprovalLevelAndStatus(ApprovalLevel approvalLevel, Status status);
     List<WebUser> findAllByApprovalLevelAndStatusAndCompanies_CodeIgnoreCase(
             ApprovalLevel approvalLevel, Status status, String companyCode);
+    @EntityGraph(attributePaths = {"userRole", "companies"})
     List<WebUser> findAllByUserRole_CodeIgnoreCaseAndStatus(String roleCode, Status status);
     List<WebUser> findAllByUserRole_CodeIgnoreCaseAndStatusAndCompanies_CodeIgnoreCase(
             String roleCode, Status status, String companyCode);
+    @EntityGraph(attributePaths = {"userRole", "companies"})
     Optional<WebUser> findByUsernameIgnoreCaseAndStatus(String username, Status status);
     Optional<WebUser> findByUsernameIgnoreCaseAndStatusAndCompanies_CodeIgnoreCase(
             String username, Status status, String companyCode);

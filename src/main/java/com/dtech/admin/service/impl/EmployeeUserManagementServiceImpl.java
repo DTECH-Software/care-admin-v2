@@ -17,6 +17,7 @@ import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
+import com.dtech.admin.service.EmployeeEmailRecipientService;
 import com.dtech.admin.service.EmployeeUserManagementService;
 import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeUserSpecification;
@@ -49,10 +50,6 @@ import java.util.stream.Collectors;
 @Log4j2
 @RequiredArgsConstructor
 public class EmployeeUserManagementServiceImpl implements EmployeeUserManagementService {
-
-    private static final Set<String> STAFF_CATEGORY_TRANSFER_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
-    );
 
     @Autowired
     private final MessageSource messageSource;
@@ -94,9 +91,6 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
-    private final WebUserRepository webUserRepository;
-
-    @Autowired
     private final EmployeeUserMapperEntityToDto employeeUserMapperEntityToDto;
 
     @Autowired
@@ -129,6 +123,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
     private final DocumentStorageService documentStorageService;
     @Autowired
     private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    private final EmployeeEmailRecipientService employeeEmailRecipientService;
 
     @Autowired
     private final RejoinCarryForwardService rejoinCarryForwardService;
@@ -862,24 +859,8 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                                                              StaffCategories newStaffCategory,
                                                              Date effectiveDate,
                                                              String hrUsername) {
-        String employeeCompanyCode = employee != null
-                && employee.getUserCompanyDetails() != null
-                && employee.getUserCompanyDetails().getCompanyTypes() != null
-                ? employee.getUserCompanyDetails().getCompanyTypes().getCode()
-                : null;
-
-        List<WebUser> recipients = webUserRepository.findAllByStatus(Status.ACTIVE).stream()
-                .filter(user -> user.getUserRole() != null
-                        && org.springframework.util.StringUtils.hasText(user.getUserRole().getCode()))
-                .filter(user -> STAFF_CATEGORY_TRANSFER_ADMIN_ROLE_CODES.stream()
-                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
-                .filter(user -> !org.springframework.util.StringUtils.hasText(employeeCompanyCode)
-                        || user.getCompanies() == null
-                        || user.getCompanies().isEmpty()
-                        || user.getCompanies().stream()
-                        .anyMatch(company -> Status.ACTIVE.equals(company.getStatus())
-                                && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
-                .toList();
+        List<WebUser> recipients = employeeEmailRecipientService.resolve(
+                EmployeeEmailEvent.STAFF_CATEGORY_TRANSFER_OR_PROMOTION, employee);
 
         initializeStaffCategoryTransferEmailData(employee, previousStaffCategory, newStaffCategory, recipients);
 

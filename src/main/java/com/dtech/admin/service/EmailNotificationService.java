@@ -45,10 +45,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class EmailNotificationService {
 
-    private static final Set<String> ADMIN_NOTIFICATION_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
-    );
-
     @Autowired
     private final JavaMailSender mailSender;
 
@@ -336,9 +332,6 @@ public class EmailNotificationService {
         }
         return recipients.stream()
                 .filter(Objects::nonNull)
-                .filter(user -> user.getUserRole() != null && StringUtils.hasText(user.getUserRole().getCode()))
-                .filter(user -> ADMIN_NOTIFICATION_ROLE_CODES.stream()
-                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
                 .toList();
     }
 

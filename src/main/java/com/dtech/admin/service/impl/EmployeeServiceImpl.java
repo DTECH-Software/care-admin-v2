@@ -24,6 +24,7 @@ import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
+import com.dtech.admin.service.EmployeeEmailRecipientService;
 import com.dtech.admin.service.EmployeeService;
 import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeSpecification;
@@ -55,9 +56,6 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class EmployeeServiceImpl implements EmployeeService {
 
-    private static final Set<String> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES = Set.of(
-            "SUPERADMIN1", "SUPERADMIN", "ADMIN", "APPROVER", "DevTest", "SubAdmin"
-    );
     private static final String DUMMY_MOBILE_PREFIX = "0000";
     private static final Pattern REAL_MOBILE_PATTERN = Pattern.compile("^(071|070|074|077|075|078|072|076)[0-9]{7}$");
     private static final Map<String, ReentrantLock> EMPLOYEE_ADD_LOCKS = new ConcurrentHashMap<>();
@@ -99,9 +97,6 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserPersonalDetailsRepository userPersonalDetailsRepository;
 
     @Autowired
-    private final WebUserRepository webUserRepository;
-
-    @Autowired
     private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
@@ -115,6 +110,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    private final EmployeeEmailRecipientService employeeEmailRecipientService;
 
     @Override
     @Transactional
@@ -471,27 +469,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         return ResponseEntity.ok().body(responseUtil.error(null, code, message));
     }
 
-    private List<WebUser> resolveEmployeeAdminRecipients(UserPersonalDetails employee) {
-        String employeeCompanyCode = employee.getUserCompanyDetails() != null
-                && employee.getUserCompanyDetails().getCompanyTypes() != null
-                ? employee.getUserCompanyDetails().getCompanyTypes().getCode()
-                : null;
-
-        return webUserRepository.findAllByStatus(Status.ACTIVE).stream()
-                .filter(user -> user.getUserRole() != null && StringUtils.hasText(user.getUserRole().getCode()))
-                .filter(user -> EMPLOYEE_INCLUSION_ADMIN_ROLE_CODES.stream()
-                        .anyMatch(roleCode -> roleCode.equalsIgnoreCase(user.getUserRole().getCode())))
-                .filter(user -> !StringUtils.hasText(employeeCompanyCode)
-                        || user.getCompanies() == null
-                        || user.getCompanies().isEmpty()
-                        || user.getCompanies().stream()
-                        .anyMatch(company -> Status.ACTIVE.equals(company.getStatus())
-                                && employeeCompanyCode.equalsIgnoreCase(company.getCode())))
-                .toList();
-    }
-
     private void notifyAdminTeamOnEmployeeAdditionAfterCommit(UserPersonalDetails employee, String hrUsername) {
-        List<WebUser> recipients = resolveEmployeeAdminRecipients(employee);
+        List<WebUser> recipients = employeeEmailRecipientService.resolve(EmployeeEmailEvent.EMPLOYEE_INCLUSION, employee);
         initializeEmployeeInclusionEmailData(employee, recipients);
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             scheduleAdminTeamOnEmployeeAddition(employee, hrUsername, recipients);
@@ -545,7 +524,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private void notifyAdminTeamOnEmployeeDeactivation(UserPersonalDetails employee, String hrUsername) {
-        List<WebUser> recipients = resolveEmployeeAdminRecipients(employee);
+        List<WebUser> recipients = employeeEmailRecipientService.resolve(EmployeeEmailEvent.EMPLOYEE_DEACTIVATION, employee);
         initializeEmployeeInclusionEmailData(employee, recipients);
         if (employee != null && employee.getUserCompanyDetails() != null) {
             employee.getUserCompanyDetails().getTerminateDate();
