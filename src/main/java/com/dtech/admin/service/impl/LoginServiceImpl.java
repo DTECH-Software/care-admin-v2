@@ -251,6 +251,10 @@ public class LoginServiceImpl implements LoginService {
                                         WebSection section = page.getWebSection();
                                         return page.getStatus() == Status.ACTIVE && section.getStatus() == Status.ACTIVE;
                                     })
+                                    .sorted(Comparator
+                                            .comparing((WebUserRolePageTask task) -> task.getPage().getWebSection().getId())
+                                            .thenComparing(task -> task.getPage().getDescription(), String.CASE_INSENSITIVE_ORDER)
+                                            .thenComparing(WebUserRolePageTask::getId))
                                     .forEach(task -> {
                                         WebSection section = task.getPage().getWebSection();
                                         String sectionCode = section.getCode();
