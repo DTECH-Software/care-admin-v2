@@ -3,10 +3,12 @@ package com.dtech.admin.controller;
 import com.dtech.admin.dto.request.ChannelRequestDTO;
 import com.dtech.admin.dto.request.EmployeeDetailsRequestDTO;
 import com.dtech.admin.dto.request.EmployeeManagementRequestDTO;
+import com.dtech.admin.dto.request.EmployeePreviousEmploymentRequestDTO;
 import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.request.validator.ChannelRequestValidatorDTO;
 import com.dtech.admin.dto.request.validator.EmployeeDetailsRequestValidatorDTO;
 import com.dtech.admin.dto.request.validator.EmployeeManagementRequestValidatorDTO;
+import com.dtech.admin.dto.request.validator.EmployeePreviousEmploymentRequestValidatorDTO;
 import com.dtech.admin.dto.response.ApiResponse;
 import com.dtech.admin.dto.search.EmployeeSearchDTO;
 import com.dtech.admin.service.EmployeeService;
@@ -77,6 +79,17 @@ public class EmployeeController {
     public ResponseEntity<ApiResponse<Object>> update(@RequestBody @Validated(OnUpdate.class) @Valid EmployeeDetailsRequestValidatorDTO employeeDetailsRequestValidatorDTO, Locale locale) {
         log.info("pages update request  controller {} ", employeeDetailsRequestValidatorDTO);
         return employeeService.update(gson.fromJson(gson.toJson(employeeDetailsRequestValidatorDTO), EmployeeDetailsRequestDTO.class), locale);
+    }
+
+    @PostMapping(path = "/previous-employment", produces = MediaType.APPLICATION_JSON_VALUE,
+            consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Find previous company and EPF details by NIC",
+            notes = "Returns inactive employee history matching the supplied NIC")
+    public ResponseEntity<ApiResponse<Object>> previousEmployment(
+            @RequestBody @Valid EmployeePreviousEmploymentRequestValidatorDTO request, Locale locale) {
+        log.info("Employee previous employment lookup request for NIC {}", request.getNic());
+        return employeeService.previousEmployment(
+                gson.fromJson(gson.toJson(request), EmployeePreviousEmploymentRequestDTO.class), locale);
     }
 
     @PostMapping(path = "/staff-category-update",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -22,4 +22,5 @@ public interface UserPersonalDetailsRepository extends JpaRepository<UserPersona
     @Query("select u.mobileNo from UserPersonalDetails u where u.mobileNo like concat(:prefix, '%') order by u.mobileNo desc")
     List<String> findLatestMobileNoByPrefix(@Param("prefix") String prefix, Pageable pageable);
     List<UserPersonalDetails> findAllByNicIgnoreCaseAndUserStatusAndIdNotOrderByIdDesc(String nic, Status userStatus, Long id);
+    List<UserPersonalDetails> findAllByNicIgnoreCaseAndUserStatusOrderByIdDesc(String nic, Status userStatus);
 }

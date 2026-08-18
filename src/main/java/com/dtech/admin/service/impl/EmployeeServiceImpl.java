@@ -4,6 +4,7 @@ import com.dtech.admin.dto.PagingResult;
 import com.dtech.admin.dto.SimpleBaseDTO;
 import com.dtech.admin.dto.request.ChannelRequestDTO;
 import com.dtech.admin.dto.request.EmployeeDetailsRequestDTO;
+import com.dtech.admin.dto.request.EmployeePreviousEmploymentRequestDTO;
 import com.dtech.admin.dto.request.PaginationRequest;
 import com.dtech.admin.dto.request.UserCompanyDetailsRequestDTO;
 import com.dtech.admin.dto.response.ApiResponse;
@@ -11,6 +12,8 @@ import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
 import com.dtech.admin.dto.response.DocumentDownloadResponseDTO;
 import com.dtech.admin.dto.response.EmployeeDetailsResponseDTO;
 import com.dtech.admin.dto.response.EmployeeRejoinDetailsResponseDTO;
+import com.dtech.admin.dto.response.EmployeePreviousEmploymentItemResponseDTO;
+import com.dtech.admin.dto.response.EmployeePreviousEmploymentResponseDTO;
 import com.dtech.admin.dto.search.EmployeeSearchDTO;
 import com.dtech.admin.enums.*;
 import com.dtech.admin.enums.MaritalStatus;
@@ -201,6 +204,47 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private Set<String> getEligibleCompanyCodes(String username) {
         return companyAccessService.activeCompanyCodes(username);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<ApiResponse<Object>> previousEmployment(
+            EmployeePreviousEmploymentRequestDTO request, Locale locale) {
+        AuthorizationTaskResponseDTO privileges = commonPrivilegeGetter
+                .getPrivileges(request.getUsername(), WebPage.EMPM.name());
+        if (privileges == null || (!privileges.isView() && !privileges.isAdd())) {
+            return ResponseEntity.ok(responseUtil.error(null, 1003,
+                    "You are not authorized to view employee previous employment details"));
+        }
+
+        String nic = request.getNic().trim();
+        List<UserPersonalDetails> previousProfiles = userPersonalDetailsRepository
+                .findAllByNicIgnoreCaseAndUserStatusOrderByIdDesc(nic, Status.INACTIVE);
+        LinkedHashMap<String, EmployeePreviousEmploymentItemResponseDTO> distinctEmployment =
+                new LinkedHashMap<>();
+
+        for (UserPersonalDetails profile : previousProfiles) {
+            CompanyTypes company = profile.getUserCompanyDetails() == null
+                    ? null : profile.getUserCompanyDetails().getCompanyTypes();
+            if (company == null || !StringUtils.hasText(company.getCode())
+                    || !StringUtils.hasText(profile.getEpfNo())) {
+                continue;
+            }
+            String companyCode = company.getCode().trim();
+            String epfNo = profile.getEpfNo().trim();
+            String key = companyCode.toLowerCase(Locale.ROOT) + "\u0000" + epfNo.toLowerCase(Locale.ROOT);
+            distinctEmployment.putIfAbsent(key, new EmployeePreviousEmploymentItemResponseDTO(
+                    companyCode, company.getDescription(), epfNo));
+        }
+
+        EmployeePreviousEmploymentResponseDTO response = new EmployeePreviousEmploymentResponseDTO();
+        response.setNic(nic);
+        response.setPreviousEmployment(new ArrayList<>(distinctEmployment.values()));
+        auditLogService.log(WebPage.EMPM.name(), WebTask.VIEW.name(),
+                "View employee previous employment details by NIC", request.getIp(), request.getUserAgent(),
+                gson.toJson(response), null, request.getUsername());
+        return ResponseEntity.ok(responseUtil.success((Object) response,
+                "Employee previous employment details retrieved successfully"));
     }
 
     private boolean canAccess(UserPersonalDetails employee, String username) {
