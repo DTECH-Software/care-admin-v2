@@ -1,6 +1,7 @@
 package com.dtech.admin.repository;
 
 import com.dtech.admin.enums.Status;
+import com.dtech.admin.enums.Gender;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.CompanyTypes;
 import com.dtech.admin.model.UserPersonalDetails;
@@ -16,6 +17,10 @@ import java.util.Optional;
 
 @Repository
 public interface ApplicationUserRepository extends JpaRepository<ApplicationUser, Long> , JpaSpecificationExecutor<ApplicationUser> {
+
+    long countByUserPersonalDetails_Gender(Gender gender);
+    long countByUserPersonalDetails_UserCompanyDetails_CompanyTypes_Code(String companyCode);
+    long countByUserPersonalDetails_UserCompanyDetails_StaffCategories_Code(String staffCategoryCode);
 
     Optional<ApplicationUser> findByUserPersonalDetails_EpfNoIgnoreCaseAndUserPersonalDetails_UserCompanyDetails_CompanyTypes_Code(
             String epfNo, String companyCode);

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WeCare Admin Functional Requirements Document</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.35; color: #1f2937; }
+  h1 { color: #17365d; font-size: 22pt; border-bottom: 2px solid #5b9bd5; padding-bottom: 5px; }
+  h2 { color: #1f4e78; font-size: 16pt; margin-top: 24px; }
+  h3 { color: #2f5597; font-size: 12.5pt; margin-top: 18px; }
+  h4 { color: #44546a; font-size: 11pt; }
+  p { margin: 5px 0 9px; }
+  ul, ol { margin-top: 4px; }
+  li { margin-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; }
+  th { background: #1f4e78; color: white; font-weight: bold; border: 1px solid #8ea9c1; padding: 6px; text-align: left; }
+  td { border: 1px solid #b4c6e7; padding: 6px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f4f7fb; }
+  .cover { text-align: center; margin-top: 150px; }
+  .cover h1 { border: none; font-size: 30pt; }
+  .cover h2 { color: #5b9bd5; font-size: 19pt; }
+  .subtitle { font-size: 13pt; color: #44546a; }
+  .page-break { page-break-before: always; }
+  .note { background: #eaf2f8; border-left: 5px solid #5b9bd5; padding: 10px; margin: 12px 0; }
+  .warning { background: #fff2cc; border-left: 5px solid #bf9000; padding: 10px; margin: 12px 0; }
+  .req-id { width: 14%; font-weight: bold; color: #1f4e78; }
+  .priority { width: 10%; text-align: center; }
+  .small { font-size: 9pt; color: #595959; }
+  .flow { text-align: center; font-weight: bold; color: #1f4e78; padding: 12px; border: 1px solid #9dc3e6; background: #ddebf7; }
+  .signature td { height: 45px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>WeCare Admin</h1>
+  <h2>Functional Requirements Document</h2>
+  <p class="subtitle">Functional, business-rule, integration and acceptance requirements</p>
+  <p><strong>Document Version:</strong> 1.0</p>
+  <p><strong>Status:</strong> Draft for QA/UAT and Business Review</p>
+  <p><strong>Date:</strong> 17 August 2026</p>
+</div>
+
+<div class="page-break"></div>
+<h1>Document Control</h1>
+
+<table>
+  <tr><th>Field</th><th>Value</th></tr>
+  <tr><td>Document title</td><td>WeCare Admin Functional Requirements Document</td></tr>
+  <tr><td>Version</td><td>1.0</td></tr>
+  <tr><td>Status</td><td>Draft for QA/UAT and Business Review</td></tr>
+  <tr><td>Prepared from</td><td>Current WeCare Admin implementation, documented business rules, and the WeCare Admin QA checklist</td></tr>
+  <tr><td>Business owner</td><td>To be confirmed</td></tr>
+  <tr><td>Technical owner</td><td>WeCare Development Team</td></tr>
+  <tr><td>Confidentiality</td><td>Internal use</td></tr>
+</table>
+
+<h2>Revision History</h2>
+<table>
+  <tr><th>Version</th><th>Date</th><th>Description</th><th>Author</th></tr>
+  <tr><td>1.0</td><td>17-Aug-2026</td><td>Initial consolidated Care Admin FRD for QA/UAT review</td><td>WeCare Development Team</td></tr>
+</table>
+
+<h2>Review and Approval</h2>
+<table class="signature">
+  <tr><th>Role</th><th>Name</th><th>Decision/Signature</th><th>Date</th></tr>
+  <tr><td>Business Owner</td><td></td><td></td><td></td></tr>
+  <tr><td>HR Representative</td><td></td><td></td><td></td></tr>
+  <tr><td>Claims/Finance Representative</td><td></td><td></td><td></td></tr>
+  <tr><td>QA Lead</td><td></td><td></td><td></td></tr>
+  <tr><td>Technical Lead</td><td></td><td></td><td></td></tr>
+</table>
+
+<div class="page-break"></div>
+<h1>Contents</h1>
+<ol>
+  <li>Purpose and Objectives</li>
+  <li>Scope</li>
+  <li>Stakeholders and User Roles</li>
+  <li>System Overview</li>
+  <li>Common Business Rules</li>
+  <li>Functional Requirements</li>
+  <li>Key Business Workflows</li>
+  <li>External and Internal Integrations</li>
+  <li>Data and Migration Requirements</li>
+  <li>Non-Functional Requirements</li>
+  <li>Acceptance and UAT Criteria</li>
+  <li>Requirements-to-QA Traceability</li>
+  <li>Assumptions, Constraints and Exclusions</li>
+  <li>Glossary</li>
+</ol>
+
+<h1 class="page-break">1. Purpose and Objectives</h1>
+<p>This document defines the functional requirements of the WeCare Admin system. It provides the agreed business behavior required for employee and dependent administration, insurance configuration, claim approval, financial processing, reporting, auditing, notification, support and integration with the WeCare Care App.</p>
+
+<p>The objectives of WeCare Admin are to:</p>
+<ul>
+  <li>Provide secure, role-based administration for multiple companies.</li>
+  <li>Maintain employee, application-user and dependent information.</li>
+  <li>Configure insurance policies, periods, treatment categories and employee limits.</li>
+  <li>Process medical and death-related claims using controlled approval workflows.</li>
+  <li>Maintain accurate policy balances across staff-category changes and policy periods.</li>
+  <li>Generate operational, claim, payment and management reports.</li>
+  <li>Exchange correct status, policy, balance and notification information with the Care App.</li>
+  <li>Provide traceable audit records for Admin and Care App activities.</li>
+</ul>
+
+<h1>2. Scope</h1>
+<h2>2.1 In Scope</h2>
+<ul>
+  <li>Admin authentication, password reset and role/page/task authorization.</li>
+  <li>System-user, role, privilege, company and reference-data administration.</li>
+  <li>Employee master data, application-user administration, activation/inactivation, civil-status processing and staff-category transfer/promotion.</li>
+  <li>Dependent review, update, approval and rejection.</li>
+  <li>Insurance policy, period, treatment, category, quarter and limit configuration.</li>
+  <li>Indoor, outdoor, spectacle, critical-illness, DDF and death-related claim administration.</li>
+  <li>Multi-level approval, full approval, partial approval, rejection and reason handling.</li>
+  <li>SMS and email notifications currently implemented by the system.</li>
+  <li>Payment attachments, payment advice and financial reporting.</li>
+  <li>Dashboards, operational reports, exports and migrated-data validation.</li>
+  <li>Linode Object Storage-backed document management with API-compatible Base64 responses.</li>
+  <li>Admin, Care App and combined audit activity pages.</li>
+  <li>Support tickets for WeCare Admin and Care App issues.</li>
+</ul>
+
+<h2>2.2 Out of Scope</h2>
+<ul>
+  <li>Detailed Care App user-interface requirements, except Admin-to-App integration outcomes.</li>
+  <li>Direct Care App user-to-support ticket creation; Care App users contact their Care Admin/HR team.</li>
+  <li>Developer assignment within support tickets.</li>
+  <li>Security-alert emails that are not currently implemented. User creation and OTP/password reset messages remain SMS-based.</li>
+  <li>Infrastructure procurement and third-party service commercial agreements.</li>
+</ul>
+
+<h1>3. Stakeholders and User Roles</h1>
+<table>
+  <tr><th>Role/Stakeholder</th><th>Primary Responsibilities</th></tr>
+  <tr><td>Super Administrator / Global Administrator</td><td>Cross-company administration, configuration, monitoring and privileged support according to assigned permissions.</td></tr>
+  <tr><td>Company/HR Administrator</td><td>Manages employees and dependents for assigned companies and submits/approves permitted HR workflows.</td></tr>
+  <tr><td>Claims Approver – Level 01</td><td>Performs initial claim review, amount recommendation, rejection-reason entry and routing.</td></tr>
+  <tr><td>Claims Approver – Level 02</td><td>Performs subsequent/final review or routes exceptional workflows to Level 03.</td></tr>
+  <tr><td>Claims Approver – Level 03</td><td>Performs final decision where escalation rules require Level 03.</td></tr>
+  <tr><td>Finance/Payment User</td><td>Creates payment attachments, payment advice and financial outputs.</td></tr>
+  <tr><td>Report User</td><td>Views and exports reports within assigned company and privilege scope.</td></tr>
+  <tr><td>Central Support User</td><td>Reviews WeCare Admin/Care App tickets, replies, updates status and resolves tickets.</td></tr>
+  <tr><td>Employee (Care App)</td><td>Consumes Admin-managed profile, policy, limit, dependent, claim and payment information.</td></tr>
+</table>
+
+<div class="note"><strong>Company segregation:</strong> A company-restricted user, including an HR user, shall only access employees, claims, reports, documents, audit data and other business records belonging to the companies assigned to that user. A global user with no company assignment may receive or access cross-company information only where the configured role and privilege permit it.</div>
+
+<h1>4. System Overview</h1>
+<p>WeCare Admin is the administrative and approval component of the WeCare ecosystem. It exchanges employee, dependent, policy, limit, claim, payment, document and notification information with Care App services and shared database structures.</p>
+
+<div class="flow">Reference Configuration → Employee &amp; Dependent Administration → Claim Submission → L1/L2/L3 Review → Final Decision → Balance/Notification → Payment → Reporting &amp; Audit</div>
+
+<p>Admin business APIs use POST operations for reference data, searching/filtering, viewing and state-changing operations, in line with the established system convention. Each protected function is authorized using page and task privileges.</p>
+
+<h1>5. Common Business Rules</h1>
+<table>
+  <tr><th class="req-id">Rule ID</th><th>Business Rule</th></tr>
+  <tr><td>BR-COM-001</td><td>Only ACTIVE users, roles, master records, notification events and recipient rules shall participate in active workflows unless a historical view explicitly requires inactive records.</td></tr>
+  <tr><td>BR-COM-002</td><td>Company-scoped users shall not view or process another company’s information, including through reports or exported files.</td></tr>
+  <tr><td>BR-COM-003</td><td>Reference-data responses shall include the privileges required by the page so the client can enable only authorized actions.</td></tr>
+  <tr><td>BR-COM-004</td><td>Search, view, export and dashboard totals shall use consistent filters and business definitions.</td></tr>
+  <tr><td>BR-COM-005</td><td>State-changing operations shall be auditable with actor, date/time, source, action and business context.</td></tr>
+  <tr><td>BR-COM-006</td><td>Business identifiers, monetary amounts, company context, policy period and final workflow outcome shall remain consistent across Admin, Care App, notifications and reports.</td></tr>
+  <tr><td>BR-COM-007</td><td>Duplicate validations shall be evaluated using the applicable company and ACTIVE-status scope. EPF numbers may exist in different companies but shall not duplicate within the same company for active records.</td></tr>
+  <tr><td>BR-COM-008</td><td>Failures from document, message, email and report services shall be logged and diagnosable without silently changing the business outcome.</td></tr>
+</table>
+
+<h1 class="page-break">6. Functional Requirements</h1>
+
+<h2>6.1 Authentication, Password and Session Management</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-AUTH-001</td><td>The system shall authenticate Admin users using valid credentials and shall reject invalid credentials.</td><td>Must</td></tr>
+  <tr><td>FR-AUTH-002</td><td>The system shall prevent inactive, locked or unauthorized users from accessing protected Admin functions.</td><td>Must</td></tr>
+  <tr><td>FR-AUTH-003</td><td>The system shall support first-time login and forced password-change behavior according to password policy.</td><td>Must</td></tr>
+  <tr><td>FR-AUTH-004</td><td>The system shall issue password-reset OTPs through the configured SMS message service and validate OTP expiry and attempt limits.</td><td>Must</td></tr>
+  <tr><td>FR-AUTH-005</td><td>The system shall enforce password complexity, history, expiry and reset rules configured for Admin users.</td><td>Must</td></tr>
+  <tr><td>FR-AUTH-006</td><td>The system shall create and terminate authenticated sessions/tokens securely and reject expired or invalid tokens.</td><td>Must</td></tr>
+  <tr><td>FR-AUTH-007</td><td>Login, logout, failed authentication and password-reset outcomes shall be recorded in the appropriate audit trail.</td><td>Must</td></tr>
+</table>
+
+<h2>6.2 System Users, Roles and Privileges</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-SEC-001</td><td>Authorized users shall create, view, search, update, activate and deactivate system users.</td><td>Must</td></tr>
+  <tr><td>FR-SEC-002</td><td>User creation shall send the current user-creation message through SMS; it shall not be treated as an email event unless separately approved.</td><td>Must</td></tr>
+  <tr><td>FR-SEC-003</td><td>Authorized users shall create and maintain roles and assign pages and tasks to roles.</td><td>Must</td></tr>
+  <tr><td>FR-SEC-004</td><td>The left navigation shall be generated from the authorized sections/pages and retain the configured display order when privileges are removed and reassigned.</td><td>Must</td></tr>
+  <tr><td>FR-SEC-005</td><td>Page privileges shall independently control reference data, search, view, add, update, delete/deactivate, file upload, password reset and workflow-specific approval actions.</td><td>Must</td></tr>
+  <tr><td>FR-SEC-006</td><td>Users shall only select and access companies assigned to them, except explicitly authorized global users.</td><td>Must</td></tr>
+</table>
+
+<h2>6.3 Company and Reference Data</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-MST-001</td><td>Authorized users shall maintain company master data and its active/inactive state.</td><td>Must</td></tr>
+  <tr><td>FR-MST-002</td><td>The system shall maintain staff categories, staff types, treatments, treatment categories and other common parameters required by employee and claim workflows.</td><td>Must</td></tr>
+  <tr><td>FR-MST-003</td><td>Reference-data lists shall return code/description values consistently and exclude unusable inactive values from new transactions.</td><td>Must</td></tr>
+  <tr><td>FR-MST-004</td><td>Reject reasons shall support an indicator controlling inclusion in the Reject Reason Report.</td><td>Must</td></tr>
+  <tr><td>FR-MST-005</td><td>Master-data duplicate rules shall prevent conflicting active codes or descriptions according to the applicable master.</td><td>Must</td></tr>
+</table>
+
+<h2>6.4 Employee Management</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-EMP-001</td><td>Authorized users shall create an employee with personal, address, company, employment, contact and identity information.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-002</td><td>The system shall validate mandatory data, NIC format, EPF/company duplication and other identity constraints before saving.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-003</td><td>EPF numbers may repeat across different companies but an active EPF shall not duplicate within the same company.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-004</td><td>Authorized users shall search, filter, view and update employees within their assigned companies.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-005</td><td>The system shall activate/inactivate an employee and record termination information where applicable.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-006</td><td>The system shall maintain permanent date, previous permanent date and transfer date where relevant to policy/quarter determination.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-007</td><td>Employee inclusion, deactivation and staff-category transfer/promotion email recipients shall be selected from active database notification rules, while retaining the current templates and business actions.</td><td>Must</td></tr>
+  <tr><td>FR-EMP-008</td><td>Company-restricted HR users shall not retrieve other companies’ employee information through any page, report or export.</td><td>Must</td></tr>
+</table>
+
+<h2>6.5 Employee Application-User Management</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-APU-001</td><td>Authorized users shall search and view employee application-user records, related dependents and assigned limits.</td><td>Must</td></tr>
+  <tr><td>FR-APU-002</td><td>Application-user status and login status shall be independently maintained according to onboarding and activation rules.</td><td>Must</td></tr>
+  <tr><td>FR-APU-003</td><td>The system shall support application-user creation for migrated employees without requiring creation during the initial employee-master import.</td><td>Must</td></tr>
+  <tr><td>FR-APU-004</td><td>Employee-selection and login responses shall expose transfer date and the policy/staff-category information needed by Care App.</td><td>Must</td></tr>
+  <tr><td>FR-APU-005</td><td>The system shall associate temporary legacy claim references with the final application user when the approved migration procedure is executed.</td><td>Should</td></tr>
+</table>
+
+<h2>6.6 Staff-Category Transfer and Promotion</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-TRN-001</td><td>Authorized users shall transfer or promote an employee from one staff category to another with an effective date.</td><td>Must</td></tr>
+  <tr><td>FR-TRN-002</td><td>The system shall preserve the employee’s previous staff category and the previous policy-period limit applicable before the effective date.</td><td>Must</td></tr>
+  <tr><td>FR-TRN-003</td><td>A previous EXOP1 policy shall retain its EXOP1 limit after the employee moves to EXOP2; it shall not be recalculated using the current EXOP2 limit.</td><td>Must</td></tr>
+  <tr><td>FR-TRN-004</td><td>Claims shall be evaluated using the staff category and policy/limit applicable on the claim date.</td><td>Must</td></tr>
+  <tr><td>FR-TRN-005</td><td>The Care App policy-year selection shall display the correct historical policy description, staff category, fund limit and available balance.</td><td>Must</td></tr>
+  <tr><td>FR-TRN-006</td><td>A transfer/promotion shall not be treated as mid-year inclusion unless the employee’s actual eligibility conditions require that treatment.</td><td>Must</td></tr>
+</table>
+
+<h2>6.7 Insurance Configuration</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-INS-001</td><td>Authorized users shall maintain insurance policies and policy periods with effective start/end dates and active state.</td><td>Must</td></tr>
+  <tr><td>FR-INS-002</td><td>The system shall map staff categories to the correct policies and policy periods.</td><td>Must</td></tr>
+  <tr><td>FR-INS-003</td><td>The system shall configure treatments, treatment categories, nested/shared category buckets, quarters and policy limits.</td><td>Must</td></tr>
+  <tr><td>FR-INS-004</td><td>Overlapping, missing or inactive coverage configuration shall be rejected with a meaningful business error.</td><td>Must</td></tr>
+  <tr><td>FR-INS-005</td><td>Historical policy mappings shall remain available for historical claim and balance calculation.</td><td>Must</td></tr>
+</table>
+
+<h2>6.8 Employee Limits and Balances</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-LIM-001</td><td>The system shall calculate fund limit and available limit using policy period, staff category, treatment category, permanent/effective date and approved claim usage.</td><td>Must</td></tr>
+  <tr><td>FR-LIM-002</td><td>Global, quarterly, shared-bucket and nested-bucket rules shall be applied consistently in employee summary, claim view and approval validation.</td><td>Must</td></tr>
+  <tr><td>FR-LIM-003</td><td>Only amounts defined by the final approved claim outcome shall reduce the applicable balance.</td><td>Must</td></tr>
+  <tr><td>FR-LIM-004</td><td>Rejected amounts shall not reduce available balance.</td><td>Must</td></tr>
+  <tr><td>FR-LIM-005</td><td>The system shall prevent an approval amount from exceeding the request amount or available covered limit.</td><td>Must</td></tr>
+  <tr><td>FR-LIM-006</td><td>Admin and Care App shall display the same limit and balance for the same employee, policy, treatment and effective date.</td><td>Must</td></tr>
+</table>
+
+<h2>6.9 Dependent Management</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-DEP-001</td><td>Authorized users shall search, view and update dependents belonging to employees in their assigned companies.</td><td>Must</td></tr>
+  <tr><td>FR-DEP-002</td><td>Dependent details shall display both Create Date and Modification Date.</td><td>Must</td></tr>
+  <tr><td>FR-DEP-003</td><td>The system shall evaluate relationship, age, live status, eligible facility, duplicate identity and required-document rules.</td><td>Must</td></tr>
+  <tr><td>FR-DEP-004</td><td>HR shall approve or reject a submitted dependent and retain the decision user, decision date and remark.</td><td>Must</td></tr>
+  <tr><td>FR-DEP-005</td><td>Dependent submission shall notify same-company HR recipients using the active database email configuration.</td><td>Must</td></tr>
+  <tr><td>FR-DEP-006</td><td>Dependent approval shall notify configured Admin recipients; dependent rejection shall retain its current SMS-only behavior unless an email event is activated in future.</td><td>Must</td></tr>
+  <tr><td>FR-DEP-007</td><td>Dependent approval status shall synchronize to Care App and control claim eligibility.</td><td>Must</td></tr>
+</table>
+
+<h2>6.10 Civil-Status Management</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-CIV-001</td><td>The system shall list and display employee civil-status change requests submitted through Care App.</td><td>Must</td></tr>
+  <tr><td>FR-CIV-002</td><td>HR shall approve or reject a civil-status change with an auditable decision.</td><td>Must</td></tr>
+  <tr><td>FR-CIV-003</td><td>Submission shall notify same-company HR recipients and approval shall notify configured Admin recipients through database-controlled routing.</td><td>Must</td></tr>
+  <tr><td>FR-CIV-004</td><td>Civil-status rejection shall retain its current SMS-only behavior; the corresponding email event shall remain inactive unless separately approved.</td><td>Must</td></tr>
+  <tr><td>FR-CIV-005</td><td>The approved civil status shall synchronize to the employee profile and dependent eligibility processes.</td><td>Must</td></tr>
+</table>
+
+<h2>6.11 Claim Administration</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-CLM-001</td><td>The system shall search, filter and view employee and dependent medical claims by permitted company, period, status, treatment and staff category.</td><td>Must</td></tr>
+  <tr><td>FR-CLM-002</td><td>The system shall support indoor, outdoor, spectacle and critical-illness claim categories and retain their category-specific data/documents.</td><td>Must</td></tr>
+  <tr><td>FR-CLM-003</td><td>Claim view shall display employee/dependent context, policy period, staff category, request amount, available balance, documents, workflow history and final outcome.</td><td>Must</td></tr>
+  <tr><td>FR-CLM-004</td><td>Claim request date, category, amount, policy coverage, dependent eligibility and required documents shall be revalidated during approval.</td><td>Must</td></tr>
+  <tr><td>FR-CLM-005</td><td>Third-party indoor claims shall be imported from the controlled Excel format using company, EPF and third-party reference matching.</td><td>Should</td></tr>
+  <tr><td>FR-CLM-006</td><td>If imported Claim Amount is absent or zero, it shall be calculated as Non-Payable Amount plus Paid Amount; otherwise the provided positive Claim Amount shall be used.</td><td>Should</td></tr>
+  <tr><td>FR-CLM-007</td><td>Claim identifiers shall remain unique and traceable across Admin, Care App, payments, notifications and reports.</td><td>Must</td></tr>
+</table>
+
+<h2>6.12 Claim Approval Workflow</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-APR-001</td><td>The system shall route claims through Level 01, Level 02 and, where applicable, Level 03 according to configured workflow rules.</td><td>Must</td></tr>
+  <tr><td>FR-APR-002</td><td>Each workflow action shall retain approval level, status, approved amount, remark/reasons, actor and decision date.</td><td>Must</td></tr>
+  <tr><td>FR-APR-003</td><td>A full approval shall result when the final approved amount equals the requested amount.</td><td>Must</td></tr>
+  <tr><td>FR-APR-004</td><td>A partial approval shall result when the final approved amount is greater than zero and less than the requested amount.</td><td>Must</td></tr>
+  <tr><td>FR-APR-005</td><td>A full rejection shall result when the final workflow decision is rejected and the approved amount is zero or absent.</td><td>Must</td></tr>
+  <tr><td>FR-APR-006</td><td>The final decision and date shall be derived from the final Level 02 or Level 03 action, not from an earlier Level 01 action.</td><td>Must</td></tr>
+  <tr><td>FR-APR-007</td><td>Email escalation recipients for claim events shall be resolved from active database events/rules, with the established legacy routing retained as a safe compatibility fallback.</td><td>Must</td></tr>
+</table>
+
+<h2>6.13 Claim Messages and Notifications</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-NOT-001</td><td>Final claim decisions shall send the applicable approved, partially approved or rejected message to the employee.</td><td>Must</td></tr>
+  <tr><td>FR-NOT-002</td><td>Messages containing currency amounts shall display the "Rs." prefix.</td><td>Must</td></tr>
+  <tr><td>FR-NOT-003</td><td>A partially approved message shall explicitly state "partially approved" and include the final approved amount.</td><td>Must</td></tr>
+  <tr><td>FR-NOT-004</td><td>Rejection-reason output may include reason, remark and rejected amount; when a reason amount is zero, the zero amount shall be omitted while retaining the reason and remark.</td><td>Must</td></tr>
+  <tr><td>FR-NOT-005</td><td>Notification templates shall remain configurable and failures shall be logged.</td><td>Must</td></tr>
+  <tr><td>FR-NOT-006</td><td>Email recipient configuration shall support USER_ROLE, APPROVAL_LEVEL, SPECIFIC_USER and event-context users, with ALL_COMPANIES, SAME_COMPANY and SAME_COMPANY_OR_UNASSIGNED scopes.</td><td>Must</td></tr>
+</table>
+
+<h2>6.14 Reject Reasons and Reject Reporting</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-REJ-001</td><td>Authorized users shall maintain active reject reasons and whether each reason is included in the Reject Reason Report.</td><td>Must</td></tr>
+  <tr><td>FR-REJ-002</td><td>Reject Reason Report counts shall be calculated from selected rejection reasons, not free-text rejection remarks.</td><td>Must</td></tr>
+  <tr><td>FR-REJ-003</td><td>Each selected reason shall contribute one count. A claim with several reasons shall contribute to each selected reason independently.</td><td>Must</td></tr>
+  <tr><td>FR-REJ-004</td><td>Unrecognized or excluded reasons shall follow the configured exclusion/Other behavior without changing recognized reason counts.</td><td>Must</td></tr>
+  <tr><td>FR-REJ-005</td><td>Rejected-claim totals shall include full rejections and partial approvals where approved amount is less than requested amount.</td><td>Must</td></tr>
+</table>
+
+<h2>6.15 Reports and Dashboards</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-RPT-001</td><td>The dashboard shall present traceable totals consistent with the underlying claim, employee, payment and workflow data.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-002</td><td>Reports shall enforce the requesting user’s assigned-company scope in filter results, views and exports.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-003</td><td>Claim Status Report date filtering shall use claim-created date and may include under-review, approved and rejected claims.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-004</td><td>Medical Claims Report shall use final decision date, include finalized approved/rejected claims and require finalized payment-attachment state according to its business definition.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-005</td><td>Received Claim Total Report shall separately summarize third-party medical, WeCare medical and DDF claims using their applicable settled/rejected definitions.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-006</td><td>Daily Task Report shall identify unprocessed work, final checks and claims awaiting finalized payment attachments using operational-stage rules.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-007</td><td>Employee List Report shall use permanent date for date-range filtering; Left Employee Report shall use termination date.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-008</td><td>Filter and export outputs shall apply the same payload filters and totals.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-009</td><td>Reports shall distinguish original company from payment company where both business contexts are required.</td><td>Must</td></tr>
+  <tr><td>FR-RPT-010</td><td>Profit and Loss totals shall use finalized payment advice, approved amount when present, and requested amount only when approved amount is null; zero is a valid approved value.</td><td>Must</td></tr>
+</table>
+
+<h2>6.16 Payment Attachment and Payment Advice</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-PAY-001</td><td>Authorized finance users shall create payment attachments from claims eligible under final-decision rules.</td><td>Must</td></tr>
+  <tr><td>FR-PAY-002</td><td>Draft payment attachments shall not be treated as payment-preparation completion.</td><td>Must</td></tr>
+  <tr><td>FR-PAY-003</td><td>Finalized payment attachments shall feed downstream payment advice and reporting.</td><td>Must</td></tr>
+  <tr><td>FR-PAY-004</td><td>Medical payment advice shall use finalized attachment totals and preserve zero-approved-amount behavior.</td><td>Must</td></tr>
+  <tr><td>FR-PAY-005</td><td>Generated output shall display readable company, staff category, claim identifier, voucher/payment reference and amount information.</td><td>Must</td></tr>
+  <tr><td>FR-PAY-006</td><td>Long descriptions and company names shall wrap in generated documents rather than being truncated.</td><td>Should</td></tr>
+</table>
+
+<h2>6.17 DDF and Death-Related Functions</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-DDF-001</td><td>The system shall search, view and approve/reject death-related claims through the configured death approval workflow.</td><td>Must</td></tr>
+  <tr><td>FR-DDF-002</td><td>DDF reports and payment advice shall use death-claim data and DDF-specific business rules.</td><td>Must</td></tr>
+  <tr><td>FR-DDF-003</td><td>DDF output shall retain original-company context and configured death-payment-company context where applicable.</td><td>Must</td></tr>
+  <tr><td>FR-DDF-004</td><td>DDF status, totals, rejected counts, payment state and Care App visibility shall remain synchronized.</td><td>Must</td></tr>
+</table>
+
+<h2>6.18 Document Management</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-DOC-001</td><td>Authorized functions shall upload supported documents and images subject to type, size and privilege validation.</td><td>Must</td></tr>
+  <tr><td>FR-DOC-002</td><td>New Admin and Care App documents shall be stored in Linode Object Storage when the corresponding write configuration is enabled.</td><td>Must</td></tr>
+  <tr><td>FR-DOC-003</td><td>When database-copy retention is disabled, new document binary content shall not be duplicated in the database.</td><td>Must</td></tr>
+  <tr><td>FR-DOC-004</td><td>Existing endpoints shall continue returning document content in the expected Base64 representation so client contracts remain compatible.</td><td>Must</td></tr>
+  <tr><td>FR-DOC-005</td><td>Document metadata shall retain provider, bucket, object key, content type, size, checksum and availability status.</td><td>Must</td></tr>
+  <tr><td>FR-DOC-006</td><td>Historical database documents shall remain readable during and after the storage transition.</td><td>Must</td></tr>
+</table>
+
+<h2>6.19 Audit Logs</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-AUD-001</td><td>The Admin interface shall provide All Activity, Admin Activity and Care App Activity audit pages.</td><td>Must</td></tr>
+  <tr><td>FR-AUD-002</td><td>All Activity shall combine applicable Admin and Care App audit events in a technically traceable view.</td><td>Must</td></tr>
+  <tr><td>FR-AUD-003</td><td>Admin Activity shall restrict results to WeCare Admin actions; Care App Activity shall restrict results to Care App actions.</td><td>Must</td></tr>
+  <tr><td>FR-AUD-004</td><td>Audit records shall expose understandable action, module/page, user, date/time, source application, IP/user agent where captured, outcome and relevant details.</td><td>Must</td></tr>
+  <tr><td>FR-AUD-005</td><td>Audit search and view shall enforce page privileges and company/data-access rules.</td><td>Must</td></tr>
+</table>
+
+<h2>6.20 Support Tickets</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-SUP-001</td><td>The Admin interface shall provide separate WeCare Admin and WeCare App support-ticket pages under one Support Tickets section.</td><td>Must</td></tr>
+  <tr><td>FR-SUP-002</td><td>Authorized Care Admin users shall create tickets for their assigned company, select system-specific category and priority, and attach permitted files.</td><td>Must</td></tr>
+  <tr><td>FR-SUP-003</td><td>Authorized users shall search, view and reply to accessible tickets.</td><td>Must</td></tr>
+  <tr><td>FR-SUP-004</td><td>Status transitions shall follow the configured business sequence and require resolution text for resolved/closed outcomes.</td><td>Must</td></tr>
+  <tr><td>FR-SUP-005</td><td>Ticket creation and reopening shall notify configured central-support roles; updates shall notify the ticket creator and support roles excluding the actor; resolution shall notify the creator.</td><td>Must</td></tr>
+  <tr><td>FR-SUP-006</td><td>Support-ticket notification recipients shall be controlled by active database email events/rules. Missing configuration shall fail safely without sending.</td><td>Must</td></tr>
+  <tr><td>FR-SUP-007</td><td>The current scope shall not require developer assignment or direct ticket creation by Care App employees.</td><td>Must</td></tr>
+</table>
+
+<h2>6.21 Data Migration Administration</h2>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th><th class="priority">Priority</th></tr>
+  <tr><td>FR-MIG-001</td><td>Legacy migration shall be performed company-by-company using approved employee, application-user, dependent and claim import formats.</td><td>Must</td></tr>
+  <tr><td>FR-MIG-002</td><td>Employee import shall populate personal, address and company details without requiring application-user creation in the same step.</td><td>Must</td></tr>
+  <tr><td>FR-MIG-003</td><td>Application-user migration shall consider ACTIVE employee records for conflict/duplicate matching and preserve the required login status.</td><td>Must</td></tr>
+  <tr><td>FR-MIG-004</td><td>Dependent and claim imports shall match employees using company plus EPF and shall report inserted, skipped, failed and conflicting records.</td><td>Must</td></tr>
+  <tr><td>FR-MIG-005</td><td>Dry-run mode shall validate files and report results without committing data; execute mode shall commit only validated data.</td><td>Must</td></tr>
+  <tr><td>FR-MIG-006</td><td>Post-migration reconciliation shall compare source totals, database totals and representative record details.</td><td>Must</td></tr>
+</table>
+
+<h1 class="page-break">7. Key Business Workflows</h1>
+
+<h2>7.1 Employee Onboarding</h2>
+<ol>
+  <li>HR/Admin selects an assigned company and enters employee master information.</li>
+  <li>The system validates mandatory fields, NIC and active EPF/company duplication.</li>
+  <li>Employee personal, address and company records are created.</li>
+  <li>Where required, employee inclusion is routed for Admin approval and configured recipients are notified.</li>
+  <li>An application-user account is created/activated according to onboarding rules.</li>
+  <li>Care App login, profile, company, staff category, transfer date, policy and balance become available.</li>
+</ol>
+
+<h2>7.2 Dependent Approval</h2>
+<ol>
+  <li>Employee submits dependent details through Care App.</li>
+  <li>Same-company HR recipients receive the configured submission email.</li>
+  <li>HR reviews identity, relation, age, facility, live status and documents.</li>
+  <li>HR approves or rejects with date, user and remark.</li>
+  <li>Approval is notified to configured Admin recipients; rejection follows the existing SMS route.</li>
+  <li>Care App displays the final status and claim eligibility is updated.</li>
+</ol>
+
+<h2>7.3 Medical Claim Approval</h2>
+<ol>
+  <li>Care App creates a claim and assigns a unique request ID.</li>
+  <li>Admin loads the claim with employee/dependent, policy, limit, documents and workflow information.</li>
+  <li>Level 01 validates and approves, partially recommends or rejects with reasons.</li>
+  <li>Level 02 performs the next decision and Level 03 is used where escalation rules require it.</li>
+  <li>The final status is determined as full approval, partial approval or full rejection.</li>
+  <li>Only the approved amount reduces balance.</li>
+  <li>Care App status/history and the correctly formatted SMS/message are updated.</li>
+  <li>Finalized claims proceed to payment attachment, advice and reporting.</li>
+</ol>
+
+<h2>7.4 Transfer/Promotion and Historical Policy</h2>
+<ol>
+  <li>Admin selects the employee, new staff category and effective transfer date.</li>
+  <li>The system records the previous category and current category.</li>
+  <li>Claims before the effective date use the previous category and previous policy limit.</li>
+  <li>Claims on/after the effective date use the current category and current policy limit.</li>
+  <li>Changing current staff category shall not overwrite the historical policy’s category or limit.</li>
+  <li>Care App year selection shall show the matching historical/current policy and balance.</li>
+</ol>
+
+<h2>7.5 Support Ticket</h2>
+<ol>
+  <li>Care Admin user creates either a WeCare Admin or WeCare App issue ticket.</li>
+  <li>Configured central support recipients receive the creation email.</li>
+  <li>Client/support users reply and update status within their privileges.</li>
+  <li>Update notifications reach the opposite side while excluding the action user.</li>
+  <li>Resolution is recorded and the ticket creator is notified.</li>
+  <li>A resolved/closed ticket may be reopened according to allowed transitions, notifying support.</li>
+</ol>
+
+<h1>8. External and Internal Integrations</h1>
+<table>
+  <tr><th>Integration</th><th>Required Behavior</th></tr>
+  <tr><td>Care App services</td><td>Synchronize employee, dependent, civil status, policy, transfer date, limits, claims, final decisions, history, notifications and payment status.</td></tr>
+  <tr><td>SMS/Message service</td><td>Deliver user-creation, OTP/password, claim-decision, rejection and other configured SMS templates; return/log delivery outcome.</td></tr>
+  <tr><td>Email service</td><td>Send workflow and support-ticket emails using database-controlled active recipients and company scope.</td></tr>
+  <tr><td>Linode Object Storage</td><td>Store new binary documents using configured endpoint, region, bucket and credentials; retain document metadata and Base64 API compatibility.</td></tr>
+  <tr><td>Report engine</td><td>Generate Excel/PDF/Jasper outputs with correct filters, totals, company context and readable formatting.</td></tr>
+  <tr><td>Database</td><td>Persist transactional, master, audit and notification-configuration data with referential integrity and migration compatibility.</td></tr>
+  <tr><td>Monitoring/CI-CD</td><td>Deploy profile-specific builds/containers and expose health behavior for external monitoring without altering business logic.</td></tr>
+</table>
+
+<h1>9. Data and Migration Requirements</h1>
+<ul>
+  <li>All imports shall use controlled templates and explicit company context.</li>
+  <li>Import validation shall occur before transaction commit.</li>
+  <li>Migration shall preserve legacy identifiers where needed for reconciliation.</li>
+  <li>Duplicate detection shall distinguish same-company conflicts from valid cross-company EPF reuse.</li>
+  <li>Historical staff category, policy, limit and claim date context shall not be overwritten by current employment data.</li>
+  <li>Migration output shall list inserted, skipped, failed and conflicting records with row-level reasons.</li>
+  <li>QA shall validate source-to-target counts and representative employee/dependent/claim records before sign-off.</li>
+</ul>
+
+<h1>10. Non-Functional Requirements</h1>
+<table>
+  <tr><th class="req-id">Requirement</th><th>Description</th></tr>
+  <tr><td>NFR-001 Security</td><td>Protected operations shall require authenticated users and explicit page/task privileges.</td></tr>
+  <tr><td>NFR-002 Privacy</td><td>Company-restricted and personally identifiable information shall not be disclosed outside authorized scope.</td></tr>
+  <tr><td>NFR-003 Auditability</td><td>Critical actions and state changes shall be traceable to actor, time, source and business record.</td></tr>
+  <tr><td>NFR-004 Reliability</td><td>A failed email/SMS/document integration shall be logged and shall not corrupt the committed business record.</td></tr>
+  <tr><td>NFR-005 Performance</td><td>Search, reference-data, dashboard and report operations shall complete within the response targets agreed for QA/UAT data volumes.</td></tr>
+  <tr><td>NFR-006 Scalability</td><td>Filtering and reporting shall use pagination/controlled exports where required for multi-company production volumes.</td></tr>
+  <tr><td>NFR-007 Compatibility</td><td>Existing client endpoint payloads and Base64 document responses shall remain compatible during storage and configuration changes.</td></tr>
+  <tr><td>NFR-008 Availability</td><td>Deployed services shall support container restart and health monitoring appropriate to the target environment.</td></tr>
+  <tr><td>NFR-009 Maintainability</td><td>Environment-specific secrets and endpoints shall be externalized; recipient changes shall be database-controlled where implemented.</td></tr>
+  <tr><td>NFR-010 Data Integrity</td><td>Monetary totals, balances, final statuses and company/policy context shall remain consistent across transactional and reporting views.</td></tr>
+</table>
+
+<h1>11. Acceptance and UAT Criteria</h1>
+<p>The WeCare Admin release is acceptable when:</p>
+<ul>
+  <li>All critical Admin smoke tests pass.</li>
+  <li>All Must requirements have corresponding passed QA cases or approved exceptions.</li>
+  <li>No unresolved Critical or High defects remain.</li>
+  <li>Company segregation is demonstrated using at least two companies and a global/unassigned user.</li>
+  <li>Employee onboarding, dependent approval, full approval, partial approval, full rejection, transfer/promotion, document, payment and reporting end-to-end scenarios pass.</li>
+  <li>Historical staff-category policy limits are correct before and after transfer.</li>
+  <li>Active email events and recipient scopes are verified against the actual mail server; SMS-only events remain unchanged.</li>
+  <li>Object Storage upload/retrieval works and configured database binary retention is verified.</li>
+  <li>Migrated record counts and samples reconcile with source data.</li>
+  <li>Function-wise UAT and overall business-flow UAT are signed off.</li>
+</ul>
+
+<h1 class="page-break">12. Requirements-to-QA Traceability</h1>
+<table>
+  <tr><th>QA Workbook Section</th><th>Primary Requirement Groups</th></tr>
+  <tr><td>1. Authentication</td><td>FR-AUTH, FR-SEC</td></tr>
+  <tr><td>2. User, role and permission management</td><td>FR-SEC</td></tr>
+  <tr><td>3. Company and reference data</td><td>FR-MST, FR-INS</td></tr>
+  <tr><td>4. Employee management</td><td>FR-EMP</td></tr>
+  <tr><td>5. Employee application-user management</td><td>FR-APU</td></tr>
+  <tr><td>6. Staff-category transfer and promotion</td><td>FR-TRN, FR-LIM</td></tr>
+  <tr><td>7. Insurance configuration</td><td>FR-INS</td></tr>
+  <tr><td>8. Employee limits and balances</td><td>FR-LIM</td></tr>
+  <tr><td>9. Dependent management</td><td>FR-DEP</td></tr>
+  <tr><td>10–13. Claim categories</td><td>FR-CLM</td></tr>
+  <tr><td>14. Claim approval workflow</td><td>FR-APR, FR-LIM</td></tr>
+  <tr><td>15. Claim messages and notifications</td><td>FR-NOT</td></tr>
+  <tr><td>16. Reject-reason management and reporting</td><td>FR-REJ</td></tr>
+  <tr><td>17. Claim reports</td><td>FR-RPT</td></tr>
+  <tr><td>18–19. Payment attachment/advice</td><td>FR-PAY</td></tr>
+  <tr><td>20. DDF and death-related functions</td><td>FR-DDF</td></tr>
+  <tr><td>21. Documents</td><td>FR-DOC</td></tr>
+  <tr><td>22. Dashboards and summaries</td><td>FR-RPT</td></tr>
+  <tr><td>23. Audit logs</td><td>FR-AUD</td></tr>
+  <tr><td>24. Migrated-data verification</td><td>FR-MIG</td></tr>
+  <tr><td>25. Security and access control</td><td>FR-AUTH, FR-SEC, NFR-001/002</td></tr>
+  <tr><td>26. Performance and stability</td><td>NFR-004–008</td></tr>
+  <tr><td>27. Admin regression test</td><td>All requirement groups</td></tr>
+</table>
+
+<p class="small">Detailed execution steps, expected results, evidence, defect IDs and retest status are maintained in the separate “We Care admin .xlsx” QA workbook. The workbook is the test execution companion to this FRD.</p>
+
+<h1>13. Assumptions, Constraints and Exclusions</h1>
+<ul>
+  <li>Company, role, approval-level, policy and treatment master data will be configured before dependent and claim testing.</li>
+  <li>Recipient rules are only effective when both the event and rule are ACTIVE and recipient users have usable email addresses.</li>
+  <li><code>SAME_COMPANY_OR_UNASSIGNED</code> includes users assigned to the transaction company and global users with no company assignment; <code>ALL_COMPANIES</code> ignores company assignment.</li>
+  <li>Support-ticket emails are newly introduced behavior; other migrated email workflows retain existing templates and business triggers.</li>
+  <li>Actual email/SMS delivery depends on external provider availability and valid environment configuration.</li>
+  <li>Production migration and deployment require approved backup, rollback, smoke-test and sign-off procedures.</li>
+  <li>Where the current implementation and an approved signed requirement differ, the approved change request shall control the next release.</li>
+</ul>
+
+<h1>14. Glossary</h1>
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td>Care Admin / WeCare Admin</td><td>Administrative web system used by HR, approvers, finance, support and administrators.</td></tr>
+  <tr><td>Care App</td><td>Employee-facing application consuming WeCare employee, dependent and claim services.</td></tr>
+  <tr><td>DDF</td><td>Death donation/death-related fund workflow and reporting domain.</td></tr>
+  <tr><td>EPF</td><td>Employee identifier used with company context.</td></tr>
+  <tr><td>FRD</td><td>Functional Requirements Document.</td></tr>
+  <tr><td>L1/L2/L3</td><td>Claim approval Levels 01, 02 and 03.</td></tr>
+  <tr><td>Partial Approval</td><td>Final approved amount is greater than zero but less than requested amount.</td></tr>
+  <tr><td>Original Company</td><td>Company to which the employee/claim belongs in business context.</td></tr>
+  <tr><td>Payment Company</td><td>Company used for payment processing/configuration.</td></tr>
+  <tr><td>UAT</td><td>User Acceptance Testing performed by business representatives.</td></tr>
+</table>
+
+<div class="page-break"></div>
+<h1>Approval Sign-off</h1>
+<p>By signing below, reviewers confirm that this document represents the required WeCare Admin functional scope for QA/UAT, subject to recorded comments or approved change requests.</p>
+<table class="signature">
+  <tr><th>Role</th><th>Name</th><th>Signature/Decision</th><th>Date</th></tr>
+  <tr><td>Business Owner</td><td></td><td></td><td></td></tr>
+  <tr><td>HR Representative</td><td></td><td></td><td></td></tr>
+  <tr><td>Claims/Finance Representative</td><td></td><td></td><td></td></tr>
+  <tr><td>QA Lead</td><td></td><td></td><td></td></tr>
+  <tr><td>Technical Lead</td><td></td><td></td><td></td></tr>
+</table>
+
+</body>
+</html>

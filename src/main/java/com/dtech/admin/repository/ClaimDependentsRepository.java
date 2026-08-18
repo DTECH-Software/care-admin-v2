@@ -9,6 +9,7 @@ package com.dtech.admin.repository;
 
 
 import com.dtech.admin.enums.Facility;
+import com.dtech.admin.enums.Gender;
 import com.dtech.admin.enums.RelationCategory;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.ApplicationUser;
@@ -32,5 +33,6 @@ public interface ClaimDependentsRepository extends JpaRepository<ClaimsDependent
     List<ClaimsDependents> findByApplicationUserAndStatusAndEligibleFacilityInAndLiveStatus(ApplicationUser applicationUser, Workflow status, List<Facility> facility,Boolean live);
     Optional<ClaimsDependents> findFirstByApplicationUserAndNicIgnoreCaseAndStatusAndEligibleFacilityInAndLiveStatus(ApplicationUser applicationUser, String nic, Workflow status, List<Facility> facility, Boolean live);
     long countByStatus(Workflow status);
+    long countByGender(Gender gender);
 
 }
