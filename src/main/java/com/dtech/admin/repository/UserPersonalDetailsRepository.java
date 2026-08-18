@@ -16,6 +16,7 @@ public interface UserPersonalDetailsRepository extends JpaRepository<UserPersona
     boolean existsByEpfNoIgnoreCaseAndUserStatusInAndUserCompanyDetails_companyTypes_code(String epfNo, List<Status> userStatus,String companyCode);
     boolean existsByNicIgnoreCaseAndUserStatusIn(String epfNo, List<Status> userStatus);
     boolean existsByEmailIgnoreCaseAndUserStatusIn(String epfNo, List<Status> userStatus);
+    boolean existsByEmailIgnoreCaseAndUserStatusInAndIdNot(String email, List<Status> userStatus, Long id);
     boolean existsByMobileNoIgnoreCaseAndUserStatusIn(String mobileNo, List<Status> userStatus);
     boolean existsByMobileNoIgnoreCaseAndUserStatusInAndIdNot(String mobileNo, List<Status> userStatus, Long id);
     boolean existsByMobileNo(String mobileNo);

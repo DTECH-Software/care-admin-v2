@@ -44,6 +44,7 @@ public interface ApplicationUserRepository extends JpaRepository<ApplicationUser
             String epfNo, String nic, Status status);
 
     Optional<ApplicationUser> findByUserPersonalDetails(UserPersonalDetails userPersonalDetails);
+    boolean existsByPrimaryEmailIgnoreCaseAndUserPersonalDetails_IdNot(String primaryEmail, Long userPersonalDetailsId);
     boolean existsByPrimaryMobile(String primaryMobile);
     @Query("select u.primaryMobile from ApplicationUser u where u.primaryMobile like concat(:prefix, '%') order by u.primaryMobile desc")
     List<String> findLatestPrimaryMobileByPrefix(@Param("prefix") String prefix, Pageable pageable);

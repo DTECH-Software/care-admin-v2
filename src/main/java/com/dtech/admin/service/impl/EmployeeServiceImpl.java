@@ -466,6 +466,29 @@ public class EmployeeServiceImpl implements EmployeeService {
         return null;
     }
 
+    private ResponseEntity<ApiResponse<Object>> prepareEmployeeEmail(EmployeeDetailsRequestDTO dto,
+                                                                       UserPersonalDetails existingEmployee,
+                                                                       Locale locale) {
+        String email = StringUtils.hasText(dto.getEmail())
+                ? dto.getEmail().trim().toLowerCase(Locale.ROOT)
+                : null;
+        if (!StringUtils.hasText(email)) {
+            return ResponseEntity.ok().body(responseUtil.error(null, 1042, "Email is required"));
+        }
+
+        boolean activeEmailExists = Status.ACTIVE.name().equalsIgnoreCase(dto.getUserStatus())
+                && userPersonalDetailsRepository.existsByEmailIgnoreCaseAndUserStatusInAndIdNot(
+                email, List.of(Status.ACTIVE), existingEmployee.getId());
+        boolean applicationEmailExists = applicationUserRepository
+                .existsByPrimaryEmailIgnoreCaseAndUserPersonalDetails_IdNot(email, existingEmployee.getId());
+        if (activeEmailExists || applicationEmailExists) {
+            return errorResponse(1042, ResponseMessageUtil.EMPLOYEE_EMAIL_ALREADY_EXISTED, email, locale);
+        }
+
+        dto.setEmail(email);
+        return null;
+    }
+
     private synchronized String generateNextDummyMobile() {
         long maxPersonal = findMaxDummyMobile(userPersonalDetailsRepository.findLatestMobileNoByPrefix(
                 DUMMY_MOBILE_PREFIX, PageRequest.of(0, 1)));
@@ -500,9 +523,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         return StringUtils.hasText(mobileNo) && mobileNo.trim().startsWith(DUMMY_MOBILE_PREFIX);
     }
 
-    private void syncApplicationUserMobile(UserPersonalDetails userPersonalDetails) {
+    void syncApplicationUserContactDetails(UserPersonalDetails userPersonalDetails) {
         applicationUserRepository.findByUserPersonalDetails(userPersonalDetails)
                 .ifPresent(applicationUser -> {
+                    applicationUser.setPrimaryEmail(userPersonalDetails.getEmail());
                     applicationUser.setPrimaryMobile(userPersonalDetails.getMobileNo());
                     applicationUserRepository.saveAndFlush(applicationUser);
                 });
@@ -774,6 +798,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 if (mobileValidation != null) {
                     return mobileValidation;
                 }
+                ResponseEntity<ApiResponse<Object>> emailValidation = prepareEmployeeEmail(
+                        employeeDetailsRequestDTO, userPersonalDetails, locale);
+                if (emailValidation != null) {
+                    return emailValidation;
+                }
 
                 String newModel = new StringBuilder()
                         .append(employeeDetailsRequestDTO.getNic())
@@ -916,7 +945,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 }
                 log.info("Employee details success");
                 userPersonalDetails = userPersonalDetailsRepository.saveAndFlush(userPersonalDetails);
-                syncApplicationUserMobile(userPersonalDetails);
+                syncApplicationUserContactDetails(userPersonalDetails);
 
                 if (!Status.INACTIVE.equals(previousStatus) && Status.INACTIVE.equals(userPersonalDetails.getUserStatus())) {
                     notifyAdminTeamOnEmployeeDeactivation(userPersonalDetails, employeeDetailsRequestDTO.getUsername());
