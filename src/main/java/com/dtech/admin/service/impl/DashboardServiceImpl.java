@@ -7,12 +7,14 @@ import com.dtech.admin.enums.Gender;
 import com.dtech.admin.enums.Status;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.InsurancePolicy;
 import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.ClaimDependentsRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.DeathClaimRequestRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
+import com.dtech.admin.repository.InsurancePolicyRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.DashboardService;
 import com.dtech.admin.util.ResponseMessageUtil;
@@ -44,6 +46,9 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Autowired
     private final StaffCategoriesRepository staffCategoriesRepository;
+
+    @Autowired
+    private final InsurancePolicyRepository insurancePolicyRepository;
 
     @Autowired
     private final InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
@@ -95,6 +100,15 @@ public class DashboardServiceImpl implements DashboardService {
                         summary.setTotalEmployees(applicationUserRepository
                                 .countByUserPersonalDetails_UserCompanyDetails_StaffCategories_Code(
                                         staffCategory.getCode()));
+                        return summary;
+                    }).toList());
+            response.setPolicies(insurancePolicyRepository.findAllByStatus(Status.ACTIVE).stream()
+                    .sorted(Comparator.comparing(InsurancePolicy::getCode, String.CASE_INSENSITIVE_ORDER))
+                    .map(policy -> {
+                        DashboardSummaryResponseDTO.PolicySummary summary =
+                                new DashboardSummaryResponseDTO.PolicySummary();
+                        summary.setCode(policy.getCode());
+                        summary.setDescription(policy.getDescription());
                         return summary;
                     }).toList());
 

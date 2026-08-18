@@ -7,12 +7,14 @@ import com.dtech.admin.enums.Gender;
 import com.dtech.admin.enums.Status;
 import com.dtech.admin.enums.Workflow;
 import com.dtech.admin.model.CompanyTypes;
+import com.dtech.admin.model.InsurancePolicy;
 import com.dtech.admin.model.StaffCategories;
 import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.ClaimDependentsRepository;
 import com.dtech.admin.repository.CompanyTypeRepository;
 import com.dtech.admin.repository.DeathClaimRequestRepository;
 import com.dtech.admin.repository.InsuranceClaimsRequestRepository;
+import com.dtech.admin.repository.InsurancePolicyRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.impl.DashboardServiceImpl;
 import com.dtech.admin.util.ResponseUtil;
@@ -37,6 +39,7 @@ class DashboardServiceImplTest {
     @Mock private ClaimDependentsRepository claimDependentsRepository;
     @Mock private CompanyTypeRepository companyTypeRepository;
     @Mock private StaffCategoriesRepository staffCategoriesRepository;
+    @Mock private InsurancePolicyRepository insurancePolicyRepository;
     @Mock private InsuranceClaimsRequestRepository insuranceClaimsRequestRepository;
     @Mock private DeathClaimRequestRepository deathClaimRequestRepository;
     @Mock private MessageSource messageSource;
@@ -46,7 +49,7 @@ class DashboardServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new DashboardServiceImpl(applicationUserRepository, claimDependentsRepository, companyTypeRepository,
-                staffCategoriesRepository,
+                staffCategoriesRepository, insurancePolicyRepository,
                 insuranceClaimsRequestRepository, deathClaimRequestRepository,
                 messageSource, new ResponseUtil());
     }
@@ -76,6 +79,10 @@ class DashboardServiceImplTest {
                 .thenReturn(35L);
         when(applicationUserRepository.countByUserPersonalDetails_UserCompanyDetails_StaffCategories_Code("EXOP2"))
                 .thenReturn(65L);
+        InsurancePolicy exop2Policy = policy("POL-EXOP2", "Executive Option 02 Policy");
+        InsurancePolicy exop1Policy = policy("POL-EXOP1", "Executive Option 01 Policy");
+        when(insurancePolicyRepository.findAllByStatus(Status.ACTIVE))
+                .thenReturn(List.of(exop2Policy, exop1Policy));
         when(messageSource.getMessage("val.dashboard.summary.retrieved.success", null, Locale.ENGLISH))
                 .thenReturn("Dashboard summary retrieved successfully");
 
@@ -98,6 +105,9 @@ class DashboardServiceImplTest {
                 .map(DashboardSummaryResponseDTO.StaffCategorySummary::getCode).toList());
         assertEquals(35L, data.getStaffCategories().get(0).getTotalEmployees());
         assertEquals("Executive Staff - Option 02", data.getStaffCategories().get(1).getDescription());
+        assertEquals(List.of("POL-EXOP1", "POL-EXOP2"), data.getPolicies().stream()
+                .map(DashboardSummaryResponseDTO.PolicySummary::getCode).toList());
+        assertEquals("Executive Option 01 Policy", data.getPolicies().get(0).getDescription());
     }
 
     private CompanyTypes company(String code, String description) {
@@ -114,5 +124,13 @@ class DashboardServiceImplTest {
         staffCategory.setDescription(description);
         staffCategory.setStatus(Status.ACTIVE);
         return staffCategory;
+    }
+
+    private InsurancePolicy policy(String code, String description) {
+        InsurancePolicy policy = new InsurancePolicy();
+        policy.setCode(code);
+        policy.setDescription(description);
+        policy.setStatus(Status.ACTIVE);
+        return policy;
     }
 }

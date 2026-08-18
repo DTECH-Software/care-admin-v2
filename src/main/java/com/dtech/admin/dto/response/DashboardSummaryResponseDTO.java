@@ -7,6 +7,7 @@ public class DashboardSummaryResponseDTO {
     private EmployeeSummary employee;
     private java.util.List<CompanySummary> companies;
     private java.util.List<StaffCategorySummary> staffCategories;
+    private java.util.List<PolicySummary> policies;
     private ClaimSummary healthClaims;
     private ClaimSummary deathClaims;
 
@@ -43,5 +44,11 @@ public class DashboardSummaryResponseDTO {
         private String code;
         private String description;
         private long totalEmployees;
+    }
+
+    @Data
+    public static class PolicySummary {
+        private String code;
+        private String description;
     }
 }
