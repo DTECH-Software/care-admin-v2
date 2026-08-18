@@ -28,6 +28,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
@@ -136,7 +137,11 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
         try {
             log.info("Insurance claims  filter list {} ", paginationRequest);
 
-            Pageable pageable = PaginationUtil.getPageable(paginationRequest);
+            Pageable pageable = PageRequest.of(
+                    paginationRequest.getPage(),
+                    paginationRequest.getSize(),
+                    paginationRequest.getSortDirection(),
+                    normalizeSortColumn(paginationRequest.getSortColumn()));
 
             Specification<InsuranceClaimsRequest> specification = Objects.nonNull(paginationRequest.getSearch())
                     ? ClaimsApprovalSpecification.getSpecification(paginationRequest.getSearch(), true)
@@ -203,6 +208,19 @@ public class InsuranceClaimHistoryServiceImpl implements InsuranceClaimHistorySe
                 .getUserCompanyDetails()
                 .setStaffCategories(new SimpleBaseDTO(dto.getStaffCategoryCode(), dto.getStaffCategoryDescription()));
         return dto;
+    }
+
+    static String normalizeSortColumn(String sortColumn) {
+        if (sortColumn == null || sortColumn.isBlank()) {
+            return "lastModifiedDate";
+        }
+
+        String normalized = sortColumn.trim();
+        if (normalized.equalsIgnoreCase("approvalLevelDescription")
+                || normalized.regionMatches(true, 0, "approvalLevel.", 0, "approvalLevel.".length())) {
+            return "approvalLevel";
+        }
+        return normalized;
     }
 
     private boolean canAccess(InsuranceClaimsRequest claim, String username) {
