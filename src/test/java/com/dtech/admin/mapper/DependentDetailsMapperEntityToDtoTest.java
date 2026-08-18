@@ -8,9 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.modelmapper.ModelMapper;
 
 import java.util.Date;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.*;
 
 class DependentDetailsMapperEntityToDtoTest {
     @Test
@@ -28,5 +30,24 @@ class DependentDetailsMapperEntityToDtoTest {
 
         assertEquals(createdDate, response.getCreatedDate());
         assertEquals(modificationDate, response.getLastModifiedDate());
+    }
+
+    @Test
+    void lightweightMappingRetainsDocumentMetadataWithoutLoadingContent() {
+        DocumentStorageService documentStorageService = mock(DocumentStorageService.class);
+        DependentDetailsMapperEntityToDto mapper = new DependentDetailsMapperEntityToDto(
+                new ModelMapper(), documentStorageService);
+        ClaimsDependents dependent = new ClaimsDependents();
+        dependent.setId(1L);
+        com.dtech.admin.model.Document document = new com.dtech.admin.model.Document();
+        document.setFileName("birth-certificate.pdf");
+        document.setFileType("application/pdf");
+        dependent.setDocuments(List.of(document));
+
+        DependentDetailsResponseDTO response = mapper.mapDependentDetailsWithoutDocumentContent(dependent);
+
+        assertEquals("birth-certificate.pdf", response.getAttachment().getFirst().getFileName());
+        assertNull(response.getAttachment().getFirst().getDoc());
+        verifyNoInteractions(documentStorageService);
     }
 }

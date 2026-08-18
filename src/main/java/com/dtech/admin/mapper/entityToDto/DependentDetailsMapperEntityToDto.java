@@ -37,11 +37,24 @@ public class DependentDetailsMapperEntityToDto {
     private final DocumentStorageService documentStorageService;
 
     public DependentDetailsResponseDTO mapDependentDetails(ClaimsDependents claimsDependents) {
+        return mapDependentDetails(claimsDependents, true);
+    }
+
+    /**
+     * Maps the normal dependent response but leaves document Base64 content out.
+     * Document metadata is retained so the response shape remains compatible.
+     */
+    public DependentDetailsResponseDTO mapDependentDetailsWithoutDocumentContent(ClaimsDependents claimsDependents) {
+        return mapDependentDetails(claimsDependents, false);
+    }
+
+    private DependentDetailsResponseDTO mapDependentDetails(ClaimsDependents claimsDependents,
+                                                            boolean includeDocumentContent) {
         try {
             log.info("mapDependentDetails mapper {} ", claimsDependents.getId());
             DependentDetailsResponseDTO dependentDetailsResponseDTO = modelMapper.map(claimsDependents, DependentDetailsResponseDTO.class);
             log.info("mapDependentDetails mapper model {} ", dependentDetailsResponseDTO.toString());
-            fillDependentFields(dependentDetailsResponseDTO, claimsDependents);
+            fillDependentFields(dependentDetailsResponseDTO, claimsDependents, includeDocumentContent);
             return dependentDetailsResponseDTO;
         } catch (Exception e) {
             log.error(e);
@@ -49,7 +62,8 @@ public class DependentDetailsMapperEntityToDto {
         }
     }
 
-    private void fillDependentFields(DependentDetailsResponseDTO dto, ClaimsDependents dependent) {
+    private void fillDependentFields(DependentDetailsResponseDTO dto, ClaimsDependents dependent,
+                                     boolean includeDocumentContent) {
         // Keep the dependent audit dates explicit in the API response. These are
         // displayed in the UI as Create Date and Modification Date.
         dto.setCreatedDate(dependent.getCreatedDate());
@@ -69,18 +83,18 @@ public class DependentDetailsMapperEntityToDto {
         dto.setApprovedDate(dependent.getApprovedDate());
         dto.setApprovedUser(dependent.getApprovedUser());
         dto.setLiveStatus(dependent.getLiveStatus());
-        dto.setApplicationUser(mapApplicationUser(dependent.getApplicationUser()));
-        dto.setAttachment(mapDocuments(dependent.getDocuments()));
+        dto.setApplicationUser(mapApplicationUser(dependent.getApplicationUser(), includeDocumentContent));
+        dto.setAttachment(mapDocuments(dependent.getDocuments(), includeDocumentContent));
     }
 
-    private ApplicationUserResponseDTO mapApplicationUser(ApplicationUser user) {
+    private ApplicationUserResponseDTO mapApplicationUser(ApplicationUser user, boolean includeDocumentContent) {
         if (user == null) {
             return null;
         }
         ApplicationUserResponseDTO dto = modelMapper.map(user, ApplicationUserResponseDTO.class);
         dto.setLoginStatus(enumName(user.getLoginStatus()));
         dto.setLoginStatusDescription(description(user.getLoginStatus()));
-        dto.setUserPersonalDetails(mapPersonalDetails(user.getUserPersonalDetails()));
+        dto.setUserPersonalDetails(mapPersonalDetails(user.getUserPersonalDetails(), includeDocumentContent));
         if (user.getUserPersonalDetails() != null) {
             dto.setGender(enumName(user.getUserPersonalDetails().getGender()));
             dto.setGenderDescription(description(user.getUserPersonalDetails().getGender()));
@@ -91,7 +105,8 @@ public class DependentDetailsMapperEntityToDto {
         return dto;
     }
 
-    private UserPersonalDetailsResponseDTO mapPersonalDetails(UserPersonalDetails personalDetails) {
+    private UserPersonalDetailsResponseDTO mapPersonalDetails(UserPersonalDetails personalDetails,
+                                                              boolean includeDocumentContent) {
         if (personalDetails == null) {
             return null;
         }
@@ -106,8 +121,8 @@ public class DependentDetailsMapperEntityToDto {
         dto.setUserStatusDescription(description(personalDetails.getUserStatus()));
         dto.setAge(personalDetails.getDob() != null ? DateTimeUtil.getAge(String.valueOf(personalDetails.getDob())) : 0);
         dto.setUserAddress(mapAddress(personalDetails.getUserAddress()));
-        dto.setUserCompanyDetails(mapCompanyDetails(personalDetails.getUserCompanyDetails()));
-        dto.setBirthImg(mapDocument(personalDetails.getBirthImg()));
+        dto.setUserCompanyDetails(mapCompanyDetails(personalDetails.getUserCompanyDetails(), includeDocumentContent));
+        dto.setBirthImg(mapDocument(personalDetails.getBirthImg(), includeDocumentContent));
         return dto;
     }
 
@@ -123,7 +138,8 @@ public class DependentDetailsMapperEntityToDto {
         return dto;
     }
 
-    private UserCompanyDetailsResponseDTO mapCompanyDetails(UserCompanyDetails companyDetails) {
+    private UserCompanyDetailsResponseDTO mapCompanyDetails(UserCompanyDetails companyDetails,
+                                                            boolean includeDocumentContent) {
         if (companyDetails == null) {
             return null;
         }
@@ -144,18 +160,18 @@ public class DependentDetailsMapperEntityToDto {
         dto.setInsurancePolicy(simple(companyDetails.getInsurancePolicy()));
         dto.setFacility(enumName(companyDetails.getFacility()));
         dto.setFacilityDescription(description(companyDetails.getFacility()));
-        dto.setPromoDoc(mapDocument(companyDetails.getPromoDocs()));
+        dto.setPromoDoc(mapDocument(companyDetails.getPromoDocs(), includeDocumentContent));
         return dto;
     }
 
-    private List<DocumentDownloadResponseDTO> mapDocuments(List<Document> documents) {
+    private List<DocumentDownloadResponseDTO> mapDocuments(List<Document> documents, boolean includeDocumentContent) {
         if (documents == null || documents.isEmpty()) {
             return Collections.emptyList();
         }
-        return documents.stream().map(this::mapDocument).toList();
+        return documents.stream().map(document -> mapDocument(document, includeDocumentContent)).toList();
     }
 
-    private DocumentDownloadResponseDTO mapDocument(Document document) {
+    private DocumentDownloadResponseDTO mapDocument(Document document, boolean includeDocumentContent) {
         if (document == null) {
             return null;
         }
@@ -163,7 +179,9 @@ public class DependentDetailsMapperEntityToDto {
         dto.setType(enumName(document.getType()));
         dto.setFileName(document.getFileName());
         dto.setFileType(document.getFileType());
-        dto.setDoc(documentStorageService.getBase64(document));
+        if (includeDocumentContent) {
+            dto.setDoc(documentStorageService.getBase64(document));
+        }
         return dto;
     }
 

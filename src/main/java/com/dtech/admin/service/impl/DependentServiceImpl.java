@@ -14,14 +14,12 @@ import com.dtech.admin.mapper.audit.DependentDetailsAuditMapper;
 import com.dtech.admin.mapper.entityToDto.DependentDetailsMapperEntityToDto;
 import com.dtech.admin.model.ApplicationUser;
 import com.dtech.admin.model.ClaimsDependents;
-import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.*;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.DependentService;
-import com.dtech.admin.service.DependentEmailRecipientService;
-import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.MessageService;
+import com.dtech.admin.event.DependentApprovedEvent;
 import com.dtech.admin.specifications.DependentSpecification;
 import com.dtech.admin.util.*;
 import com.google.gson.Gson;
@@ -31,6 +29,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cglib.core.Local;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -77,10 +76,7 @@ public class DependentServiceImpl implements DependentService {
     private final CompanyAccessService companyAccessService;
 
     @Autowired
-    private final EmailNotificationService emailNotificationService;
-
-    @Autowired
-    private final DependentEmailRecipientService dependentEmailRecipientService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
     private final MessageService messageService;
@@ -229,7 +225,8 @@ public class DependentServiceImpl implements DependentService {
                             log.info("Dependent details success");
                             claimDependentsRepository.saveAndFlush(de);
                             if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(de.getStatus())) {
-                                notifyAdminTeamOnDependentApproval(de, dependentRequestDTO.getUsername());
+                                applicationEventPublisher.publishEvent(
+                                        new DependentApprovedEvent(de.getId(), dependentRequestDTO.getUsername()));
                                 notifyEmployeeOnDependentApproval(de);
                             } else if (Workflow.REJECTED.equals(de.getStatus())) {
                                 notifyEmployeeOnDependentRejection(de);
@@ -238,7 +235,8 @@ public class DependentServiceImpl implements DependentService {
 
                         List<String> newAuditList = dependentDetailsAuditMapperEntityToDto.mapToDTOAudit(List.of(de));
                         auditLogService.log(WebPage.DPNM.name(), WebTask.UPDATE.name(), AuditTask.UPDATE_DATA.getDescription(), dependentRequestDTO.getIp(), dependentRequestDTO.getUserAgent(), gson.toJson(newAuditList), gson.toJson(oldAuditList), dependentRequestDTO.getUsername());
-                        DependentDetailsResponseDTO responseDTO = dependentDetailsMapperEntityToDto.mapDependentDetails(de);
+                        DependentDetailsResponseDTO responseDTO = dependentDetailsMapperEntityToDto
+                                .mapDependentDetailsWithoutDocumentContent(de);
                         return ResponseEntity.ok().body(responseUtil.success((Object) responseDTO, messageSource.getMessage(ResponseMessageUtil.DEPENDENT_DETAILS_UPDATE_SUCCESSFULLY, null, locale)));
 
                     }).orElseGet(() -> {
@@ -409,13 +407,6 @@ public class DependentServiceImpl implements DependentService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
-    }
-
-    private void notifyAdminTeamOnDependentApproval(ClaimsDependents dependent, String hrUsername) {
-        List<WebUser> recipients = dependentEmailRecipientService.resolve(
-                DependentEmailEvent.DEPENDENT_APPROVED, dependent);
-
-        emailNotificationService.notifyDependentApprovedByHr(recipients, dependent, hrUsername);
     }
 
     private void notifyEmployeeOnDependentRejection(ClaimsDependents dependent) {
