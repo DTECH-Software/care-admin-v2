@@ -866,7 +866,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         }
         String staffCategoryCode = user.getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode();
         if (!"NS".equalsIgnoreCase(staffCategoryCode)
-                || !com.dtech.admin.enums.MaritalStatus.UNMARRIED.equals(user.getUserPersonalDetails().getMaritalStatus())) {
+                || com.dtech.admin.enums.MaritalStatus.MARRIED.equals(user.getUserPersonalDetails().getMaritalStatus())) {
             return true;
         }
         return isDateWithinAgeLimit(

@@ -10,16 +10,14 @@ import com.dtech.admin.dto.response.AuthorizationTaskResponseDTO;
 import com.dtech.admin.dto.response.MaritalStatusApprovalResponseDTO;
 import com.dtech.admin.dto.search.CivilStatusChangeSearchDTO;
 import com.dtech.admin.enums.*;
+import com.dtech.admin.event.CivilStatusApprovedEvent;
 import com.dtech.admin.mapper.entityToDto.CivilStatusChangeStatusApprovalEntityToDto;
 import com.dtech.admin.model.UserPersonalDetails;
-import com.dtech.admin.model.WebUser;
 import com.dtech.admin.repository.ApplicationUserRepository;
 import com.dtech.admin.repository.MaritalStatusRepository;
 import com.dtech.admin.repository.StaffCategoriesRepository;
 import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
-import com.dtech.admin.service.CivilStatusEmailRecipientService;
-import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeCivilStatusApprovalService;
 import com.dtech.admin.service.MessageService;
 import com.dtech.admin.specifications.MaritalSpecification;
@@ -32,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -76,10 +75,7 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
     private CompanyAccessService companyAccessService;
 
     @Autowired
-    private CivilStatusEmailRecipientService civilStatusEmailRecipientService;
-
-    @Autowired
-    private final EmailNotificationService emailNotificationService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
     private final MessageService messageService;
@@ -100,7 +96,6 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
             List<SimpleBaseDTO> civilStatus = Arrays.stream(MaritalStatus.values())
-                    .filter(status -> !MaritalStatus.DIVORCE.name().equals(status.name()))
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
             List<SimpleBaseDTO> staffCategory = staffCategoriesRepository.findAllByStatus(Status.ACTIVE)
@@ -206,11 +201,17 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
 
                maritalStatus.setStatus(Workflow.valueOf(civilStatusApprovalRequestDTO.getStatus()));
                maritalStatusRepository.saveAndFlush(maritalStatus);
-               maritalStatus.getApplicationUser().getUserPersonalDetails().setMaritalStatus(maritalStatus.getMaritalStatus());
-               applicationUserRepository.saveAndFlush(maritalStatus.getApplicationUser());
+
+               if (Workflow.APPROVED.equals(maritalStatus.getStatus())) {
+                   UserPersonalDetails personalDetails = maritalStatus.getApplicationUser().getUserPersonalDetails();
+                   personalDetails.setMaritalStatus(maritalStatus.getMaritalStatus());
+                   personalDetails.setMaritalDetails(maritalStatus);
+                   applicationUserRepository.saveAndFlush(maritalStatus.getApplicationUser());
+               }
 
                if (!Workflow.APPROVED.equals(previousStatus) && Workflow.APPROVED.equals(maritalStatus.getStatus())) {
-                   notifyAdminTeamOnCivilStatusApproval(maritalStatus, civilStatusApprovalRequestDTO.getUsername());
+                   applicationEventPublisher.publishEvent(new CivilStatusApprovedEvent(
+                           maritalStatus.getId(), civilStatusApprovalRequestDTO.getUsername()));
                    notifyEmployeeOnCivilStatusApproval(maritalStatus);
                } else if (Workflow.REJECTED.equals(maritalStatus.getStatus())) {
                    notifyEmployeeOnCivilStatusRejection(maritalStatus);
@@ -229,13 +230,6 @@ public class EmployeeCivilStatusApprovalServiceImpl implements EmployeeCivilStat
            log.error(e);
            throw e;
        }
-    }
-
-    private void notifyAdminTeamOnCivilStatusApproval(com.dtech.admin.model.MaritalStatus maritalStatus, String hrUsername) {
-        List<WebUser> recipients = civilStatusEmailRecipientService.resolve(
-                CivilStatusEmailEvent.CIVIL_STATUS_APPROVED, maritalStatus);
-
-        emailNotificationService.notifyCivilStatusApprovedByHr(recipients, maritalStatus, hrUsername);
     }
 
     private void notifyEmployeeOnCivilStatusRejection(com.dtech.admin.model.MaritalStatus maritalStatus) {
