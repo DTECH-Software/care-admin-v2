@@ -201,7 +201,12 @@ public class SystemUserServiceImpl implements SystemUserService {
                             log.info("OTP generated {}", otp);
 
                             MessageResponseDTO messageResponseDTO =
-                                    messageService.sendMessage(MessageType.USER_CREATION, otp,null, systemUserRequestDTO.getMobile());
+                                    messageService.sendMessage(
+                                            MessageType.USER_CREATION,
+                                            otp,
+                                            "Username: " + username,
+                                            systemUserRequestDTO.getMobile()
+                                    );
                             log.info("Sent OTP, waiting for response...");
 
 //                            try {
