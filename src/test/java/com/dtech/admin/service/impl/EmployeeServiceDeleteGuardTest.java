@@ -61,6 +61,7 @@ class EmployeeServiceDeleteGuardTest {
                 applicationUserRepository,
                 claimDependentsRepository,
                 mock(EmployeeInactivationGuardService.class),
+                mock(InsurancePolicyStaffCategoryReferenceService.class),
                 mock(EmployeeDetailsMapperEntityToDto.class),
                 mock(EmployeeDetailsMapperDtoToEntity.class),
                 mock(EmployeeDetailsAuditMapper.class),

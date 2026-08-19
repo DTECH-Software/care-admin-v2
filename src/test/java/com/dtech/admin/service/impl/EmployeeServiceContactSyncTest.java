@@ -43,6 +43,7 @@ class EmployeeServiceContactSyncTest {
                 applicationUserRepository,
                 mock(ClaimDependentsRepository.class),
                 mock(EmployeeInactivationGuardService.class),
+                mock(InsurancePolicyStaffCategoryReferenceService.class),
                 mock(EmployeeDetailsMapperEntityToDto.class),
                 mock(EmployeeDetailsMapperDtoToEntity.class),
                 mock(EmployeeDetailsAuditMapper.class),

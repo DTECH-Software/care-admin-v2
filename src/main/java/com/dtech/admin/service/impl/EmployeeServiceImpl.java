@@ -30,6 +30,7 @@ import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeEmailRecipientService;
 import com.dtech.admin.service.EmployeeInactivationGuardService;
 import com.dtech.admin.service.EmployeeService;
+import com.dtech.admin.service.InsurancePolicyStaffCategoryReferenceService;
 import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeSpecification;
 import com.dtech.admin.util.*;
@@ -110,6 +111,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeInactivationGuardService employeeInactivationGuardService;
 
     @Autowired
+    private final InsurancePolicyStaffCategoryReferenceService insurancePolicyStaffCategoryReferenceService;
+
+    @Autowired
     private final EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
 
     @Autowired
@@ -162,6 +166,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             responseMap.put("companyTypes", companyTypes);
             responseMap.put("staffTypes", staffTypes);
             responseMap.put("staffCategories", staffCategories);
+            responseMap.put("insurancePolicyStaffCategoryGroups",
+                    insurancePolicyStaffCategoryReferenceService.loadActiveGroups());
             responseMap.put("insurancePolicy", insurancePolicy);
             responseMap.put("facility", facility);
             responseMap.put("title", title);

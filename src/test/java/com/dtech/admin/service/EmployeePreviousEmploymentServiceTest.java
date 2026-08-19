@@ -48,6 +48,7 @@ class EmployeePreviousEmploymentServiceTest {
     @Mock private ApplicationUserRepository applicationUserRepository;
     @Mock private ClaimDependentsRepository claimDependentsRepository;
     @Mock private EmployeeInactivationGuardService employeeInactivationGuardService;
+    @Mock private InsurancePolicyStaffCategoryReferenceService insurancePolicyStaffCategoryReferenceService;
     @Mock private EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
     @Mock private EmployeeDetailsMapperDtoToEntity employeeDetailsMapperDtoToEntity;
     @Mock private EmployeeDetailsAuditMapper employeeDetailsAuditMapper;
@@ -62,7 +63,8 @@ class EmployeePreviousEmploymentServiceTest {
                 commonPrivilegeGetter, documentStorageService, companyTypeRepository, companyAccessService,
                 staffCategoriesRepository, staffTypesRepository, insurancePolicyRepository,
                 userPersonalDetailsRepository, applicationUserRepository, claimDependentsRepository,
-                employeeInactivationGuardService, employeeDetailsMapperEntityToDto,
+                employeeInactivationGuardService, insurancePolicyStaffCategoryReferenceService,
+                employeeDetailsMapperEntityToDto,
                 employeeDetailsMapperDtoToEntity, employeeDetailsAuditMapper, emailNotificationService,
                 employeeEmailRecipientService);
     }
