@@ -77,7 +77,6 @@ public class EmployeeUserSpecification {
                 predicates.add(buildMobilePredicate(
                         criteriaBuilder,
                         root.get("primaryMobile"),
-                        userPersonalDetailsJoin.get("mobileNo"),
                         filterDto.getMobileNo()
                 ));
             }
@@ -136,16 +135,13 @@ public class EmployeeUserSpecification {
 
     private static Predicate buildMobilePredicate(CriteriaBuilder criteriaBuilder,
                                                    Expression<String> applicationMobile,
-                                                   Expression<String> personalMobile,
                                                    String searchValue) {
         Expression<String> normalizedApplicationMobile = normalizeMobileExpression(criteriaBuilder, applicationMobile);
-        Expression<String> normalizedPersonalMobile = normalizeMobileExpression(criteriaBuilder, personalMobile);
         List<Predicate> mobilePredicates = new ArrayList<>();
 
         for (String searchTerm : mobileSearchTerms(searchValue)) {
             String pattern = "%" + searchTerm + "%";
             mobilePredicates.add(criteriaBuilder.like(normalizedApplicationMobile, pattern));
-            mobilePredicates.add(criteriaBuilder.like(normalizedPersonalMobile, pattern));
         }
 
         return criteriaBuilder.or(mobilePredicates.toArray(new Predicate[0]));
