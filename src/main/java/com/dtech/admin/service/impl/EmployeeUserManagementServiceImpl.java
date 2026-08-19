@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EmployeeUserManagementServiceImpl implements EmployeeUserManagementService {
 
+    private static final String DUMMY_MOBILE_PREFIX = "0000";
+
     @Autowired
     private final MessageSource messageSource;
 
@@ -986,6 +988,13 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         ApplicationUserResponseDTO applicationUserResponseDTO = employeeUserMapperEntityToDto.mapEmployeeUserDetails(applicationUser);
 
         if (applicationUser.getUserPersonalDetails() != null) {
+            UserPersonalDetailsResponseDTO personalDetailsResponse = applicationUserResponseDTO.getUserPersonalDetails();
+            if (personalDetailsResponse != null
+                    && isDummyMobileNumber(personalDetailsResponse.getMobileNo())) {
+                personalDetailsResponse.setMobileNo(null);
+                personalDetailsResponse.setNoMobileNumber(true);
+            }
+
             populateRejoinDetails(applicationUserResponseDTO, applicationUser.getUserPersonalDetails());
 
             if (applicationUser.getUserPersonalDetails().getBirthImg() != null) {
@@ -1022,6 +1031,10 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
         }
 
         return applicationUserResponseDTO;
+    }
+
+    static boolean isDummyMobileNumber(String mobileNo) {
+        return mobileNo != null && mobileNo.trim().startsWith(DUMMY_MOBILE_PREFIX);
     }
 
     private void populateRejoinDetails(ApplicationUserResponseDTO responseDTO, UserPersonalDetails currentUser) {
