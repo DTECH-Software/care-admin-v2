@@ -103,6 +103,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final ApplicationUserRepository applicationUserRepository;
 
     @Autowired
+    private final ClaimDependentsRepository claimDependentsRepository;
+
+    @Autowired
     private final EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
 
     @Autowired
@@ -973,6 +976,18 @@ public class EmployeeServiceImpl implements EmployeeService {
 
             return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId())
                     .filter(employee -> canAccess(employee, employeeDetailsRequestDTO.getUsername())).map(userPersonalDetails -> {
+                Optional<ApplicationUser> applicationUser = applicationUserRepository
+                        .findByUserPersonalDetails(userPersonalDetails);
+                if (applicationUser.isPresent()) {
+                    String messageKey = claimDependentsRepository.existsByApplicationUser(applicationUser.get())
+                            ? ResponseMessageUtil.EMPLOYEE_DELETE_DEPENDENTS_EXIST
+                            : ResponseMessageUtil.EMPLOYEE_DELETE_APPLICATION_USER_EXISTS;
+                    log.info("Employee delete blocked because related Care App data exists employeeId={} applicationUserId={}",
+                            userPersonalDetails.getId(), applicationUser.get().getId());
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1049,
+                            messageSource.getMessage(messageKey, null, locale)));
+                }
+
                 log.info("Employee details delete old audit start");
                 List<String> oldAuditList = employeeDetailsAuditMapper.mapToDTOAudit(List.of(userPersonalDetails));
                 log.info("Employee details delete old audit end");

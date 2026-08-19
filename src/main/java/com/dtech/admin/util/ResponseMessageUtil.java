@@ -118,6 +118,8 @@ public class ResponseMessageUtil {
     public final static String EMPLOYEE_DETAILS_NOT_FOUND = "val.employee.details.not.found";
     public final static String EMPLOYEE_DETAILS_RETRIEVE_SUCCESSFULLY  = "val.employee.details.retrieve.successfully";
     public final static String EMPLOYEE_DETAILS_DELETE_SUCCESSFULLY  = "val.employee.details.delete.successfully";
+    public final static String EMPLOYEE_DELETE_APPLICATION_USER_EXISTS = "val.employee.delete.application.user.exists";
+    public final static String EMPLOYEE_DELETE_DEPENDENTS_EXIST = "val.employee.delete.dependents.exist";
     public final static String EMPLOYEE_DETAILS_UPDATE_SUCCESSFULLY  = "val.employee.details.update.successfully";
     public final static String EMPLOYEE_DETAILS_NOT_CHANGING  = "val.employee.details.not.changing";
     public final static String EMPLOYEE_REPORT_FILTER_LIST_SUCCESS = "val.employee.report.filter.list.success";
