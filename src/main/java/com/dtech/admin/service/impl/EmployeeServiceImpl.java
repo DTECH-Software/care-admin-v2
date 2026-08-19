@@ -28,6 +28,7 @@ import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeEmailRecipientService;
+import com.dtech.admin.service.EmployeeInactivationGuardService;
 import com.dtech.admin.service.EmployeeService;
 import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeSpecification;
@@ -104,6 +105,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private final ClaimDependentsRepository claimDependentsRepository;
+
+    @Autowired
+    private final EmployeeInactivationGuardService employeeInactivationGuardService;
 
     @Autowired
     private final EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
@@ -773,6 +777,20 @@ public class EmployeeServiceImpl implements EmployeeService {
             return userPersonalDetailsRepository.findById(employeeDetailsRequestDTO.getId())
                     .filter(employee -> canAccess(employee, employeeDetailsRequestDTO.getUsername())).map(userPersonalDetails -> {
                 Status previousStatus = userPersonalDetails.getUserStatus();
+                Status requestedUserStatus = Status.valueOf(employeeDetailsRequestDTO.getUserStatus());
+                if (!Status.INACTIVE.equals(previousStatus) && Status.INACTIVE.equals(requestedUserStatus)) {
+                    boolean hasUnderReviewClaims = applicationUserRepository.findByUserPersonalDetails(userPersonalDetails)
+                            .map(employeeInactivationGuardService::hasUnderReviewClaims)
+                            .orElse(false);
+                    if (hasUnderReviewClaims) {
+                        log.info("Employee inactivation blocked because claims are under review employeeId={}",
+                                userPersonalDetails.getId());
+                        return ResponseEntity.ok().body(responseUtil.error(null, 1064,
+                                messageSource.getMessage(
+                                        ResponseMessageUtil.EMPLOYEE_INACTIVATION_UNDER_REVIEW_CLAIMS,
+                                        null, locale)));
+                    }
+                }
                 String requestedPaymentCompanyCode = resolvePaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
                 String requestedDeathPaymentCompanyCode = resolveDeathPaymentCompanyCode(employeeDetailsRequestDTO.getUserCompanyDetails());
                 String existingPaymentCompanyCode = userPersonalDetails.getUserCompanyDetails().getPaymentCompany() != null
@@ -899,7 +917,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 log.info("Employee details update old audit end");
 
                 userPersonalDetails.setNic(employeeDetailsRequestDTO.getNic());
-                userPersonalDetails.setUserStatus(Status.valueOf(employeeDetailsRequestDTO.getUserStatus()));
+                userPersonalDetails.setUserStatus(requestedUserStatus);
                 userPersonalDetails.setEmail(employeeDetailsRequestDTO.getEmail());
                 userPersonalDetails.setMobileNo(employeeDetailsRequestDTO.getMobileNo());
                 userPersonalDetails.setInitials(employeeDetailsRequestDTO.getInitials());

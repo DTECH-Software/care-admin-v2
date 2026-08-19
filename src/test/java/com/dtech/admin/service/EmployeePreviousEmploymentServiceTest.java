@@ -47,6 +47,7 @@ class EmployeePreviousEmploymentServiceTest {
     @Mock private UserPersonalDetailsRepository userPersonalDetailsRepository;
     @Mock private ApplicationUserRepository applicationUserRepository;
     @Mock private ClaimDependentsRepository claimDependentsRepository;
+    @Mock private EmployeeInactivationGuardService employeeInactivationGuardService;
     @Mock private EmployeeDetailsMapperEntityToDto employeeDetailsMapperEntityToDto;
     @Mock private EmployeeDetailsMapperDtoToEntity employeeDetailsMapperDtoToEntity;
     @Mock private EmployeeDetailsAuditMapper employeeDetailsAuditMapper;
@@ -60,7 +61,8 @@ class EmployeePreviousEmploymentServiceTest {
         service = new EmployeeServiceImpl(messageSource, new ResponseUtil(), auditLogService, new Gson(),
                 commonPrivilegeGetter, documentStorageService, companyTypeRepository, companyAccessService,
                 staffCategoriesRepository, staffTypesRepository, insurancePolicyRepository,
-                userPersonalDetailsRepository, applicationUserRepository, claimDependentsRepository, employeeDetailsMapperEntityToDto,
+                userPersonalDetailsRepository, applicationUserRepository, claimDependentsRepository,
+                employeeInactivationGuardService, employeeDetailsMapperEntityToDto,
                 employeeDetailsMapperDtoToEntity, employeeDetailsAuditMapper, emailNotificationService,
                 employeeEmailRecipientService);
     }

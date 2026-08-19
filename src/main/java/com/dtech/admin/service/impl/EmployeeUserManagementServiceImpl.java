@@ -18,6 +18,7 @@ import com.dtech.admin.service.AuditLogService;
 import com.dtech.admin.service.CompanyAccessService;
 import com.dtech.admin.service.EmailNotificationService;
 import com.dtech.admin.service.EmployeeEmailRecipientService;
+import com.dtech.admin.service.EmployeeInactivationGuardService;
 import com.dtech.admin.service.EmployeeUserManagementService;
 import com.dtech.admin.service.DocumentStorageService;
 import com.dtech.admin.specifications.EmployeeUserSpecification;
@@ -129,6 +130,9 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
 
     @Autowired
     private final RejoinCarryForwardService rejoinCarryForwardService;
+
+    @Autowired
+    private final EmployeeInactivationGuardService employeeInactivationGuardService;
 
     @Override
     @Transactional
@@ -626,14 +630,36 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                     .filter(applicationUser -> canAccess(applicationUser, employeeManagementRequestDTO.getUsername()))
                     .map(applicationUser -> {
                 boolean changed = false;
+                Status requestedLoginStatus = hasText(employeeManagementRequestDTO.getLoginStatus())
+                        ? Status.valueOf(employeeManagementRequestDTO.getLoginStatus())
+                        : null;
+                Status requestedUserStatus = hasText(employeeManagementRequestDTO.getUserStatus())
+                        ? Status.valueOf(employeeManagementRequestDTO.getUserStatus())
+                        : null;
+                Status currentUserStatus = applicationUser.getUserPersonalDetails() != null
+                        ? applicationUser.getUserPersonalDetails().getUserStatus()
+                        : null;
+                boolean loginInactivationRequested = Status.INACTIVE.equals(requestedLoginStatus)
+                        && !Status.INACTIVE.equals(applicationUser.getLoginStatus());
+                boolean userInactivationRequested = Status.INACTIVE.equals(requestedUserStatus)
+                        && !Status.INACTIVE.equals(currentUserStatus);
 
-                if (hasText(employeeManagementRequestDTO.getLoginStatus())) {
-                    applicationUser.setLoginStatus(Status.valueOf(employeeManagementRequestDTO.getLoginStatus()));
+                if ((loginInactivationRequested || userInactivationRequested)
+                        && employeeInactivationGuardService.hasUnderReviewClaims(applicationUser)) {
+                    log.info("Employee user inactivation blocked because claims are under review applicationUserId={}",
+                            applicationUser.getId());
+                    return ResponseEntity.ok().body(responseUtil.error(null, 1064,
+                            messageSource.getMessage(
+                                    ResponseMessageUtil.EMPLOYEE_INACTIVATION_UNDER_REVIEW_CLAIMS,
+                                    null, locale)));
+                }
+
+                if (requestedLoginStatus != null) {
+                    applicationUser.setLoginStatus(requestedLoginStatus);
                     changed = true;
                 }
 
-                if (hasText(employeeManagementRequestDTO.getUserStatus())) {
-                    Status requestedUserStatus = Status.valueOf(employeeManagementRequestDTO.getUserStatus());
+                if (requestedUserStatus != null) {
                     if (applicationUser.getUserPersonalDetails() != null) {
                         applicationUser.getUserPersonalDetails().setUserStatus(requestedUserStatus);
                         UserCompanyDetails companyDetails = applicationUser.getUserPersonalDetails().getUserCompanyDetails();

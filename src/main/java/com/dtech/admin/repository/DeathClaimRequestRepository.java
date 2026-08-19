@@ -15,6 +15,7 @@ import java.util.Optional;
 
 @Repository
 public interface DeathClaimRequestRepository extends JpaRepository<DeathClaimRequest, Long> , JpaSpecificationExecutor<DeathClaimRequest>  {
+    boolean existsByEmployeeAndRequestStatus(ApplicationUser employee, Workflow requestStatus);
     Optional<DeathClaimRequest> findByClaimsDependentsAndEmployeeAndRequestStatusIn(ClaimsDependents claimsDependents, ApplicationUser applicationUser, List<Workflow> workflow);
     boolean existsByClaimsDependentsAndEmployeeAndRequestStatusIn(ClaimsDependents claimsDependents, ApplicationUser applicationUser, List<Workflow> workflow);
     long countByRequestStatus(Workflow status);

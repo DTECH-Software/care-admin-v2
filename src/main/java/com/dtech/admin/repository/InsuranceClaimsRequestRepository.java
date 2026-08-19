@@ -226,6 +226,7 @@ public interface InsuranceClaimsRequestRepository extends JpaRepository<Insuranc
     int countByInsuranceClaimsDetails_Treatment_TreatmentCodeAndRequestStatusIn(String treatmentCode, List<Workflow> workflow);
 
     boolean existsByEmployeeAndInsuranceClaimsDetails_Treatment_TreatmentCodeAndRequestStatus(ApplicationUser employee, String code, Workflow requestStatus);
+    boolean existsByEmployeeAndRequestStatus(ApplicationUser employee, Workflow requestStatus);
     int countByInsuranceClaimsDetails_Treatment_TreatmentCodeAndInsuranceClaimsDetails_InsuranceStaffCategoryPeriod_IdAndInsuranceDetailsLimit_InsurancePolicy_IdAndRequestStatusInAndEmployee(
             String treatmentCode, Long insuranceStaffCategoryPeriodId, Long insurancePolicyId, List<Workflow> workflow, ApplicationUser applicationUser);
     int countByInsuranceClaimsDetails_Treatment_TreatmentCodeAndInsuranceClaimsDetails_InsuranceStaffCategoryPeriod_IdAndInsuranceDetailsLimit_InsurancePolicy_IdAndRequestStatusIn(
