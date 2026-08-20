@@ -1,0 +1,28 @@
+services:
+  care-admin:
+    image: ${CARE_ADMIN_IMAGE:?CARE_ADMIN_IMAGE is required}
+    container_name: care-admin
+    env_file:
+      - /opt/wecare/secrets/care-admin-production.env
+    mem_limit: 1g
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      WECARE_DB_MIGRATION_ENABLED: "false"
+      TZ: Asia/Colombo
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -Duser.timezone=Asia/Colombo"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/admin/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
