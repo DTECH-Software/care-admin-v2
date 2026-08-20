@@ -17,3 +17,14 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/admin/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"

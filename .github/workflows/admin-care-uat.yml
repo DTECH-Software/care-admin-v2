@@ -151,8 +151,8 @@ jobs:
             docker compose -f "$SERVICE_DIR/docker-compose-uat.yml" ps
 
             for attempt in $(seq 1 36); do
-              if curl -sS --max-time 3 -o /dev/null "http://127.0.0.1:8090/admin"; then
-                echo "care-admin is responding on port 8090"
+              if curl -fsS --max-time 3 -o /dev/null "http://127.0.0.1:8090/admin/actuator/health"; then
+                echo "care-admin UAT health check passed"
                 exit 0
               fi
               echo "Waiting for care-admin ($attempt/36)"

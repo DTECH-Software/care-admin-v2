@@ -69,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String authorization = request.getHeader(AUTHORIZATION_HEADER);
-            log.info("JWT Authentication Filter Authorized {}", authorization);
+            log.debug("JWT authorization header present: {}", authorization != null);
             if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
                 log.info("JWT Authentication Filter Authorized");
                 String token = authorization.substring(7);
