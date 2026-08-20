@@ -1,6 +1,14 @@
 name: Care Admin CI/CD (Production)
 
 on:
+  push:
+    branches: ["production"]
+    paths:
+      - "src/**"
+      - "pom.xml"
+      - "Dockerfile"
+      - "docker-compose-prod.yml"
+      - ".github/workflows/admin-care-production.yml"
   workflow_dispatch:
 
 permissions:
