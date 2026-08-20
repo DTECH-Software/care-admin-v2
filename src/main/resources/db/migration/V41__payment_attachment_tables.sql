@@ -1,0 +1,52 @@
+CREATE TABLE IF NOT EXISTS payment_attachment (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    attachment_no VARCHAR(255) NOT NULL,
+    attachment_prefix VARCHAR(255) NOT NULL,
+    attachment_year INT NOT NULL,
+    attachment_sequence INT NOT NULL,
+    notes VARCHAR(255) NULL,
+    company_code VARCHAR(255) NULL,
+    staff_category_code VARCHAR(255) NULL,
+    treatment_category VARCHAR(255) NULL,
+    date_from DATE NULL,
+    date_to DATE NULL,
+    status VARCHAR(32) NOT NULL,
+    created_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_modified_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_user VARCHAR(255) NOT NULL,
+    last_modified_user VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_attachment_no (attachment_no),
+    KEY idx_payment_attachment_status (status),
+    KEY idx_payment_attachment_company_staff (company_code, staff_category_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS payment_attachment_claim (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payment_attachment_id BIGINT NOT NULL,
+    insurance_claim_id BIGINT NOT NULL,
+    state VARCHAR(32) NOT NULL,
+    request_id VARCHAR(255) NOT NULL,
+    employee_name VARCHAR(255) NULL,
+    epf VARCHAR(255) NULL,
+    company_code VARCHAR(255) NULL,
+    staff_category_code VARCHAR(255) NULL,
+    treatment_category VARCHAR(255) NULL,
+    claim_category VARCHAR(255) NULL,
+    request_amount DECIMAL(16,2) NULL,
+    approved_amount DECIMAL(16,2) NULL,
+    claim_status VARCHAR(32) NULL,
+    remark VARCHAR(255) NULL,
+    created_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_modified_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_user VARCHAR(255) NOT NULL,
+    last_modified_user VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_payment_attachment_claim_attachment (payment_attachment_id),
+    KEY idx_payment_attachment_claim_insurance (insurance_claim_id),
+    KEY idx_payment_attachment_claim_request (request_id),
+    CONSTRAINT fk_payment_attachment_claim_attachment
+        FOREIGN KEY (payment_attachment_id) REFERENCES payment_attachment (id),
+    CONSTRAINT fk_payment_attachment_claim_insurance
+        FOREIGN KEY (insurance_claim_id) REFERENCES claims_request (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

@@ -8,7 +8,9 @@ ordered upgrades are under `src/main/resources/db/migration`, starting at `V2`.
 1. Stop writes to the old application and take a verified database backup.
 2. Use a database restored from the previous application version. Do not use a
    database where some files from `docs/sql` were already run manually.
-3. Run the migration from one Care Admin instance first.
+3. Run `docs/sql/production-migration-preflight.sql`. Its ACTIVE NIC duplicate
+   query must return zero rows before continuing.
+4. Run the migration from one Care Admin instance first.
 
 ## Run the upgrade
 
