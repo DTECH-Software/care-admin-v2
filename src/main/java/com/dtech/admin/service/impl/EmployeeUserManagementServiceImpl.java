@@ -150,6 +150,10 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                     .filter(status -> !Status.DELETE.name().equals(status.name()))
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
+            List<SimpleBaseDTO> title = Arrays.stream(Title.values())
+                    .filter(st -> !Title.MS.name().equals(st.name()))
+                    .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
+
             List<SimpleBaseDTO> facility = Arrays.stream(Facility.values())
                     .map(st -> new SimpleBaseDTO(st.name(), st.getDescription())).toList();
 
@@ -172,6 +176,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
             responseMap.put("staffCategories", staffCategories);
             responseMap.put("insurancePolicy", insurancePolicy);
             responseMap.put("facility", facility);
+            responseMap.put("title", title);
 
             auditLogService.log(WebPage.EPMP.name(), WebTask.REF_DATA.name(), AuditTask.GETTING_ALL_REFERENCE_DATA.getDescription(), channelRequestDTO.getIp(), channelRequestDTO.getUserAgent(), gson.toJson(responseMap), null, channelRequestDTO.getUsername());
             return ResponseEntity.ok().body(responseUtil.success(responseMap, messageSource.getMessage(ResponseMessageUtil.REFERENCE_DATA_RETRIEVED_SUCCESS, new Object[]{WebPage.EPMP.name()}, locale)));
