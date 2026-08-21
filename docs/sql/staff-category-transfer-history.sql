@@ -1,7 +1,7 @@
 SET @ddl = IF(
     EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'user_company_details' AND column_name = 'previous_staff_category'),
     'SELECT 1',
-    'ALTER TABLE user_company_details ADD COLUMN previous_staff_category VARCHAR(255) NULL'
+    'ALTER TABLE user_company_details ADD COLUMN previous_staff_category VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL'
 );
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;
@@ -10,7 +10,25 @@ DEALLOCATE PREPARE stmt;
 SET @ddl = IF(
     EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'user_company_details' AND column_name = 'previous_insurance_policy'),
     'SELECT 1',
-    'ALTER TABLE user_company_details ADD COLUMN previous_insurance_policy VARCHAR(255) NULL'
+    'ALTER TABLE user_company_details ADD COLUMN previous_insurance_policy VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl = IF(
+    EXISTS(SELECT 1 FROM information_schema.key_column_usage WHERE table_schema = DATABASE() AND table_name = 'user_company_details' AND column_name = 'previous_staff_category' AND referenced_table_name = 'staff_category' AND referenced_column_name = 'code'),
+    'SELECT 1',
+    'ALTER TABLE user_company_details MODIFY COLUMN previous_staff_category VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl = IF(
+    EXISTS(SELECT 1 FROM information_schema.key_column_usage WHERE table_schema = DATABASE() AND table_name = 'user_company_details' AND column_name = 'previous_insurance_policy' AND referenced_table_name = 'insurance_policy' AND referenced_column_name = 'code'),
+    'SELECT 1',
+    'ALTER TABLE user_company_details MODIFY COLUMN previous_insurance_policy VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL'
 );
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;
