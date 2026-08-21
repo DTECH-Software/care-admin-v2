@@ -1,4 +1,11 @@
 -- Upgrade source: docs/sql/received-claim-total-report.sql
+-- V1 installations do not consistently contain the Reports section.
+INSERT INTO web_section (code, description, status, created_date, last_modified_date, created_user, last_modified_user)
+SELECT 'RPRT', 'Reports', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'
+WHERE NOT EXISTS (
+    SELECT 1 FROM web_section WHERE code = 'RPRT'
+);
+
 INSERT INTO web_page (code, url, description, status, section, created_date, last_modified_date, created_user, last_modified_user)
 SELECT 'RPRT_RCTR', '/reports/received-claim-total', 'Received Claim Total Report', 'ACTIVE', 'RPRT',
        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'
