@@ -2,6 +2,7 @@ services:
   care-admin:
     image: ${CARE_ADMIN_IMAGE:?CARE_ADMIN_IMAGE is required}
     container_name: care-admin
+    init: true
     env_file:
       - /opt/wecare/secrets/care-admin-production.env
     mem_limit: 1g
