@@ -13,7 +13,7 @@ services:
       SPRING_PROFILES_ACTIVE: uat
       TZ: Asia/Colombo
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -Duser.timezone=Asia/Colombo"
-      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/caresystem?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Colombo"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/sgcs_care?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Colombo"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
