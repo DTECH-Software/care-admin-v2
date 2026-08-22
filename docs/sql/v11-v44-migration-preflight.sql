@@ -1,14 +1,21 @@
 -- Read-only preflight for the complete V11-V44 Care Admin migration chain.
 -- Run against the restored V1 database while Care Admin is stopped.
 
-SELECT 'FLYWAY_STATE' AS check_group,
-       installed_rank,
-       version,
-       description,
-       success
-FROM flyway_schema_history
-WHERE CAST(SUBSTRING_INDEX(version, '.', 1) AS UNSIGNED) BETWEEN 9 AND 44
-ORDER BY installed_rank;
+-- A genuine V1 production database has no Flyway history table yet. Report
+-- that expected baseline state instead of aborting the remaining checks.
+SET @preflight_sql = IF(
+    EXISTS(
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = 'flyway_schema_history'
+    ),
+    'SELECT ''FLYWAY_STATE'' AS check_group, installed_rank, version, description, success FROM flyway_schema_history WHERE CAST(SUBSTRING_INDEX(version, ''.'', 1) AS UNSIGNED) BETWEEN 9 AND 44 ORDER BY installed_rank',
+    'SELECT ''FLYWAY_STATE'' AS check_group, ''NOT_PRESENT_BASELINE_EXPECTED'' AS state'
+);
+PREPARE preflight_stmt FROM @preflight_sql;
+EXECUTE preflight_stmt;
+DEALLOCATE PREPARE preflight_stmt;
 
 WITH required_tables (table_name) AS (
     SELECT 'web_section' UNION ALL
