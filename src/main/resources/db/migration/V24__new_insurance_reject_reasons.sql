@@ -2,6 +2,21 @@
 -- Adds the non-duplicate insurance reject reasons from Copy of REJECT REASONS.xlsx.
 -- Code is based on the workbook number plus 22, preserving traceability while leaving gaps for duplicates.
 -- The final column follows the workbook report YES/NO selection.
+SET @add_reject_report_column = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE remark ADD COLUMN include_in_rejected_claim_report BOOLEAN NOT NULL DEFAULT TRUE',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'remark'
+      AND column_name = 'include_in_rejected_claim_report'
+);
+PREPARE reject_report_column_stmt FROM @add_reject_report_column;
+EXECUTE reject_report_column_stmt;
+DEALLOCATE PREPARE reject_report_column_stmt;
+
 INSERT INTO remark (
     remark_category, code, description, status,
     created_date, last_modified_date, created_user, last_modified_user,

@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS insurance_policy_staff_category_group (
     id BIGINT NOT NULL AUTO_INCREMENT,
     insurance_policy BIGINT NOT NULL,
-    staff_category VARCHAR(255) NOT NULL,
+    staff_category VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     main_category_code VARCHAR(100) NOT NULL,
     main_category_description VARCHAR(255) NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
@@ -12,12 +12,48 @@ CREATE TABLE IF NOT EXISTS insurance_policy_staff_category_group (
     last_modified_user VARCHAR(255) NOT NULL DEFAULT 'system',
     PRIMARY KEY (id),
     UNIQUE KEY uk_insurance_policy_staff_category_group_policy_staff (insurance_policy, staff_category),
-    KEY idx_insurance_policy_staff_category_group_main_code (main_category_code),
-    CONSTRAINT fk_ins_policy_staff_group_policy
-        FOREIGN KEY (insurance_policy) REFERENCES insurance_policy (id),
-    CONSTRAINT fk_ins_policy_staff_group_staff
-        FOREIGN KEY (staff_category) REFERENCES staff_category (code)
+    KEY idx_insurance_policy_staff_category_group_main_code (main_category_code)
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+
+-- A V1 database can use a different schema default collation. Reassert the
+-- referenced column's exact character definition before adding the foreign key.
+ALTER TABLE insurance_policy_staff_category_group
+    MODIFY COLUMN staff_category VARCHAR(255)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL;
+
+SET @ddl = IF(
+    EXISTS(
+        SELECT 1
+        FROM information_schema.key_column_usage
+        WHERE table_schema = DATABASE()
+          AND table_name = 'insurance_policy_staff_category_group'
+          AND column_name = 'insurance_policy'
+          AND referenced_table_name = 'insurance_policy'
+          AND referenced_column_name = 'id'
+    ),
+    'SELECT 1',
+    'ALTER TABLE insurance_policy_staff_category_group ADD CONSTRAINT fk_ins_policy_staff_group_policy FOREIGN KEY (insurance_policy) REFERENCES insurance_policy (id)'
 );
+PREPARE v10_stmt FROM @ddl;
+EXECUTE v10_stmt;
+DEALLOCATE PREPARE v10_stmt;
+
+SET @ddl = IF(
+    EXISTS(
+        SELECT 1
+        FROM information_schema.key_column_usage
+        WHERE table_schema = DATABASE()
+          AND table_name = 'insurance_policy_staff_category_group'
+          AND column_name = 'staff_category'
+          AND referenced_table_name = 'staff_category'
+          AND referenced_column_name = 'code'
+    ),
+    'SELECT 1',
+    'ALTER TABLE insurance_policy_staff_category_group ADD CONSTRAINT fk_ins_policy_staff_group_staff FOREIGN KEY (staff_category) REFERENCES staff_category (code)'
+);
+PREPARE v10_stmt FROM @ddl;
+EXECUTE v10_stmt;
+DEALLOCATE PREPARE v10_stmt;
 
 -- Example inserts after identifying the correct policy IDs:
 -- INSERT INTO insurance_policy_staff_category_group

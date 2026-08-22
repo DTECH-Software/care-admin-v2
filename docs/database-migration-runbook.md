@@ -40,6 +40,18 @@ Confirm that every row has `success = 1` and that the latest version matches the
 latest SQL filename. Then complete application smoke tests before reopening
 traffic.
 
+## Recover a failed MySQL migration
+
+1. Set `WECARE_DB_MIGRATION_ENABLED=false` and restore application health.
+2. Keep the database backup. Inspect the failed version and any DDL it may have
+   committed; MySQL DDL is not rolled back like ordinary transactional data.
+3. Correct and deploy the migration only when that version has never succeeded
+   in any target environment.
+4. Delete only its failed history row (`success = 0`) after verifying the
+   partial schema state. Never delete or change a successful history row.
+5. Run the preflight again, enable migration on one instance, and verify the
+   full history before enabling other instances.
+
 ## Important
 
 Flyway versioned files must not be edited after they have been applied. Add the

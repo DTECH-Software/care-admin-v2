@@ -1,8 +1,14 @@
 -- All Activity audit page (ADIT_ALL) and common Admin/App source.
 -- Run against the Care Admin schema before deploying this backend version.
 
-ALTER TABLE audit_log
-    ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'WECARE_ADMIN' AFTER id;
+SET @ddl = IF(
+    EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'audit_log' AND column_name = 'source'),
+    'SELECT 1',
+    'ALTER TABLE audit_log ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT ''WECARE_ADMIN'' AFTER id'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 INSERT INTO web_section (code, description, status, created_date, last_modified_date, created_user, last_modified_user)
 SELECT 'ADIT', 'Audit Logs', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system'
@@ -33,5 +39,20 @@ AND NOT EXISTS (
 --         AND assigned.task_code = web_page_task.task_code
 --   );
 
-CREATE INDEX idx_audit_log_source_created_date ON audit_log (source, created_date);
-CREATE INDEX idx_audit_log_created_user ON audit_log (created_user);
+SET @ddl = IF(
+    EXISTS(SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'audit_log' AND index_name = 'idx_audit_log_source_created_date'),
+    'SELECT 1',
+    'CREATE INDEX idx_audit_log_source_created_date ON audit_log (source, created_date)'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl = IF(
+    EXISTS(SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'audit_log' AND index_name = 'idx_audit_log_created_user'),
+    'SELECT 1',
+    'CREATE INDEX idx_audit_log_created_user ON audit_log (created_user)'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
