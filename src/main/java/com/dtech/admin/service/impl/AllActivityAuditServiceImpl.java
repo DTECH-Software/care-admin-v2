@@ -59,6 +59,12 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
                 new SimpleBaseDTO("notification-service", "Notifications")));
         data.put("results", List.of(new SimpleBaseDTO("SUCCESS", "Success"),
                 new SimpleBaseDTO("FAILED", "Failed")));
+        data.put("clientPlatforms", List.of(new SimpleBaseDTO("ANDROID", "Android"),
+                new SimpleBaseDTO("IOS", "iOS")));
+        data.put("appUpdateStatuses", List.of(new SimpleBaseDTO("NONE", "No update"),
+                new SimpleBaseDTO("OPTIONAL", "Optional update"),
+                new SimpleBaseDTO("REQUIRED", "Required update"),
+                new SimpleBaseDTO("UNKNOWN", "Unknown")));
         data.put("pages", webPageRepository.findAll().stream()
                 .map(p -> new SimpleBaseDTO(p.getCode(), p.getDescription())).toList());
         data.put("tasks", webTaskRepository.findAll().stream()
@@ -101,6 +107,8 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
                 .responseStatus(log.getResponseStatus()).requestPath(log.getRequestPath())
                 .httpMethod(log.getHttpMethod()).durationMs(log.getDurationMs())
                 .correlationId(log.getCorrelationId())
+                .clientAppVersion(log.getClientAppVersion()).clientPlatform(log.getClientPlatform())
+                .appUpdateStatus(log.getAppUpdateStatus())
                 .pageCode(log.getPage() == null ? null : log.getPage().getCode())
                 .pageDescription(log.getPage() == null ? null : log.getPage().getDescription())
                 .taskCode(log.getTask() == null ? null : log.getTask().getCode())
@@ -111,7 +119,8 @@ public class AllActivityAuditServiceImpl implements AllActivityAuditService {
 
     private void normalizeSort(PaginationRequest<AuditLogSearchDTO> request) {
         if (!List.of("id", "createdDate", "source", "module", "action", "result", "responseStatus",
-                "durationMs", "createdBy", "ipAddress").contains(request.getSortColumn()))
+                "durationMs", "createdBy", "ipAddress", "clientAppVersion", "clientPlatform",
+                "appUpdateStatus").contains(request.getSortColumn()))
             request.setSortColumn("createdDate");
     }
 

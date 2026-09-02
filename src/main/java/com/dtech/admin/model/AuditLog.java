@@ -55,6 +55,15 @@ public class AuditLog extends AdminAudit implements Serializable {
     @Column(name = "correlation_id", updatable = false, length = 64)
     private String correlationId;
 
+    @Column(name = "client_app_version", updatable = false, length = 30)
+    private String clientAppVersion;
+
+    @Column(name = "client_platform", updatable = false, length = 20)
+    private String clientPlatform;
+
+    @Column(name = "app_update_status", updatable = false, length = 20)
+    private String appUpdateStatus;
+
     @Column(columnDefinition = "json")
     private String oldValue;
 

@@ -19,6 +19,9 @@ public class AuditLogResponseDTO {
     private String httpMethod;
     private Long durationMs;
     private String correlationId;
+    private String clientAppVersion;
+    private String clientPlatform;
+    private String appUpdateStatus;
     private String pageCode;
     private String pageDescription;
     private String taskCode;
