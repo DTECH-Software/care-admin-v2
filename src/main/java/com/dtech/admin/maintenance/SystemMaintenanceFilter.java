@@ -1,7 +1,6 @@
 package com.dtech.admin.maintenance;
 
 import com.dtech.admin.dto.response.ApiResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,10 +36,7 @@ public class SystemMaintenanceFilter extends OncePerRequestFilter implements Res
     private static final String APPLICATION = "CARE_ADMIN";
     private static final String STATE_ATTRIBUTE = "wecare.maintenance.state";
     private static final Duration CACHE_TTL = Duration.ofSeconds(30);
-    private static final int MAINTENANCE_ERROR_CODE = 1061;
-
     private final JdbcTemplate jdbcTemplate;
-    private final ObjectMapper objectMapper;
     private volatile CacheEntry cache;
 
     @Override
@@ -50,10 +46,6 @@ public class SystemMaintenanceFilter extends OncePerRequestFilter implements Res
         request.setAttribute(STATE_ATTRIBUTE, state);
         setHeaders(response, state);
 
-        if (state.underMaintenance() && !isAllowedDuringMaintenance(request)) {
-            writeMaintenanceResponse(response, state);
-            return;
-        }
         filterChain.doFilter(request, response);
     }
 
@@ -64,13 +56,6 @@ public class SystemMaintenanceFilter extends OncePerRequestFilter implements Res
                 || path.contains("/swagger")
                 || path.contains("/v3/api-docs")
                 || path.endsWith("/error");
-    }
-
-    private boolean isAllowedDuringMaintenance(HttpServletRequest request) {
-        String path = request.getRequestURI().toLowerCase();
-        return path.contains("/actuator/health")
-                || path.contains("/api/v1/app-version")
-                || path.contains("/api/v1/version-check");
     }
 
     @Override
@@ -143,24 +128,6 @@ public class SystemMaintenanceFilter extends OncePerRequestFilter implements Res
             if (state instanceof MaintenanceState maintenanceState) return maintenanceState;
         }
         return MaintenanceState.available();
-    }
-
-    private void writeMaintenanceResponse(HttpServletResponse response, MaintenanceState state) throws IOException {
-        ApiResponse<Object> body = new ApiResponse<>();
-        body.setSuccess(false);
-        body.setMessage(state.response() == null || state.response().getMessage() == null
-                ? "System is temporarily unavailable due to maintenance" : state.response().getMessage());
-        body.setData(null);
-        body.setErrors(null);
-        body.setErrorCode(MAINTENANCE_ERROR_CODE);
-        body.setResponseTime(LocalDateTime.now());
-        body.setUnderMaintenance(true);
-        body.setMaintenance(state.response());
-
-        response.setStatus(HttpServletResponse.SC_OK);
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), body);
     }
 
     private void setHeaders(HttpServletResponse response, MaintenanceState state) {
