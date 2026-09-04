@@ -45,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private final List<AntPathRequestMatcher> excludedPaths = List.of(
+            new AntPathRequestMatcher("/api/v1/login/splash"),
             new AntPathRequestMatcher("/api/v1/login/login"),
             new AntPathRequestMatcher("/api/v1/password/reset"),
             new AntPathRequestMatcher("/api/v1/password/sent-otp"),

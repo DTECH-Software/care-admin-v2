@@ -28,9 +28,11 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.Locale;
 import java.util.List;
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,6 +85,12 @@ class DashboardServiceImplTest {
         InsurancePolicy exop1Policy = policy("POL-EXOP1", "Executive Option 01 Policy");
         when(insurancePolicyRepository.findAllByStatus(Status.ACTIVE))
                 .thenReturn(List.of(exop2Policy, exop1Policy));
+        when(insuranceClaimsRequestRepository
+                .countByCreatedDateGreaterThanEqualAndCreatedDateLessThan(any(Date.class), any(Date.class)))
+                .thenReturn(7L);
+        when(deathClaimRequestRepository
+                .countByCreatedDateGreaterThanEqualAndCreatedDateLessThan(any(Date.class), any(Date.class)))
+                .thenReturn(2L);
         when(messageSource.getMessage("val.dashboard.summary.retrieved.success", null, Locale.ENGLISH))
                 .thenReturn("Dashboard summary retrieved successfully");
 
@@ -108,6 +116,8 @@ class DashboardServiceImplTest {
         assertEquals(List.of("POL-EXOP1", "POL-EXOP2"), data.getPolicies().stream()
                 .map(DashboardSummaryResponseDTO.PolicySummary::getCode).toList());
         assertEquals("Executive Option 01 Policy", data.getPolicies().get(0).getDescription());
+        assertEquals(7L, data.getHealthClaims().getTodayTotal());
+        assertEquals(2L, data.getDeathClaims().getTodayTotal());
     }
 
     private CompanyTypes company(String code, String description) {

@@ -38,6 +38,20 @@ public class LoginController {
     @Autowired
     private final Gson gson;
 
+    @PostMapping(path = "/splash", produces = MediaType.APPLICATION_JSON_VALUE,
+            consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Handle Care Admin splash request",
+            notes = "Returns the base response and current maintenance status")
+    public ResponseEntity<ApiResponse<Object>> splash(
+            @RequestBody @Valid ChannelRequestValidatorDTO channelRequestValidatorDTO,
+            Locale locale) {
+        log.info("Care Admin splash request {}", channelRequestValidatorDTO);
+        return loginService.splash(
+                gson.fromJson(gson.toJson(channelRequestValidatorDTO), ChannelRequestDTO.class),
+                locale
+        );
+    }
+
     @PostMapping(path = "/login",produces = MediaType.APPLICATION_JSON_VALUE,consumes = MediaType.APPLICATION_JSON_VALUE)
     @ApiOperation(value = "Handle login request request request ",notes = "Login request request success or failed")
     public ResponseEntity<ApiResponse<Object>> login(@RequestBody @Valid LoginRequestValidatorDTO loginRequestValidatorDTO, Locale locale) {

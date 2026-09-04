@@ -27,6 +27,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.Locale;
 import java.util.Comparator;
 
@@ -34,6 +37,8 @@ import java.util.Comparator;
 @Log4j2
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
+
+    private static final ZoneId BUSINESS_TIME_ZONE = ZoneId.of("Asia/Colombo");
 
     @Autowired
     private final ApplicationUserRepository applicationUserRepository;
@@ -112,14 +117,22 @@ public class DashboardServiceImpl implements DashboardService {
                         return summary;
                     }).toList());
 
+            LocalDate today = LocalDate.now(BUSINESS_TIME_ZONE);
+            Date todayStart = Date.from(today.atStartOfDay(BUSINESS_TIME_ZONE).toInstant());
+            Date tomorrowStart = Date.from(today.plusDays(1).atStartOfDay(BUSINESS_TIME_ZONE).toInstant());
+
             DashboardSummaryResponseDTO.ClaimSummary healthSummary = new DashboardSummaryResponseDTO.ClaimSummary();
             healthSummary.setTotal(insuranceClaimsRequestRepository.count());
+            healthSummary.setTodayTotal(insuranceClaimsRequestRepository
+                    .countByCreatedDateGreaterThanEqualAndCreatedDateLessThan(todayStart, tomorrowStart));
             healthSummary.setApproved(insuranceClaimsRequestRepository.countByRequestStatus(Workflow.APPROVED));
             healthSummary.setRejected(insuranceClaimsRequestRepository.countByRequestStatus(Workflow.REJECTED));
             healthSummary.setUnderReview(insuranceClaimsRequestRepository.countByRequestStatus(Workflow.UNDER_REVIEW));
 
             DashboardSummaryResponseDTO.ClaimSummary deathSummary = new DashboardSummaryResponseDTO.ClaimSummary();
             deathSummary.setTotal(deathClaimRequestRepository.count());
+            deathSummary.setTodayTotal(deathClaimRequestRepository
+                    .countByCreatedDateGreaterThanEqualAndCreatedDateLessThan(todayStart, tomorrowStart));
             deathSummary.setApproved(deathClaimRequestRepository.countByRequestStatus(Workflow.APPROVED));
             deathSummary.setRejected(deathClaimRequestRepository.countByRequestStatus(Workflow.REJECTED));
             deathSummary.setUnderReview(deathClaimRequestRepository.countByRequestStatus(Workflow.UNDER_REVIEW));

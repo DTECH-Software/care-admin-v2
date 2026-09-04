@@ -236,6 +236,8 @@ public interface InsuranceClaimsRequestRepository extends JpaRepository<Insuranc
 
     long countByRequestStatus(Workflow requestStatus);
 
+    long countByCreatedDateGreaterThanEqualAndCreatedDateLessThan(Date fromDate, Date toDate);
+
     List<InsuranceClaimsRequest> findAllByCreatedDateBetween(Date fromDate, Date toDate);
 
     List<InsuranceClaimsRequest> findAllByEmployeeAndRequestStatusIn(ApplicationUser employee, List<Workflow> statuses);
