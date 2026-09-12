@@ -19,6 +19,7 @@ public interface DeathClaimRequestRepository extends JpaRepository<DeathClaimReq
     Optional<DeathClaimRequest> findByClaimsDependentsAndEmployeeAndRequestStatusIn(ClaimsDependents claimsDependents, ApplicationUser applicationUser, List<Workflow> workflow);
     boolean existsByClaimsDependentsAndEmployeeAndRequestStatusIn(ClaimsDependents claimsDependents, ApplicationUser applicationUser, List<Workflow> workflow);
     long countByRequestStatus(Workflow status);
+    long countByCreatedDateGreaterThanEqualAndCreatedDateLessThan(Date fromDate, Date toDate);
     List<DeathClaimRequest> findAllByCreatedDateBetween(Date fromDate, Date toDate);
 
 }

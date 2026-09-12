@@ -14,6 +14,9 @@ public class AuditLogSearchDTO {
     private String taskCode;
     private String username;
     private String ipAddress;
+    private String clientAppVersion;
+    private String clientPlatform;
+    private String appUpdateStatus;
     private Date fromDate;
     private Date toDate;
 }

@@ -35,6 +35,12 @@ public final class AuditLogSpecification {
                 predicates.add(cb.like(cb.lower(root.get("createdBy")), "%" + filter.getUsername().toLowerCase() + "%"));
             if (hasText(filter.getIpAddress()))
                 predicates.add(cb.like(root.get("ipAddress"), "%" + filter.getIpAddress() + "%"));
+            if (hasText(filter.getClientAppVersion()))
+                predicates.add(cb.equal(root.get("clientAppVersion"), filter.getClientAppVersion()));
+            if (hasText(filter.getClientPlatform()))
+                predicates.add(cb.equal(root.get("clientPlatform"), filter.getClientPlatform().toUpperCase()));
+            if (hasText(filter.getAppUpdateStatus()))
+                predicates.add(cb.equal(root.get("appUpdateStatus"), filter.getAppUpdateStatus().toUpperCase()));
             if (filter.getFromDate() != null)
                 predicates.add(cb.greaterThanOrEqualTo(root.get("createdDate"), filter.getFromDate()));
             if (filter.getToDate() != null)

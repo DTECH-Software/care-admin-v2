@@ -57,6 +57,12 @@ public class SourceActivityAuditServiceImpl implements SourceActivityAuditServic
                     .map(task -> new SimpleBaseDTO(task.getCode(), task.getDescription())).toList());
         } else {
             data.put("modules", appModules());
+            data.put("clientPlatforms", List.of(new SimpleBaseDTO("ANDROID", "Android"),
+                    new SimpleBaseDTO("IOS", "iOS")));
+            data.put("appUpdateStatuses", List.of(new SimpleBaseDTO("NONE", "No update"),
+                    new SimpleBaseDTO("OPTIONAL", "Optional update"),
+                    new SimpleBaseDTO("REQUIRED", "Required update"),
+                    new SimpleBaseDTO("UNKNOWN", "Unknown")));
         }
         return ResponseEntity.ok(responseUtil.success(data, "Activity reference data retrieved successfully"));
     }
@@ -107,7 +113,9 @@ public class SourceActivityAuditServiceImpl implements SourceActivityAuditServic
                 .module(log.getModule()).moduleDescription(moduleDescription(log))
                 .performedBy(emptyAsSystem(log.getCreatedBy())).result(resolveResult(log))
                 .ipAddress(log.getIpAddress()).device(log.getUserAgent())
-                .correlationId(log.getCorrelationId()).build();
+                .correlationId(log.getCorrelationId())
+                .clientAppVersion(log.getClientAppVersion()).clientPlatform(log.getClientPlatform())
+                .appUpdateStatus(log.getAppUpdateStatus()).build();
     }
 
     private String adminActivity(AuditLog log) {
@@ -199,7 +207,8 @@ public class SourceActivityAuditServiceImpl implements SourceActivityAuditServic
     }
 
     private void normalizeSort(PaginationRequest<AuditLogSearchDTO> request) {
-        if (!List.of("id", "createdDate", "module", "action", "result", "createdBy", "ipAddress")
+        if (!List.of("id", "createdDate", "module", "action", "result", "createdBy", "ipAddress",
+                        "clientAppVersion", "clientPlatform", "appUpdateStatus")
                 .contains(request.getSortColumn())) request.setSortColumn("createdDate");
     }
 

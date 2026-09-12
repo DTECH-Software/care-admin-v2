@@ -46,7 +46,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers("/api/v1/login/login","/api/v1/login/logout","/api/v1/password/reset","api/v1/password/sent-otp").permitAll()
+                        .requestMatchers("/api/v1/login/splash", "/api/v1/login/login", "/api/v1/login/logout",
+                                "/api/v1/password/reset", "/api/v1/password/sent-otp").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

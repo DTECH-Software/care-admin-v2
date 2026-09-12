@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.Locale;
 
 public interface LoginService {
+    ResponseEntity<ApiResponse<Object>> splash(ChannelRequestDTO channelRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> login(LoginRequestDTO loginRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> leftMenu(ChannelRequestDTO channelRequestDTO, Locale locale);
     ResponseEntity<ApiResponse<Object>> logout(ChannelRequestDTO channelRequestDTO, Locale locale);

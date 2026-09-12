@@ -17,6 +17,7 @@ public class ResponseMessageUtil {
     public final static String PASSWORD_EXPIRED_AT_LOGIN_TIME = "val.password.expired.at.login.time";
     public final static String PASSWORD_ATTEMPT_EXCEED = "val.password.attempt.exceed";
     public final static String AUTHENTICATION_SUCCESS = "val.authentication.success";
+    public final static String SPLASH_SUCCESS = "val.splash.success";
     public final static String SYSTEM_USER_NOT_FOUND_OR_INACTIVE = "val.system.user.not.found.or.inactive";
     public final static String SYSTEM_USER_ROLE_INACTIVE = "val.system.user.role.inactive";
     public final static String USER_AUTHORIZER_PAGES_RETRIEVED_SUCCESS = "val.user.authorizer.pages.retrieved.success";

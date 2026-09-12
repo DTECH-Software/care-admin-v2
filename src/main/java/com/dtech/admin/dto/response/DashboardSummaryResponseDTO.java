@@ -27,6 +27,7 @@ public class DashboardSummaryResponseDTO {
     @Data
     public static class ClaimSummary {
         private long total;
+        private long todayTotal;
         private long approved;
         private long rejected;
         private long underReview;

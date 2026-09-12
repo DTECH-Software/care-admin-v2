@@ -74,6 +74,16 @@ public class LoginServiceImpl implements LoginService {
     private final Gson gson;
 
     @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ApiResponse<Object>> splash(ChannelRequestDTO channelRequestDTO, Locale locale) {
+        log.info("Care Admin splash request {}", channelRequestDTO);
+        return ResponseEntity.ok().body(responseUtil.success(
+                null,
+                messageSource.getMessage(ResponseMessageUtil.SPLASH_SUCCESS, null, locale)
+        ));
+    }
+
+    @Override
     @Transactional
     public ResponseEntity<ApiResponse<Object>> login(LoginRequestDTO loginRequestDTO, Locale locale) {
         try {

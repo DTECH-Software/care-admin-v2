@@ -18,4 +18,7 @@ public class ActivityAuditResponseDTO {
     private String ipAddress;
     private String device;
     private String correlationId;
+    private String clientAppVersion;
+    private String clientPlatform;
+    private String appUpdateStatus;
 }
