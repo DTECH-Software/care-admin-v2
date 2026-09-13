@@ -270,7 +270,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                     .map(user -> {
 
                 InsuranceStaffCategoryPeriod period = insuranceStaffCategoryPeriodRepository.findByDateWithinRange(
-                        DateTimeUtil.getCurrentDateTime(),
+                        PolicyDateUtil.todaySqlDate(),
                         user.getUserPersonalDetails().getUserCompanyDetails().getStaffCategories().getCode()
                 ).orElse(null);
 
@@ -505,7 +505,7 @@ public class EmployeeUserManagementServiceImpl implements EmployeeUserManagement
                         }
 
                         InsuranceQuarter treatmentQuarter = insuranceQuarterRepository
-                                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, TreatmentCategory.OTHER.name(), permentDateTime)
+                                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, TreatmentCategory.OTHER.name(), PolicyDateUtil.toSqlDate(permentDateTime))
                                 .stream()
                                 .findFirst()
                                 .orElse(null);

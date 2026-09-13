@@ -14,7 +14,7 @@ services:
       WECARE_DB_MIGRATION_ENABLED: "false"
       TZ: Asia/Colombo
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -Duser.timezone=Asia/Colombo"
-      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/caresystem?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Colombo"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://host.docker.internal:3306/caresystem?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=SERVER&preserveInstants=true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
