@@ -11,6 +11,7 @@ services:
       - "8090:8090"
     environment:
       SPRING_PROFILES_ACTIVE: uat
+      MESSAGE_PROVIDER: hutch
       WECARE_DB_MIGRATION_ENABLED: "false"
       TZ: Asia/Colombo
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m -Duser.timezone=Asia/Colombo"

@@ -40,7 +40,7 @@ public class MessageService {
 
     private final HutchSmsClient hutchSmsClient;
 
-    @Value("${message.provider:textit}")
+    @Value("${message.provider:hutch}")
     private String provider;
 
     @Value("${message.uri}")
@@ -61,7 +61,7 @@ public class MessageService {
     @Transactional
     public MessageResponseDTO sendMessage(MessageType messageType, String message,String otherMessage, String mobile) {
         try {
-            log.info("Message service started type={} mobile={}", messageType, maskMobile(mobile));
+            log.info("Message service started provider={} type={} mobile={}", provider, messageType, maskMobile(mobile));
 
             return notificationTemplateRepository
                     .findByType(messageType).map((template) -> {
