@@ -71,6 +71,7 @@ public class MessageService {
                         if (hasText(otherMessage) && !templateBody.contains("{1}")) {
                             formatMessage = formatMessage + " " + otherMessage.trim();
                         }
+                        formatMessage = SmsTextFormatter.toPlainText(formatMessage);
                         if ("hutch".equalsIgnoreCase(provider)) {
                             MessageResponseDTO result = hutchSmsClient.send(mobile, formatMessage);
                             if (result.isSuccess()) {
