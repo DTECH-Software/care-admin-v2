@@ -563,6 +563,9 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
     private Map<String, Object> sanitizeFilterListResponse(ClaimsRequestResponseDTO claimsRequestResponseDTO) {
         Map<String, Object> dtoMap = objectMapper.convertValue(claimsRequestResponseDTO, new TypeReference<Map<String, Object>>() {});
+        dtoMap.put("createdDate", claimsRequestResponseDTO.getCreatedDate() == null
+                ? null
+                : PolicyDateUtil.toLocalDate(claimsRequestResponseDTO.getCreatedDate()).toString());
 
         Object insuranceDetailsObj = dtoMap.get("insuranceClaimsDetails");
         if (insuranceDetailsObj instanceof Map<?, ?> insuranceDetailsMap) {
