@@ -569,7 +569,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                     errors.add("Employee insurance policy is missing");
                 } else if (errors.isEmpty()) {
                     insurancePeriod = insuranceStaffCategoryPeriodRepository
-                            .findByDateWithinRange(fromDate, companyDetails.getStaffCategories().getCode())
+                            .findByDateWithinRange(PolicyDateUtil.toSqlDate(fromDate), companyDetails.getStaffCategories().getCode())
                             .orElse(null);
                     if (insurancePeriod == null || !Status.ACTIVE.equals(insurancePeriod.getStatus())) {
                         errors.add("Insurance period not found for policy period dates");
@@ -588,7 +588,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
                             errors.add(config.missingLimitMessage());
                         } else if (Boolean.TRUE.equals(insuranceDetailsLimit.getIsQuarter())) {
                             insuranceQuarter = insuranceQuarterRepository.findByDateWithinRangeAndCodeWithLimit(
-                                            insuranceDetailsLimit, config.treatmentCategoryCode(), toDate)
+                                            insuranceDetailsLimit, config.treatmentCategoryCode(), PolicyDateUtil.toSqlDate(toDate))
                                     .stream()
                                     .findFirst()
                                     .orElse(null);
@@ -902,7 +902,7 @@ public class ThirdPartyIndoorClaimImportServiceImpl implements ThirdPartyIndoorC
         if (date == null || period == null || period.getFromDate() == null || period.getToDate() == null) {
             return false;
         }
-        return !date.before(period.getFromDate()) && !date.after(period.getToDate());
+        return PolicyDateUtil.contains(period.getFromDate(), period.getToDate(), date);
     }
 
     private boolean isBlankRow(Row row) {

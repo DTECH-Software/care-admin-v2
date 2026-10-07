@@ -1315,7 +1315,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
         String staffCode = companyDetails.getStaffCategories().getCode();
         Optional<InsuranceStaffCategoryPeriod> currentPeriodOpt = insuranceStaffCategoryPeriodRepository
-                .findByDateWithinRange(currentDate, staffCode)
+                .findByDateWithinRange(PolicyDateUtil.toSqlDate(currentDate), staffCode)
                 .filter(period -> period.getStatus() == Status.ACTIVE);
 
         if (currentPeriodOpt.isEmpty()) {
@@ -1327,7 +1327,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
 
         if (permanentDate != null) {
             startPeriodOpt = insuranceStaffCategoryPeriodRepository
-                    .findByDateWithinRangeExclusiveEnd(permanentDate, staffCode)
+                    .findByDateWithinRange(PolicyDateUtil.toSqlDate(permanentDate), staffCode)
                     .filter(period -> period.getStatus() == Status.ACTIVE);
 
             if (startPeriodOpt.isEmpty()) {
@@ -1351,7 +1351,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
             String previousStaffCode = previousStaffCategory.getCode();
             Date previousStartDate = permanentDate != null
                     ? insuranceStaffCategoryPeriodRepository
-                    .findByDateWithinRangeExclusiveEnd(permanentDate, previousStaffCode)
+                    .findByDateWithinRange(PolicyDateUtil.toSqlDate(permanentDate), previousStaffCode)
                     .filter(period -> period.getStatus() == Status.ACTIVE)
                     .map(InsuranceStaffCategoryPeriod::getFromDate)
                     .orElseGet(() -> insuranceStaffCategoryPeriodRepository
@@ -1577,7 +1577,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 currentPeriod);
         if (previousPeriod == null && changeDate != null) {
             previousPeriod = insuranceStaffCategoryPeriodRepository
-                    .findByDateWithinRangeAnyStaff(changeDate)
+                    .findByDateWithinRangeAnyStaff(PolicyDateUtil.toSqlDate(changeDate))
                     .stream()
                     .filter(p -> p.getStaffCategories() != null)
                     .filter(p -> !p.getStaffCategories().getCode()
@@ -1636,8 +1636,8 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                 || currentPeriod.getFromDate() == null || currentPeriod.getToDate() == null) {
             return true;
         }
-        return !candidate.getToDate().before(currentPeriod.getFromDate())
-                && !candidate.getFromDate().after(currentPeriod.getToDate());
+        return PolicyDateUtil.overlaps(candidate.getFromDate(), candidate.getToDate(),
+                currentPeriod.getFromDate(), currentPeriod.getToDate());
     }
 
     private Map<String, InsuranceQuarter> resolveCategoryQuarterMap(List<InsuranceQuarter> quarters,
@@ -1769,7 +1769,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
                                                       String categoryCode,
                                                       Date lookupDate) {
         InsuranceQuarter matchingQuarter = insuranceQuarterRepository
-                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, categoryCode, lookupDate)
+                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, categoryCode, PolicyDateUtil.toSqlDate(lookupDate))
                 .stream()
                 .findFirst()
                 .orElse(null);
@@ -1785,7 +1785,7 @@ public class ClaimApprovalServiceImpl implements ClaimApprovalService {
         if (firstQuarter == null || lookupDate == null || firstQuarter.getFromDate() == null) {
             return null;
         }
-        return lookupDate.before(firstQuarter.getFromDate()) ? firstQuarter : null;
+        return PolicyDateUtil.isBefore(lookupDate, firstQuarter.getFromDate()) ? firstQuarter : null;
     }
 
     private BigDecimal resolveCategoryFundLimit(InsuranceDetailsLimit insuranceDetailsLimit,

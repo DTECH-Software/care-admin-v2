@@ -1,6 +1,7 @@
 package com.dtech.admin.dto.response;
 
 import com.dtech.admin.dto.SimpleBaseDTO;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -30,6 +31,7 @@ public class ClaimsRequestResponseDTO {
     private Date rejectionDate;
     private Map<String,Object> limits;
     private List<SimpleBaseDTO> policyList;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "Asia/Colombo")
     private Date createdDate;
     private Date permanentDate;
     private Date promotionDate;

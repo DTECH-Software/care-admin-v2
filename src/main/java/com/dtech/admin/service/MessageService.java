@@ -38,6 +38,11 @@ public class MessageService {
     @Autowired
     private final RestTemplate restTemplate;
 
+    private final HutchSmsClient hutchSmsClient;
+
+    @Value("${message.provider:hutch}")
+    private String provider;
+
     @Value("${message.uri}")
     private String messageURI;
 
@@ -49,14 +54,14 @@ public class MessageService {
         try {
             sendMessage(messageType, message, otherMessage, mobile);
         } catch (Exception e) {
-            log.error("Async message sending failed for type {} and mobile {}", messageType, mobile, e);
+            log.error("Async message sending failed for type {} and mobile {}", messageType, maskMobile(mobile), e);
         }
     }
 
     @Transactional
     public MessageResponseDTO sendMessage(MessageType messageType, String message,String otherMessage, String mobile) {
         try {
-            log.info("Message service started {} {} {} ", messageType, message, mobile);
+            log.info("Message service started provider={} type={} mobile={}", provider, messageType, maskMobile(mobile));
 
             return notificationTemplateRepository
                     .findByType(messageType).map((template) -> {
@@ -65,6 +70,19 @@ public class MessageService {
                         String formatMessage = MessageFormat.format(templateBody, message, otherMessage);
                         if (hasText(otherMessage) && !templateBody.contains("{1}")) {
                             formatMessage = formatMessage + " " + otherMessage.trim();
+                        }
+                        formatMessage = SmsTextFormatter.toPlainText(formatMessage);
+                        if ("hutch".equalsIgnoreCase(provider)) {
+                            MessageResponseDTO result = hutchSmsClient.send(mobile, formatMessage);
+                            if (result.isSuccess()) {
+                                result.setMessage(messageSource.getMessage("val.otp.send.success", null, null));
+                            }
+                            return result;
+                        }
+                        if (!"textit".equalsIgnoreCase(provider)) {
+                            log.error("Unsupported SMS provider configured: {}", provider);
+                            return MessageResponseDTO.builder().success(false)
+                                    .message("SMS provider is not configured").build();
                         }
                         HttpHeaders headers = new HttpHeaders();
                         headers.set(HttpHeaders.CONTENT_TYPE, "application/json");
@@ -79,7 +97,7 @@ public class MessageService {
                                 .message(messageSource.getMessage("val.notification.template.not.found", null, null)).build();
                     });
         } catch (Exception e) {
-            log.error(e);
+            log.error("Message send failed for type={} mobile={}", messageType, maskMobile(mobile), e);
             throw e;
         }
     }
@@ -87,7 +105,6 @@ public class MessageService {
     private MessageResponseDTO sendJsonMessage(String mobile, String formatMessage, HttpHeaders headers) {
         String jsonPayload = "{\"to\":\"" + escapeJson(mobile) + "\",\"text\":\"" + escapeJson(formatMessage) + "\"}";
         HttpEntity<String> entity = new HttpEntity<>(jsonPayload, headers);
-        log.info("Before send message raw JSON {}", jsonPayload);
         try {
             ResponseEntity<String> response = restTemplate.exchange(messageURI, HttpMethod.POST, entity, String.class);
             if (response.getBody() == null || response.getBody().isEmpty()) {
@@ -96,12 +113,11 @@ public class MessageService {
                         .success(false)
                         .message("No response body from the API").build();
             }
-            log.info("After send message {}", response.toString());
             MessageResponseDTO responseState = getResponseState(response);
             responseState.setMessage(messageSource.getMessage("val.otp.send.success", null, null));
             return responseState;
         } catch (HttpStatusCodeException ex) {
-            log.error("Failed to send message. Status: {}, Response body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            log.error("Failed to send message. Status: {}", ex.getStatusCode());
             return MessageResponseDTO.builder()
                     .success(false)
                     .message("Message sending failed: " + ex.getStatusCode())
@@ -127,10 +143,14 @@ public class MessageService {
         return value != null && !value.trim().isEmpty();
     }
 
+    private String maskMobile(String mobile) {
+        if (mobile == null || mobile.length() < 4) return "****";
+        return "****" + mobile.substring(mobile.length() - 4);
+    }
+
     @Transactional
     protected MessageResponseDTO getResponseState(ResponseEntity<String> response) {
         try {
-            log.info("Response state for send otp: {}", response.getBody());
             HttpStatusCode statusCode = response.getStatusCode();
 
             boolean b = switch (statusCode) {

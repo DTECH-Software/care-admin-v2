@@ -39,6 +39,7 @@ import com.dtech.admin.specifications.EmployeeSummarySpecification;
 import com.dtech.admin.specifications.CompanyScopeSpecification;
 import com.dtech.admin.util.CommonPrivilegeGetter;
 import com.dtech.admin.util.PaginationUtil;
+import com.dtech.admin.util.PolicyDateUtil;
 import com.dtech.admin.util.ApprovalRemarkUtil;
 import com.dtech.admin.util.ResponseMessageUtil;
 import com.dtech.admin.util.ResponseUtil;
@@ -474,7 +475,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                             period);
                     if (prevPeriod == null && changeDate != null && period.getStaffCategories() != null) {
                         prevPeriod = insuranceStaffCategoryPeriodRepository
-                                .findByDateWithinRangeAnyStaff(changeDate)
+                                .findByDateWithinRangeAnyStaff(PolicyDateUtil.toSqlDate(changeDate))
                                 .stream()
                                 .filter(p -> p.getStaffCategories() != null)
                                 .filter(p -> !p.getStaffCategories().getCode()
@@ -632,7 +633,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                                                                            String categoryCode,
                                                                            java.util.Date lookupDate) {
         com.dtech.admin.model.InsuranceQuarter matchingQuarter = insuranceQuarterRepository
-                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, categoryCode, lookupDate)
+                .findByDateWithinRangeAndCodeWithLimit(insuranceDetailsLimit, categoryCode, PolicyDateUtil.toSqlDate(lookupDate))
                 .stream()
                 .findFirst()
                 .orElse(null);
@@ -648,7 +649,7 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
         if (firstQuarter == null || lookupDate == null || firstQuarter.getFromDate() == null) {
             return null;
         }
-        return lookupDate.before(firstQuarter.getFromDate()) ? firstQuarter : null;
+        return PolicyDateUtil.isBefore(lookupDate, firstQuarter.getFromDate()) ? firstQuarter : null;
     }
 
     private BigDecimal resolveCategoryFundLimit(InsuranceDetailsLimit insuranceDetailsLimit,
@@ -732,8 +733,8 @@ public class EmployeeSummaryServiceImpl implements EmployeeSummaryService {
                 || currentPeriod.getFromDate() == null || currentPeriod.getToDate() == null) {
             return true;
         }
-        return !candidate.getToDate().before(currentPeriod.getFromDate())
-                && !candidate.getFromDate().after(currentPeriod.getToDate());
+        return PolicyDateUtil.overlaps(candidate.getFromDate(), candidate.getToDate(),
+                currentPeriod.getFromDate(), currentPeriod.getToDate());
     }
 
     private com.dtech.admin.model.InsuranceQuarter selectQuarterByPermanentDate(
