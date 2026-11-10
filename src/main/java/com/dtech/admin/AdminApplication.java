@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableJpaAuditing(auditorAwareRef = "auditorAwareImpl")
 public class AdminApplication {
 
+	// Build marker: validates the UAT CI/CD pipeline without changing runtime behavior.
 	public static void main(String[] args) {
 		SpringApplication.run(AdminApplication.class, args);
 	}
